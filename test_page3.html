@@ -1,0 +1,242 @@
+
+
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Attendance - TalaqqiHub</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+</head>
+<body class="bg-gray-50">
+    <div class="flex h-screen">
+        <!-- SIDEBAR -->
+        <div class="w-64 bg-gradient-to-b from-green-700 to-green-800 text-white flex flex-col">
+            <!-- Logo -->
+            <div class="p-6 border-b border-green-600">
+                <h1 class="text-2xl font-bold">TalaqqiHub</h1>
+                <p class="text-sm text-green-200">Student Portal</p>
+            </div>
+            
+            <!-- Navigation Menu -->
+            <nav class="flex-1 px-4 py-6 space-y-2">
+                <a href="/TalaqqiHub/student/dashboard" class="flex items-center px-4 py-3 text-green-100 hover:bg-green-600 rounded-lg transition">
+                    <svg class="w-5 h-5 mr-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 12l2-3m0 0l7-4 7 4M5 9v10a1 1 0 001 1h12a1 1 0 001-1V9m-9 4v4m0-11l7-4"></path>
+                    </svg>
+                    Dashboard
+                </a>
+                <a href="/TalaqqiHub/student/class-booking" class="flex items-center px-4 py-3 text-green-100 hover:bg-green-600 rounded-lg transition">
+                    <svg class="w-5 h-5 mr-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"></path>
+                    </svg>
+                    Class Booking
+                </a>
+                <a href="/TalaqqiHub/student/attendance" class="flex items-center px-4 py-3 bg-green-600 text-white rounded-lg transition font-medium">
+                    <svg class="w-5 h-5 mr-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"></path>
+                    </svg>
+                    Attendance
+                </a>
+                <a href="/TalaqqiHub/student/sessions" class="flex items-center px-4 py-3 text-green-100 hover:bg-green-600 rounded-lg transition">
+                    <svg class="w-5 h-5 mr-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6.253v13m0-13C6.5 6.253 2 10.998 2 17s4.5 10.747 10 10.747c5.5 0 10-4.998 10-10.747 0-6.002-4.5-10.747-10-10.747z"></path>
+                    </svg>
+                    Talaqqi Sessions
+                </a>
+                <a href="/TalaqqiHub/student/evaluation" class="flex items-center px-4 py-3 text-green-100 hover:bg-green-600 rounded-lg transition">
+                    <svg class="w-5 h-5 mr-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+                    </svg>
+                    Evaluation
+                </a>
+                <a href="/TalaqqiHub/student/announcements" class="flex items-center px-4 py-3 text-green-100 hover:bg-green-600 rounded-lg transition">
+                    <svg class="w-5 h-5 mr-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9"></path>
+                    </svg>
+                    Announcements
+                </a>
+                <a href="/TalaqqiHub/student/ai-assistance" class="flex items-center px-4 py-3 text-green-100 hover:bg-green-600 rounded-lg transition">
+                    <svg class="w-5 h-5 mr-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"></path>
+                    </svg>
+                    AI Assistance
+                </a>
+            </nav>
+            
+            <!-- Logout -->
+            <div class="border-t border-green-600">
+                <a href="/TalaqqiHub/student/logout" class="flex items-center px-4 py-3 text-green-100 hover:bg-green-600 rounded-lg transition m-4">
+                    <svg class="w-5 h-5 mr-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1"></path>
+                    </svg>
+                    Logout
+                </a>
+            </div>
+        </div>
+        
+        <!-- MAIN CONTENT -->
+        <div class="flex-1 flex flex-col overflow-hidden">
+            <!-- TOP HEADER -->
+            <div class="bg-white border-b border-gray-200 px-8 py-6 flex justify-between items-center">
+                <div>
+                    <h1 class="text-3xl font-bold text-gray-800">Attendance</h1>
+                    <p class="text-gray-500 text-sm mt-1">View your attendance records for each talaqqi session</p>
+                </div>
+                <div class="flex items-center space-x-4">
+                    <!-- Notification Bell -->
+                    <button class="relative p-2 text-gray-600 hover:bg-gray-100 rounded-full">
+                        <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9"></path>
+                        </svg>
+                        <span class="absolute top-0 right-0 inline-flex items-center justify-center px-2 py-1 text-xs font-bold leading-none text-white transform translate-x-1/2 -translate-y-1/2 bg-red-600 rounded-full">3</span>
+                    </button>
+                    <!-- User Avatar -->
+                    <div class="flex items-center space-x-3">
+                        <div class="w-10 h-10 bg-teal-400 rounded-full flex items-center justify-center text-white font-bold">AH</div>
+                        <span class="text-gray-700 font-medium">Ahmad</span>
+                        <svg class="w-5 h-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 14l-7 7m0 0l-7-7m7 7V3"></path>
+                        </svg>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- SCROLLABLE CONTENT -->
+            <div class="flex-1 overflow-auto">
+                <div class="px-8 py-6">
+                    <!-- TOP ACTIONS -->
+                    <div class="flex justify-between items-center mb-6">
+                        <div></div>
+                        <div class="flex gap-4">
+                            <button class="bg-teal-500 hover:bg-teal-600 text-white px-6 py-2 rounded-lg flex items-center transition">
+                                <svg class="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8"></path>
+                                </svg>
+                                Export
+                            </button>
+                            <button class="border-2 border-gray-300 hover:border-gray-400 text-gray-700 px-6 py-2 rounded-lg flex items-center transition">
+                                <svg class="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4H7a2 2 0 01-2-2v-4a2 2 0 012-2h10a2 2 0 012 2v4a2 2 0 01-2 2zm-6-4a2 2 0 100-4 2 2 0 000 4z"></path>
+                                </svg>
+                                Print
+                            </button>
+                        </div>
+                    </div>
+                    
+                    <!-- SEARCH BAR -->
+                    <div class="mb-6">
+                        <input type="text" placeholder="Search by date, session, or teacher..." 
+                               class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-teal-500">
+                    </div>
+                    
+                    <!-- STATS CARDS -->
+                    <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-6">
+                        <!-- Total Sessions Card -->
+                        <div class="bg-white rounded-xl shadow p-6">
+                            <div class="flex justify-between items-start">
+                                <div>
+                                    <p class="text-gray-600 text-sm">Total Sessions</p>
+                                    <p class="text-3xl font-bold text-gray-800 mt-2">10</p>
+                                </div>
+                                <div class="w-12 h-12 bg-teal-100 rounded-full flex items-center justify-center">
+                                    <svg class="w-6 h-6 text-teal-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6.253v13m0-13C6.5 6.253 2 10.998 2 17s4.5 10.747 10 10.747c5.5 0 10-4.998 10-10.747 0-6.002-4.5-10.747-10-10.747z"></path>
+                                    </svg>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <!-- Present Card -->
+                        <div class="bg-white rounded-xl shadow p-6">
+                            <div class="flex justify-between items-start">
+                                <div>
+                                    <p class="text-gray-600 text-sm">Present</p>
+                                    <p class="text-3xl font-bold text-green-600 mt-2">10</p>
+                                </div>
+                                <div class="w-12 h-12 bg-green-100 rounded-full flex items-center justify-center">
+                                    <svg class="w-6 h-6 text-green-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+                                    </svg>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <!-- Absent Card -->
+                        <div class="bg-white rounded-xl shadow p-6">
+                            <div class="flex justify-between items-start">
+                                <div>
+                                    <p class="text-gray-600 text-sm">Absent</p>
+                                    <p class="text-3xl font-bold text-red-600 mt-2">0</p>
+                                </div>
+                                <div class="w-12 h-12 bg-red-100 rounded-full flex items-center justify-center">
+                                    <svg class="w-6 h-6 text-red-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>
+                                    </svg>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <!-- Attendance Rate Card -->
+                        <div class="bg-white rounded-xl shadow p-6">
+                            <div class="flex justify-between items-start">
+                                <div>
+                                    <p class="text-gray-600 text-sm">Attendance Rate</p>
+                                    <p class="text-3xl font-bold text-teal-600 mt-2">100%</p>
+                                </div>
+                                <div class="w-12 h-12 bg-gradient-to-r from-purple-200 to-pink-200 rounded-full flex items-center justify-center">
+                                    <svg class="w-6 h-6 text-purple-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"></path>
+                                    </svg>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- CHARTS SECTION -->
+                    <div class="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
+                        <!-- Attendance Distribution Chart -->
+                        <div class="bg-white rounded-xl shadow p-6">
+                            <h3 class="text-lg font-semibold text-gray-800 mb-4">Attendance Distribution</h3>
+                            <div class="flex justify-center">
+                                <canvas id="distributionChart" style="max-width: 300px;"></canvas>
+                            </div>
+                        </div>
+                        
+                        <!-- Attendance Trend Chart -->
+                        <div class="bg-white rounded-xl shadow p-6">
+                            <h3 class="text-lg font-semibold text-gray-800 mb-4">Attendance Trend</h3>
+                            <canvas id="trendChart"></canvas>
+                        </div>
+                    </div>
+                    
+                    <!-- ATTENDANCE RECORDS TABLE -->
+                    <div class="bg-white rounded-xl shadow overflow-hidden">
+                        <div class="px-6 py-4 border-b border-gray-200">
+                            <h3 class="text-lg font-semibold text-gray-800">Attendance Records</h3>
+                        </div>
+                        <div class="overflow-x-auto">
+                            <table class="w-full">
+                                <thead class="bg-gray-50 border-b border-gray-200">
+                                    <tr>
+                                        <th class="px-6 py-3 text-left text-sm font-semibold text-gray-700">ID</th>
+                                        <th class="px-6 py-3 text-left text-sm font-semibold text-gray-700">Date</th>
+                                        <th class="px-6 py-3 text-left text-sm font-semibold text-gray-700">Session</th>
+                                        <th class="px-6 py-3 text-left text-sm font-semibold text-gray-700">Teacher</th>
+                                        <th class="px-6 py-3 text-left text-sm font-semibold text-gray-700">Time</th>
+                                        <th class="px-6 py-3 text-left text-sm font-semibold text-gray-700">Status</th>
+                                        <th class="px-6 py-3 text-left text-sm font-semibold text-gray-700">Join Time</th>
+                                        <th class="px-6 py-3 text-left text-sm font-semibold text-gray-700">Leave Time</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    
+                                        
+                                            
+                                                <tr class="border-b border-gray-200 hover:bg-gray-50 transition">
+                                                    <td class="px-6 py-4 text-sm font-semibold text-teal-600">A010</td>
+                                                    <td class="px-6 py-4 text-sm text-gray-700">
+                                                        
+                                                            

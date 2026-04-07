@@ -1,0 +1,27 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Context>
+    <!--
+        Tomcat JDBC DataSource for TalaqqiHub.
+        Adjust username/password/url as needed, or set system env vars before Tomcat starts.
+    -->
+    <Resource name="jdbc/TalaqqiHubDB"
+              auth="Container"
+              type="javax.sql.DataSource"
+              factory="org.apache.tomcat.jdbc.pool.DataSourceFactory"
+              driverClassName="com.mysql.cj.jdbc.Driver"
+              url="jdbc:mysql://127.0.0.1:3306/talaqqihub?useSSL=false&amp;serverTimezone=UTC&amp;connectTimeout=5000&amp;socketTimeout=10000"
+              username="root"
+              password="admin"
+              initialSize="2"
+              maxActive="20"
+              maxIdle="10"
+              minIdle="2"
+              maxWait="10000"
+              validationQuery="SELECT 1"
+              testOnBorrow="true"
+              testWhileIdle="true"
+              timeBetweenEvictionRunsMillis="30000"
+              removeAbandoned="true"
+              removeAbandonedTimeout="60"
+              logAbandoned="true"/>
+</Context>

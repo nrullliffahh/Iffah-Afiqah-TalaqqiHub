@@ -1,0 +1,177 @@
+<%@ page contentType="text/html; charset=UTF-8" language="java" %>
+<%@ taglib uri="http://java.sun.com/jsp/jstl/core" prefix="c" %>
+<%@ taglib uri="http://java.sun.com/jsp/jstl/fmt" prefix="fmt" %>
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Packages - TalaqqiHub</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="<%= request.getContextPath() %>/css/theme.css">
+    <link rel="stylesheet" href="<%= request.getContextPath() %>/css/colors.css">
+    <link rel="stylesheet" href="<%= request.getContextPath() %>/css/fonts.css">
+    <link rel="stylesheet" href="<%= request.getContextPath() %>/css/animations.css">
+    <link rel="stylesheet" href="<%= request.getContextPath() %>/css/styles.css">
+    <link rel="stylesheet" href="<%= request.getContextPath() %>/css/index.css">
+    <link rel="stylesheet" href="<%= request.getContextPath() %>/css/admin-packages.css">
+</head>
+<body>
+    <nav class="bg-white shadow-sm">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+            <div class="flex justify-between h-16">
+                <div class="flex items-center">
+                    <a href="<%= request.getContextPath() %>/home" class="text-2xl font-bold text-purple-600">TalaqqiHub</a>
+                </div>
+                <div class="flex items-center space-x-8">
+                    <a href="<%= request.getContextPath() %>/home" class="text-gray-700 hover:text-purple-600 font-medium">Home</a>
+                    <a href="<%= request.getContextPath() %>/roles" class="text-gray-700 hover:text-purple-600 font-medium">Roles</a>
+                    <a href="<%= request.getContextPath() %>/packages" class="text-gray-700 hover:text-purple-600 font-medium">Packages</a>
+                    <a href="<%= request.getContextPath() %>/admin/login" class="text-gray-700 hover:text-purple-600 font-medium">Admin Login</a>
+                </div>
+            </div>
+        </div>
+    </nav>
+
+    <main class="py-12" style="background: var(--gradient-bg);">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+            <header class="text-center mb-12">
+                <h1 class="packages-header" style="font-size:56px; line-height:1.02; background: linear-gradient(90deg, var(--color-primary-500) 15%, var(--color-secondary-500) 85%); -webkit-background-clip:text; background-clip:text; -webkit-text-fill-color:transparent;">
+                    Choose a Package That Fits Your Goals
+                </h1>
+            </header>
+
+            <!-- Kids Packages -->
+            <div class="mb-20">
+                <h2 class="text-3xl font-bold mb-8 text-center md:text-left" style="color: var(--color-text-primary);">
+                    Kids Packages
+                </h2>
+                <div class="grid md:grid-cols-2 gap-8">
+                    <c:forEach var="pkg" items="${packages}">
+                        <c:if test="${pkg.category == 'Kids'}">
+                            <div class="relative">
+                                <c:if test="${pkg.popular}">
+                                    <div class="absolute -top-4 left-1/2 transform -translate-x-1/2 z-10">
+                                        <span class="text-white px-4 py-1 rounded-full text-sm" style="background: var(--gradient-button); box-shadow: var(--shadow-lg);">
+                                            Most Popular
+                                        </span>
+                                    </div>
+                                </c:if>
+                                <div class="pkg-card-container ${pkg.popular ? 'popular' : ''} transition-all duration-300 transform hover:-translate-y-2">
+                                    <div class="pkg-card">
+                                        <div class="text-center mb-6">
+                                            <h3 class="text-xl font-semibold mb-1" style="color: var(--color-text-primary);">${pkg.packageName}</h3>
+                                            <div class="mb-1">
+                                                <span class="package-price">RM<fmt:formatNumber value="${pkg.price}" type="number" maxFractionDigits="0"/></span>
+                                                <span class="text-sm text-gray-500"> / month</span>
+                                            </div>
+                                        </div>
+
+                                        <div class="space-y-4 mb-6">
+                                            <div class="flex items-center space-x-3">
+                                                <div class="w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0" style="background: ${pkg.gradient};">
+                                                    <svg class="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" />
+                                                    </svg>
+                                                </div>
+                                                <span style="color: var(--color-text-secondary);">${pkg.sessions} sessions</span>
+                                            </div>
+                                            <div class="flex items-center space-x-3">
+                                                <div class="w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0" style="background: ${pkg.gradient};">
+                                                    <svg class="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+                                                    </svg>
+                                                </div>
+                                                <span style="color: var(--color-text-secondary);">${pkg.durationPerSession} minutes per session</span>
+                                            </div>
+                                            <div class="flex items-center space-x-3">
+                                                <div class="w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0" style="background: ${pkg.gradient};">
+                                                    <svg class="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><circle cx="12" cy="7" r="4"/>
+                                                    </svg>
+                                                </div>
+                                                <span style="color: var(--color-text-secondary);">Range Age : ${empty pkg.ageRange ? '-' : pkg.ageRange}</span>
+                                            </div>
+                                        </div>
+
+                                        <p class="leading-relaxed mb-6" style="color: var(--color-text-muted);">${pkg.description}</p>
+                                    </div>
+                                </div>
+                            </div>
+                        </c:if>
+                    </c:forEach>
+                </div>
+            </div>
+
+            <!-- Adults Packages -->
+            <div>
+                <h2 class="text-3xl font-bold mb-8 text-center md:text-left" style="color: var(--color-text-primary);">
+                    Adults Packages
+                </h2>
+                <div class="grid md:grid-cols-2 gap-8">
+                    <c:forEach var="pkg" items="${packages}">
+                        <c:if test="${pkg.category == 'Adults'}">
+                            <div class="relative">
+                                <c:if test="${pkg.popular}">
+                                    <div class="absolute -top-4 left-1/2 transform -translate-x-1/2 z-10">
+                                        <span class="text-white px-4 py-1 rounded-full text-sm" style="background: var(--gradient-button); box-shadow: var(--shadow-lg);">
+                                            Most Popular
+                                        </span>
+                                    </div>
+                                </c:if>
+                                <div class="pkg-card-container ${pkg.popular ? 'popular' : ''} transition-all duration-300 transform hover:-translate-y-2">
+                                    <div class="pkg-card">
+                                        <div class="text-center mb-6">
+                                            <h3 class="text-xl font-semibold mb-1" style="color: var(--color-text-primary);">${pkg.packageName}</h3>
+                                            <div class="mb-1">
+                                                <span class="package-price">RM<fmt:formatNumber value="${pkg.price}" type="number" maxFractionDigits="0"/></span>
+                                                <span class="text-sm text-gray-500"> / month</span>
+                                            </div>
+                                        </div>
+
+                                        <div class="space-y-4 mb-6">
+                                            <div class="flex items-center space-x-3">
+                                                <div class="w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0" style="background: ${pkg.gradient};">
+                                                    <svg class="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" />
+                                                    </svg>
+                                                </div>
+                                                <span style="color: var(--color-text-secondary);">${pkg.sessions} sessions</span>
+                                            </div>
+                                            <div class="flex items-center space-x-3">
+                                                <div class="w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0" style="background: ${pkg.gradient};">
+                                                    <svg class="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+                                                    </svg>
+                                                </div>
+                                                <span style="color: var(--color-text-secondary);">${pkg.durationPerSession} minutes per session</span>
+                                            </div>
+                                            <div class="flex items-center space-x-3">
+                                                <div class="w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0" style="background: ${pkg.gradient};">
+                                                    <svg class="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><circle cx="12" cy="7" r="4"/>
+                                                    </svg>
+                                                </div>
+                                                <span style="color: var(--color-text-secondary);">Range Age : ${empty pkg.ageRange ? '-' : pkg.ageRange}</span>
+                                            </div>
+                                        </div>
+
+                                        <p class="leading-relaxed mb-6" style="color: var(--color-text-muted);">${pkg.description}</p>
+                                    </div>
+                                </div>
+                            </div>
+                        </c:if>
+                    </c:forEach>
+                </div>
+            </div>
+
+            <!-- Back to Home Link -->
+            <div class="text-center mt-12">
+                <a href="<%= request.getContextPath() %>/home" style="color: var(--color-secondary-500);" class="hover:opacity-80 transition-opacity">
+                    ← Back to Home
+                </a>
+            </div>
+        </div>
+    </main>
+</body>
+</html>

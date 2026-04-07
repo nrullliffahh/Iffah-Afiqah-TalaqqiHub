@@ -1,0 +1,145 @@
+/* Icon and small UI styles for admin Manage Packages page */
+.pkg-summary-icon {
+  width:48px;
+  height:48px;
+  border-radius:10px;
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  font-size:22px;
+  box-shadow: 0 6px 18px rgba(16,24,40,0.06);
+}
+.pkg-summary-icon svg { width:22px; height:22px; }
+.pkg-summary-icon--purple { background: linear-gradient(90deg,#f0dbff,#e9d5ff); color:#7c3aed; }
+.pkg-summary-icon--green { background: linear-gradient(90deg,#e6fffa,#ccfbf1); color:#059669; }
+.pkg-summary-icon--red   { background: linear-gradient(90deg,#ffecec,#ffdada); color:#ef4444; }
+.pkg-summary-icon--yellow{ background: linear-gradient(90deg,#fff7ed,#fff1d6); color:#f59e0b; }
+
+.pkg-icon { width:44px; height:44px; border-radius:12px; display:inline-flex; align-items:center; justify-content:center; flex-shrink:0; box-shadow: 0 8px 20px rgba(16,24,40,0.06); }
+.pkg-icon svg { width:20px; height:20px; }
+/* default primary gradient (blue → purple) and white icon */
+.pkg-icon--primary { background: linear-gradient(135deg,#4facfe 0%,#a66bff 100%); color: #ffffff; }
+.pkg-icon--muted { background: linear-gradient(135deg,#eef2ff 0%,#f8fafc 100%); color: #6b7280; }
+.pkg-icon--danger { background: linear-gradient(135deg,#fff1f0 0%,#fff7f2 100%); color:#dc2626; }
+
+/* Keep legacy modifiers but point to primary style to keep markup unchanged */
+.pkg-icon--check { composes: pkg-icon--primary; }
+.pkg-icon--clock { composes: pkg-icon--primary; }
+.pkg-icon--age { composes: pkg-icon--primary; }
+.pkg-icon--person { composes: pkg-icon--primary; }
+
+/* Specific variants for Kids and Adults styling used on public packages page */
+.pkg-icon--kids { background: linear-gradient(135deg,#83eaf1 0%,#63a4ff 100%); color: #fff; }
+.pkg-icon--adults { background: linear-gradient(135deg,#b993d6 0%,#8ca6db 100%); color: #fff; }
+
+.pkg-summary-icon--purple { box-shadow: 0 10px 30px rgba(124,58,237,0.12); }
+.pkg-summary-icon--green { box-shadow: 0 10px 30px rgba(16,185,129,0.08); }
+.pkg-summary-icon--red { box-shadow: 0 10px 30px rgba(239,68,68,0.08); }
+.pkg-summary-icon--yellow { box-shadow: 0 10px 30px rgba(245,158,11,0.08); }
+
+/* Card layout for package display */
+.pkg-card { display:flex; gap:1.25rem; align-items:flex-start; }
+.pkg-left { width:56px; display:flex; flex-direction:column; gap:0.9rem; align-items:flex-start; }
+.pkg-right { flex:1; }
+
+/* Make package cards stack vertically inside the public package card container
+  so the package name and price appear at the top (matching the design). */
+.pkg-card-container .pkg-card { display:flex !important; flex-direction: column !important; align-items: stretch !important; }
+
+/* When cards are stacked, icons should not reserve a narrow left column —
+  let icon rows flow inline and center under the price. */
+.pkg-card-container .pkg-left { width: auto !important; display: flex !important; flex-direction: row !important; gap: 0.75rem !important; justify-content: center !important; align-items: center !important; }
+.pkg-card-container .pkg-right { width: 100% !important; }
+
+/* CTA button for public page */
+.pkg-cta { display:inline-block; width:100%; padding:0.9rem 1.25rem; border-radius:999px; color:#fff; font-weight:600; text-align:center; box-shadow: 0 12px 30px rgba(99,102,241,0.08); border:none; cursor:pointer; }
+.pkg-cta--kids { background: linear-gradient(90deg,#3fb79f,#4fd1c5); }
+.pkg-cta--kids:hover { filter:brightness(1.02); }
+.pkg-cta--adults { background: linear-gradient(90deg,#8b5cf6,#f687b3); }
+.pkg-cta--adults:hover { filter:brightness(1.02); }
+
+/* Card polish to match reference */
+.pkg-card-container { background:white; border-radius:18px; padding:1.5rem; box-shadow: 0 26px 40px rgba(16,24,40,0.06); }
+.pkg-card-container.popular { border:1px solid rgba(139,92,246,0.16); }
+
+/* smaller, subtle icons in left column */
+.pkg-left .pkg-icon { width:36px; height:36px; border-radius:10px; }
+.pkg-row { display:flex; gap:0.75rem; align-items:center; }
+
+/* Force SVG icons to fixed sizes and prevent global CSS from scaling them */
+.pkg-icon, .pkg-summary-icon { overflow: hidden; display: inline-flex; align-items: center; justify-content: center; }
+.pkg-icon svg, .pkg-summary-icon svg { display: block; width: 20px !important; height: 20px !important; stroke-width: 1.8 !important; stroke: currentColor !important; }
+
+/* Ensure CTA doesn't overflow */
+.pkg-cta { box-sizing: border-box; }
+
+/* Constrain card container width for layout sanity */
+.pkg-card-container { max-width: 720px; }
+
+/* Slight spacing and alignment improvements */
+.pkg-row { display:flex; align-items:center; gap:0.75rem; }
+
+/* Subtle card polish */
+.bg-white.rounded-3xl.p-8.shadow-lg { transition: transform .18s ease, box-shadow .18s ease; }
+.bg-white.rounded-3xl.p-8.shadow-lg:hover { transform: translateY(-6px); box-shadow: 0 20px 40px rgba(16,24,40,0.08); }
+
+/* Buttons - keep consistent */
+.btn-edit { background: linear-gradient(90deg,#ffd54a,#ffb84d); color:#111827; padding:0.6rem 1.2rem; border-radius:999px; }
+.btn-delete { background: linear-gradient(90deg,#ff7b7b,#ef4444); color:#fff; padding:0.6rem 1.2rem; border-radius:999px; }
+
+/* Public page package button (full-width CTA) */
+.package-button { background: var(--gradient-button); color: #fff; font-weight:700; padding: 14px 24px; border-radius:999px; display:block; text-align:center; box-shadow: 0 14px 30px rgba(16,24,40,0.12); border:none; text-decoration:none; }
+.package-button:hover { background: var(--gradient-button-hover); transform: translateY(-3px); box-shadow: 0 18px 36px rgba(16,24,40,0.14); }
+
+/* Protective rules: limit any unexpectedly large SVGs that leak into page layout.
+   These are conservative caps so existing icon rules (which set explicit sizes)
+   still take precedence for intended UI icons. If the oversized element
+   persists, please copy its outerHTML from DevTools and paste it here. */
+body > svg, header > svg, main > svg {
+  max-width: 100%;
+  max-height: 260px;
+  height: auto;
+  display: block;
+  overflow: hidden;
+}
+
+/* General safety: ensure inline SVGs scale down instead of blowing out layout. */
+svg { max-width: 100%; height: auto; }
+
+/* Icon-style delete button (circular image-like) */
+.icon-delete-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width:44px;
+  height:44px;
+  border-radius:999px;
+  background: linear-gradient(90deg,#ff7b7b,#ef4444);
+  color: #fff;
+  border: none;
+  cursor: pointer;
+  box-shadow: 0 10px 24px rgba(239,68,68,0.14);
+}
+.icon-delete-btn svg { width:20px; height:20px; display:block; }
+
+/* Delete confirmation modal styles */
+.confirm-overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.45); z-index: 60; display:none; align-items:center; justify-content:center; }
+.confirm-modal { background: #fff; border-radius:14px; width: 520px; max-width:94%; padding: 24px; box-shadow: 0 30px 80px rgba(16,24,40,0.3); }
+.confirm-modal .modal-icon { width:64px; height:64px; border-radius:999px; display:flex; align-items:center; justify-content:center; margin: 0 auto 12px; background: #fff0f0; color:#ef4444; box-shadow: 0 10px 30px rgba(239,68,68,0.08); }
+.confirm-modal h3 { text-align:center; margin: 6px 0 8px; font-size:18px; }
+.confirm-modal p { text-align:center; color:#6b7280; margin-bottom:18px; }
+.confirm-actions { display:flex; gap:12px; justify-content:center; }
+.confirm-actions .btn-cancel { background:#fff; border:1px solid #e5e7eb; padding:10px 20px; border-radius:8px; }
+.confirm-actions .btn-confirm { background: linear-gradient(90deg,#ff7b7b,#ef4444); color:#fff; padding:10px 20px; border-radius:8px; border:none; }
+
+/* Purple rounded toggle used in edit modal */
+.toggle {
+  display: inline-flex;
+  align-items: center;
+}
+.toggle input { display:none; }
+.toggle .track { width:44px; height:24px; background:#e6e6ea; border-radius:999px; position:relative; transition: background .18s; }
+.toggle .thumb { width:18px; height:18px; background:#fff; border-radius:999px; position:absolute; top:3px; left:3px; box-shadow: 0 6px 18px rgba(16,24,40,0.12); transition: left .18s; }
+.toggle input:checked + .track { background: linear-gradient(90deg,#7c3aed,#a78bfa); }
+.toggle input:checked + .track .thumb { left: 23px; }
+

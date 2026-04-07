@@ -1,0 +1,289 @@
+/* Print Styles for TalaqqiHub */
+
+@media print {
+  /* Hide elements that shouldn't be printed */
+  .print\:hidden,
+  aside,
+  nav,
+  button,
+  [role="navigation"],
+  .no-print,
+  .sidebar,
+  .top-nav,
+  header,
+  .notification-badge,
+  .profile-menu,
+  .calendar-section,
+  .time-slots-section {
+    display: none !important;
+  }
+
+  /* Reset page margins and background */
+  @page {
+    margin: 1.5cm;
+    size: A4;
+  }
+
+  body {
+    background: white !important;
+    color: black !important;
+    font-size: 11pt;
+    line-height: 1.5;
+  }
+
+  /* Remove shadows and borders for cleaner print */
+  * {
+    box-shadow: none !important;
+    text-shadow: none !important;
+    background-image: none !important;
+  }
+
+  /* Ensure content fits the page */
+  .overflow-hidden,
+  .overflow-y-auto {
+    overflow: visible !important;
+  }
+
+  /* Make main content full width when printing */
+  .ml-64 {
+    margin-left: 0 !important;
+  }
+
+  /* CLASS BOOKING PAGE SPECIFIC STYLES */
+  
+  /* Hide calendar and time slot sections */
+  .calendar-section,
+  .time-slots-section,
+  .booking-actions {
+    display: none !important;
+  }
+
+  /* Show only print header and booked classes */
+  .print-only {
+    display: block !important;
+  }
+
+  .print-section {
+    display: block !important;
+    width: 100% !important;
+    margin: 0 !important;
+    padding: 2rem !important;
+  }
+
+  /* Add TalaqqiHub header for print */
+  .print-section::before {
+    content: "TalaqqiHub";
+    display: block;
+    font-size: 32pt;
+    font-weight: bold;
+    text-align: center;
+    color: #667eea;
+    margin-bottom: 0.5rem;
+  }
+
+  /* Add subtitle for print */
+  .print-section::after {
+    content: "Generated on " attr(data-print-date);
+    display: block;
+    font-size: 11pt;
+    text-align: center;
+    color: #666;
+    margin-bottom: 2rem;
+    padding-bottom: 1rem;
+    border-bottom: 2px solid #667eea;
+  }
+
+  /* Print header styling */
+  .print-header {
+    display: block !important;
+    text-align: center;
+    margin-bottom: 2rem;
+    padding-bottom: 1.5rem;
+    border-bottom: 3px solid #16a34a;
+  }
+
+  .print-header h1 {
+    font-size: 28pt;
+    font-weight: bold;
+    color: #16a34a;
+    margin-bottom: 0.5rem;
+  }
+
+  .print-header .subtitle {
+    font-size: 14pt;
+    color: #666;
+    margin-bottom: 1rem;
+  }
+
+  .print-header .student-info {
+    font-size: 12pt;
+    color: #333;
+    margin-top: 1rem;
+  }
+
+  .print-header .date-range {
+    font-size: 11pt;
+    color: #666;
+    margin-top: 0.5rem;
+  }
+
+  /* Print footer styling */
+  .print-footer {
+    display: block !important;
+    position: fixed;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    padding: 1rem 0;
+    border-top: 2px solid #e5e7eb;
+    text-align: center;
+    font-size: 10pt;
+    color: #666;
+    background: white;
+  }
+
+  /* Table styles for printing */
+  table {
+    width: 100%;
+    border-collapse: collapse;
+    page-break-inside: auto;
+    margin-top: 1rem;
+  }
+
+  tr {
+    page-break-inside: avoid;
+    page-break-after: auto;
+  }
+
+  thead {
+    display: table-header-group;
+    background: #f9fafb !important;
+  }
+
+  th {
+    padding: 12px 8px !important;
+    border: 1px solid #333 !important;
+    background: #f3f4f6 !important;
+    font-weight: bold;
+    text-align: left;
+    color: #000 !important;
+  }
+
+  td {
+    padding: 10px 8px !important;
+    border: 1px solid #999 !important;
+    background: white !important;
+    color: #000 !important;
+  }
+
+  /* Remove background colors from table cells */
+  .bg-white,
+  .bg-gray-50,
+  .bg-green-50,
+  .bg-purple-50 {
+    background: white !important;
+  }
+
+  .rounded-2xl,
+  .rounded-xl,
+  .rounded-lg {
+    border-radius: 0 !important;
+    border: 1px solid #e5e7eb !important;
+  }
+
+  /* Card styles for print */
+  .space-y-4 > div {
+    padding: 1rem !important;
+    margin-bottom: 0.5rem !important;
+    border: 1px solid #d1d5db !important;
+    page-break-inside: avoid;
+  }
+
+  /* Hide avatars gradient backgrounds in print */
+  .space-y-4 > div svg {
+    display: inline !important;
+    width: 12pt !important;
+    height: 12pt !important;
+  }
+
+  /* Simplify status badges for print */
+  .space-y-4 > div span {
+    background: white !important;
+    color: #000 !important;
+    border: 1px solid #999 !important;
+    padding: 2px 8px !important;
+  }
+
+  /* Status badges - convert to simple text */
+  .status-badge {
+    background: none !important;
+    color: #000 !important;
+    border: 1px solid #999 !important;
+    padding: 2px 8px !important;
+    border-radius: 4px !important;
+    font-weight: 600 !important;
+  }
+
+  /* Summary cards layout for print */
+  .grid {
+    display: grid !important;
+    grid-template-columns: repeat(4, 1fr) !important;
+    gap: 1rem !important;
+    margin-bottom: 2rem !important;
+  }
+
+  /* Card styles - simplified for print */
+  .summary-card {
+    border: 1px solid #e5e7eb !important;
+    background: white !important;
+    padding: 1rem !important;
+    border-radius: 0 !important;
+  }
+
+  /* Charts - hide for class booking, optional for attendance */
+  .recharts-wrapper.booking-chart {
+    display: none !important;
+  }
+
+  .recharts-wrapper {
+    page-break-inside: avoid;
+  }
+
+  /* Page break management */
+  .page-break {
+    page-break-after: always;
+  }
+
+  .avoid-break {
+    page-break-inside: avoid;
+  }
+
+  /* Ensure colors are preserved for attendance page */
+  * {
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
+    color-adjust: exact !important;
+  }
+
+  /* Hide search bars, filters, and action buttons */
+  input[type="text"],
+  input[type="search"],
+  .filter-dropdown,
+  .export-buttons {
+    display: none !important;
+  }
+
+  /* Simplify headings */
+  h1, h2, h3 {
+    color: #000 !important;
+  }
+
+  /* Print-specific table title */
+  .print-table-title {
+    display: block !important;
+    font-size: 16pt;
+    font-weight: bold;
+    margin-bottom: 1rem;
+    color: #000;
+  }
+}

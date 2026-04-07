@@ -1,0 +1,9 @@
+
+
+SQL: SELECT cs.scheduleId, cs.className, cs.scheduleDate, cs.startTime, cs.endTime, cs.duration, cs.classStatus, t.teacherName, cb.bookingId, cb.bookingStatus, cb.studentId AS bookedStudentId, s2.studentName AS bookedStudentName, cs.studentId AS assignedStudentId, s1.studentName AS assignedStudentName, NULL AS updatedAt FROM classschedule cs LEFT JOIN teacher t ON cs.teacherId = t.teacherId LEFT JOIN classbooking cb ON cs.scheduleId = cb.scheduleId AND cb.bookingStatus != 'Cancelled' LEFT JOIN student s2 ON cb.studentId = s2.studentId LEFT JOIN student s1 ON cs.studentId = s1.studentId ORDER BY cs.scheduleDate, cs.startTime
+ROW:C025,Ustaz Azhar Idrus,Quran Recitation & Tajweed<br/>
+ROW:C026,Ustaz Azhar Idrus,Quran Recitation & Tajweed<br/>
+ROW:C027,Ustaz Azhar Idrus,Quran Recitation & Tajweed<br/>
+ROW:C028,Ustaz Azhar Idrus,Quran Recitation & Tajweed<br/>
+ROW:C029,Ustaz Azhar Idrus,Quran Recitation & Tajweed<br/>
+TOTAL:44

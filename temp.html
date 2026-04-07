@@ -1,0 +1,693 @@
+
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Class Booking - TalaqqiHub</title>
+    
+                            <script src="https://cdn.tailwindcss.com"></script>
+    
+    <link rel="stylesheet" href="/TalaqqiHub/css/theme.css">
+    <link rel="stylesheet" href="/TalaqqiHub/css/colors.css">
+    <link rel="stylesheet" href="/TalaqqiHub/css/fonts.css">
+    <link rel="stylesheet" href="/TalaqqiHub/css/animations.css">
+    <link rel="stylesheet" href="/TalaqqiHub/css/styles.css">
+    <link rel="stylesheet" href="/TalaqqiHub/css/index.css">
+</head>
+<body class="bg-gray-50">
+    <!-- Debug banner (temporary) - shown only when ?debug=1 is present -->
+    
+    <div class="flex min-h-screen">
+        <aside class="w-64 fixed h-screen" style="background: linear-gradient(180deg, #2d5f4f 0%, #1a3d30 100%);">
+            <div class="p-6">
+                <h1 class="text-2xl font-bold text-white">TalaqqiHub</h1>
+                <p class="text-sm text-green-200">Student Portal</p>
+            </div>
+            
+            <nav class="mt-6">
+                <a href="/TalaqqiHub/student/dashboard" class="flex items-center px-6 py-3 text-green-200 hover:bg-green-800 hover:bg-opacity-30">
+                    <svg class="w-5 h-5 mr-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6" />
+                    </svg>
+                    Dashboard
+                </a>
+                <a href="/TalaqqiHub/student/class-booking" class="flex items-center px-6 py-3 text-white bg-green-800 bg-opacity-50">
+                    <svg class="w-5 h-5 mr-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                    </svg>
+                    Class Booking
+                </a>
+                <a href="/TalaqqiHub/student/attendance" class="flex items-center px-6 py-3 text-green-200 hover:bg-green-800 hover:bg-opacity-30">
+                    <svg class="w-5 h-5 mr-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
+                    </svg>
+                    Attendance
+                </a>
+                <a href="/TalaqqiHub/student/sessions" class="flex items-center px-6 py-3 text-green-200 hover:bg-green-800 hover:bg-opacity-30">
+                    <svg class="w-5 h-5 mr-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253" />
+                    </svg>
+                    Talaqqi Sessions
+                </a>
+                <a href="/TalaqqiHub/student/evaluation" class="flex items-center px-6 py-3 text-green-200 hover:bg-green-800 hover:bg-opacity-30">
+                    <svg class="w-5 h-5 mr-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11.049 2.927c.3-.921 1.603-.921 1.902 0l1.519 4.674a1 1 0 00.95.69h4.915c.969 0 1.371 1.24.588 1.81l-3.976 2.888a1 1 0 00-.363 1.118l1.518 4.674c.3.922-.755 1.688-1.538 1.118l-3.976-2.888a1 1 0 00-1.176 0l-3.976 2.888c-.783.57-1.838-.197-1.538-1.118l1.518-4.674a1 1 0 00-.363-1.118l-3.976-2.888c-.784-.57-.38-1.81.588-1.81h4.914a1 1 0 00.951-.69l1.519-4.674z" />
+                    </svg>
+                    Evaluation
+                </a>
+                <a href="/TalaqqiHub/student/announcements" class="flex items-center px-6 py-3 text-green-200 hover:bg-green-800 hover:bg-opacity-30">
+                    <svg class="w-5 h-5 mr-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5.882V19.24a1.76 1.76 0 01-3.417.592l-2.147-6.15M18 13a3 3 0 100-6M5.436 13.683A4.001 4.001 0 017 6h1.832c4.1 0 7.625-1.234 9.168-3v14c-1.543-1.766-5.067-3-9.168-3H7a3.988 3.988 0 01-1.564-.317z" />
+                    </svg>
+                    Announcements
+                </a>
+                <a href="/TalaqqiHub/student/ai-assistance" class="flex items-center px-6 py-3 text-green-200 hover:bg-green-800 hover:bg-opacity-30">
+                    <svg class="w-5 h-5 mr-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z" />
+                    </svg>
+                    AI Assistance
+                </a>
+            </nav>
+            
+            <div class="absolute bottom-0 w-64 p-6">
+                <a href="/TalaqqiHub/student/logout" class="flex items-center px-4 py-2 text-green-200 hover:bg-red-600 hover:text-white rounded-lg transition-colors">
+                    <svg class="w-5 h-5 mr-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
+                    </svg>
+                    Logout
+                </a>
+            </div>
+        </aside>
+        
+        <main class="flex-1 ml-64">
+            <header class="bg-white shadow-sm sticky top-0 z-10 flex items-center justify-between px-8 py-4">
+                <h2 class="text-2xl font-bold text-gray-800">Class Booking</h2>
+                <div class="flex items-center space-x-4">
+                    <button class="px-4 py-2 bg-teal-500 text-white rounded-lg flex items-center gap-2">
+                        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                        </svg>
+                        Export
+                    </button>
+                    <button class="px-4 py-2 border border-gray-300 text-gray-700 rounded-lg flex items-center gap-2">
+                        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z" />
+                        </svg>
+                        Print
+                    </button>
+                    <button class="relative p-2 text-gray-600 hover:bg-gray-100 rounded-lg">
+                        <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9" />
+                        </svg>
+                        <span class="absolute top-1 right-1 w-2 h-2 bg-green-600 rounded-full"></span>
+                    </button>
+                    <div class="flex items-center gap-2">
+                        <div class="w-10 h-10 rounded-full bg-teal-500 text-white flex items-center justify-center font-semibold">
+                            AH
+                        </div>
+                        <span class="font-medium text-gray-700">Ahmad</span>
+                        <svg class="w-4 h-4 text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7" />
+                        </svg>
+                    </div>
+                </div>
+            </header>
+            
+            <div class="p-8">
+                
+                
+                
+                
+                <div class="mb-8">
+                    <h1 class="text-3xl font-bold text-gray-800 mb-2">Class Booking</h1>
+                    <p class="text-gray-600">Book your one-to-one Quran Recitation & Tajweed sessions</p>
+                </div>
+                
+                <div class="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
+                    <div class="bg-gradient-to-br from-gray-50 to-gray-100 rounded-2xl p-6 shadow-sm border border-gray-200">
+                        <div class="w-14 h-14 rounded-full bg-gray-200 flex items-center justify-center mb-4">
+                            <svg class="w-7 h-7 text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                            </svg>
+                        </div>
+                        <p class="text-sm text-gray-600 mb-1">Total Sessions</p>
+                        <h3 class="text-4xl font-bold text-gray-800 mb-1">16</h3>
+                        <p class="text-xs text-gray-500">Per month</p>
+                    </div>
+                    
+                    <div class="bg-gradient-to-br from-blue-50 to-blue-100 rounded-2xl p-6 shadow-sm border border-blue-200">
+                        <div class="w-14 h-14 rounded-full bg-blue-200 flex items-center justify-center mb-4">
+                            <svg class="w-7 h-7 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                            </svg>
+                        </div>
+                        <p class="text-sm text-blue-700 mb-1">Used Sessions</p>
+                        <h3 class="text-4xl font-bold text-blue-600 mb-1">0</h3>
+                        <p class="text-xs text-blue-500">Completed this month</p>
+                    </div>
+                    
+                    <div class="bg-gradient-to-br from-orange-50 to-orange-100 rounded-2xl p-6 shadow-sm border border-orange-200">
+                        <div class="w-14 h-14 rounded-full bg-orange-200 flex items-center justify-center mb-4">
+                            <svg class="w-7 h-7 text-orange-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+                            </svg>
+                        </div>
+                        <p class="text-sm text-orange-700 mb-1">Remaining Sessions</p>
+                        <h3 class="text-4xl font-bold text-orange-600 mb-1">16</h3>
+                        <p class="text-xs text-orange-500">Available to book</p>
+                    </div>
+                </div>
+                
+                <div class="bg-white rounded-2xl p-6 shadow-sm mb-8 border border-gray-200">
+                    <div class="flex items-center justify-between mb-3">
+                        <span class="text-sm font-semibold text-gray-700">Monthly Progress</span>
+                        <span class="text-sm font-bold text-teal-600">0 / 16 (0%)</span>
+                    </div>
+                    <div class="w-full bg-gray-200 rounded-full h-4 overflow-hidden">
+                        <div class="h-4 rounded-full bg-gradient-to-r from-teal-400 to-teal-600 transition-all duration-300" style="width: 0%;"></div>
+                    </div>
+                    <p class="text-xs text-gray-500 mt-2">7 sessions remaining • Resets on 1st of next month</p>
+                </div>
+                
+                <div class="bg-white rounded-2xl p-6 shadow-sm mb-8 border border-gray-200">
+                    <h3 class="text-xl font-bold text-gray-800 mb-6">Book Your Session</h3>
+
+                    <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                        <!-- LEFT: Calendar -->
+                        <div class="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
+                            <h4 class="text-lg font-semibold text-gray-900 mb-4">Select Date</h4>
+
+                            <!-- View Filters -->
+                            <div class="flex items-center justify-between mb-4">
+                                <div class="flex items-center space-x-2">
+                                    <button id="monthViewBtn" class="px-3 py-1 text-sm font-medium text-green-600 bg-green-100 rounded-lg hover:bg-green-200 transition">
+                                        Month View
+                                    </button>
+                                    <button id="weekViewBtn" class="px-3 py-1 text-sm font-medium text-gray-600 bg-gray-100 rounded-lg hover:bg-gray-200 transition">
+                                        Week View
+                                    </button>
+                                </div>
+                                <div class="text-sm text-gray-500">15 min slots</div>
+                            </div>
+
+                            <!-- Month/Week Display with Navigation -->
+                            <div class="flex items-center justify-between mb-4">
+                                <button id="prevBtn" class="p-2 rounded-lg text-gray-600 hover:bg-gray-100 transition">&lt;</button>
+                                <span id="currentMonth" class="text-base font-semibold text-gray-900"></span>
+                                <button id="nextBtn" class="p-2 rounded-lg text-gray-600 hover:bg-gray-100 transition">&gt;</button>
+                            </div>
+
+                            <!-- Day Headers -->
+                            <div class="grid grid-cols-7 gap-2 mb-3">
+                                <div class="text-center text-xs font-medium text-gray-500 py-2">Sun</div>
+                                <div class="text-center text-xs font-medium text-gray-500 py-2">Mon</div>
+                                <div class="text-center text-xs font-medium text-gray-500 py-2">Tue</div>
+                                <div class="text-center text-xs font-medium text-gray-500 py-2">Wed</div>
+                                <div class="text-center text-xs font-medium text-gray-500 py-2">Thu</div>
+                                <div class="text-center text-xs font-medium text-gray-500 py-2">Fri</div>
+                                <div class="text-center text-xs font-medium text-gray-500 py-2">Sat</div>
+                            </div>
+
+                            <!-- Calendar Grid -->
+                            <div id="calendarGrid" class="grid grid-cols-7 gap-2 mb-4"></div>
+
+                            <!-- Legend -->
+                            <div class="mt-4 pt-4 border-t border-gray-200 space-y-2 text-sm">
+                                <div class="flex items-center space-x-2">
+                                    <div class="w-4 h-4 bg-green-200 rounded"></div>
+                                    <span class="text-gray-600">Available to Book</span>
+                                </div>
+                                <div class="flex items-center space-x-2">
+                                    <div class="w-4 h-4 border-2 border-gray-900 rounded"></div>
+                                    <span class="text-gray-600">Today</span>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- RIGHT: Time Slots -->
+                        <div class="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
+                            <h4 class="text-lg font-semibold text-gray-900 mb-2">Time Slots (15 min each)</h4>
+                            <p id="selectedDateDisplay" class="text-sm text-gray-500 mb-4">Please select a date</p>
+
+                            <!-- Time Slots Container -->
+                            <div id="timeSlotsContainer" class="space-y-3 max-h-[500px] overflow-y-auto pr-2">
+                                <div class="text-center text-gray-400 py-12">
+                                    <i class="far fa-calendar-alt text-5xl mb-3"></i>
+                                    <p class="text-sm">Select a date to view available time slots</p>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <script>
+                        // Enhanced calendar renderer for student booking
+                        (function(){
+                            let selectedDate = null;
+                            let selectedStartTime = null;
+                            let selectedEndTime = null;
+                            let selectedClassData = null;
+                            let currentViewMode = 'month'; // 'month' or 'week'
+                            let currentWeekStart = null;
+                            // When in week mode, confine navigation to this month/year
+                            let weekModeMonth = null;
+                            let weekModeYear = null;
+                            let weekStartDate = null; // Sunday start for week view
+
+                            const currentDate = new Date();
+                            // Server/current real month/year (students can book in current and future months)
+                            const serverMonth = currentDate.getMonth();
+                            const serverYear = currentDate.getFullYear();
+                            let currentYear = currentDate.getFullYear();
+                            let currentMonth = currentDate.getMonth();
+                            const today = currentDate.getDate();
+
+                            const monthNames = ['January', 'February', 'March', 'April', 'May', 'June',
+                                               'July', 'August', 'September', 'October', 'November', 'December'];
+
+                            const dayNames = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+
+                            // Store available schedules from server
+                            let availableSchedules = [];
+
+                            const calendarGrid = document.getElementById('calendarGrid');
+                            const currentMonthElement = document.getElementById('currentMonth');
+                            const prevBtn = document.getElementById('prevBtn');
+                            const nextBtn = document.getElementById('nextBtn');
+                            const monthViewBtn = document.getElementById('monthViewBtn');
+                            const weekViewBtn = document.getElementById('weekViewBtn');
+                            const selectedDateDisplay = document.getElementById('selectedDateDisplay');
+                            const timeSlotsContainer = document.getElementById('timeSlotsContainer');
+
+                            // Initialize view variables
+                            let viewYear = currentYear;
+                            let viewMonth = currentMonth;
+
+                            // If server provided selectedDate, use it to set view
+                            const serverDate = '';
+                            if (serverDate && serverDate !== '') {
+                                const parts = serverDate.split('-');
+                                if (parts.length === 3) {
+                                    viewYear = parseInt(parts[0],10);
+                                    viewMonth = parseInt(parts[1],10) - 1;
+                                }
+                            }
+
+
+
+                            function selectDate(year, month, day) {
+                                selectedDate = new Date(year, month, day);
+
+                                const buttons = calendarGrid.querySelectorAll('button');
+                                buttons.forEach(btn => {
+                                    const btnDay = parseInt(btn.textContent);
+                                    const isToday = btnDay === today && month === currentDate.getMonth() && year === currentDate.getFullYear();
+                                    const isSelected = btnDay === day && month === selectedDate.getMonth() && year === selectedDate.getFullYear();
+
+                                    // Reset classes (keep default grey border & hover)
+                                    btn.className = 'aspect-square rounded-lg text-sm font-medium transition-all cal-day border border-gray-200 hover:border-teal-400';
+
+                                    if (isSelected) {
+                                        // Selected: green background + green border
+                                        btn.className += ' bg-green-600 text-white font-semibold border-2 border-green-600';
+                                    } else if (isToday) {
+                                        // Today: black border
+                                        btn.className += ' border-2 border-gray-900 text-gray-700 font-semibold';
+                                    }
+                                });
+
+                                const dayName = dayNames[selectedDate.getDay()];
+                                const dateStr = dayName + ', ' + monthNames[month] + ' ' + day + ', ' + year;
+                                selectedDateDisplay.textContent = dateStr;
+
+                                const iso = year + '-' + String(month+1).padStart(2,'0') + '-' + String(day).padStart(2,'0');
+                                // render default slots immediately so user sees options while API loads
+                                try {
+                                    const defaults = generateDefaultSlots(iso);
+                                    renderSlots(defaults, iso);
+                                } catch (e) { /* ignore */ }
+
+                                fetchAvailableSlots(iso);
+                            }
+
+                            function updateNavButtons() {
+                                // In month view: disable nav
+                                if (currentViewMode === 'month') {
+                                    prevBtn.classList.add('opacity-40','pointer-events-none');
+                                    nextBtn.classList.add('opacity-40','pointer-events-none');
+                                } else {
+                                    prevBtn.classList.remove('opacity-40','pointer-events-none');
+                                    nextBtn.classList.remove('opacity-40','pointer-events-none');
+                                }
+                                // also decide per-week availability
+                                if (currentViewMode === 'week' && weekStartDate) {
+                                    const prevCandidate = new Date(weekStartDate); prevCandidate.setDate(prevCandidate.getDate() - 7);
+                                    const prevEnd = new Date(prevCandidate); prevEnd.setDate(prevCandidate.getDate() + 6);
+                                    const canPrev = (prevCandidate.getMonth() === viewMonth) || (prevEnd.getMonth() === viewMonth);
+                                    if (!canPrev) prevBtn.classList.add('opacity-40','pointer-events-none');
+                                    const nextCandidate = new Date(weekStartDate); nextCandidate.setDate(nextCandidate.getDate() + 7);
+                                    const nextEnd = new Date(nextCandidate); nextEnd.setDate(nextCandidate.getDate() + 6);
+                                    const canNext = (nextCandidate.getMonth() === viewMonth) || (nextEnd.getMonth() === viewMonth);
+                                    if (!canNext) nextBtn.classList.add('opacity-40','pointer-events-none');
+                                }
+                            }
+
+                            prevBtn.addEventListener('click', function(){
+                                if (currentViewMode === 'month') {
+                                    // month navigation disabled
+                                    return;
+                                }
+                                // week mode: move week back by 7 days but only if resulting week overlaps current month
+                                if (!weekStartDate) return;
+                                const candidate = new Date(weekStartDate);
+                                candidate.setDate(candidate.getDate() - 7);
+                                const candidateEnd = new Date(candidate); candidateEnd.setDate(candidate.getDate() + 6);
+                                if (candidate.getMonth() === viewMonth || candidateEnd.getMonth() === viewMonth) {
+                                    weekStartDate = candidate;
+                                    render();
+                                    updateNavButtons();
+                                }
+                            });
+
+                            nextBtn.addEventListener('click', function(){
+                                if (currentViewMode === 'month') {
+                                    return;
+                                }
+                                if (!weekStartDate) return;
+                                const candidate = new Date(weekStartDate);
+                                candidate.setDate(candidate.getDate() + 7);
+                                const candidateEnd = new Date(candidate); candidateEnd.setDate(candidate.getDate() + 6);
+                                if (candidate.getMonth() === viewMonth || candidateEnd.getMonth() === viewMonth) {
+                                    weekStartDate = candidate;
+                                    render();
+                                    updateNavButtons();
+                                }
+                            });
+
+                            // Set up view mode buttons
+                            monthViewBtn.addEventListener('click', function(){
+                                currentViewMode = 'month';
+                                monthViewBtn.className = 'px-3 py-1 text-sm font-medium text-green-600 bg-green-100 rounded-lg hover:bg-green-200 transition';
+                                weekViewBtn.className = 'px-3 py-1 text-sm font-medium text-gray-600 bg-gray-100 rounded-lg hover:bg-gray-200 transition';
+                                // lock month view to the current month
+                                viewYear = currentYear;
+                                viewMonth = currentMonth;
+                                weekStartDate = null;
+                                render();
+                                updateNavButtons();
+                            });
+
+                            weekViewBtn.addEventListener('click', function(){
+                                currentViewMode = 'week';
+                                weekViewBtn.className = 'px-3 py-1 text-sm font-medium text-green-600 bg-green-100 rounded-lg hover:bg-green-200 transition';
+                                monthViewBtn.className = 'px-3 py-1 text-sm font-medium text-gray-600 bg-gray-100 rounded-lg hover:bg-gray-200 transition';
+                                // initialize weekStartDate to the Sunday of the week that contains the 1st of the month
+                                const firstOfMonth = new Date(viewYear, viewMonth, 1);
+                                const sunday = new Date(firstOfMonth);
+                                sunday.setDate(firstOfMonth.getDate() - firstOfMonth.getDay());
+                                weekStartDate = sunday;
+                                render();
+                                updateNavButtons();
+                            });
+
+                            // global JS error handler (show in debug banner)
+                            window.addEventListener('error', function(e){
+                                try{
+                                    const dbg = document.getElementById('debugBanner');
+                                    if (dbg) dbg.textContent = 'JS Error: ' + (e && (e.message || e.error) || 'unknown');
+                                }catch(ignore){}
+                                console.error('Captured error', e);
+                            });
+
+                            // initial render (guarded)
+                            try{
+                                render();
+                                // fetch availability markers for the displayed month
+                                fetchMonthlyAvailability(viewYear, viewMonth);
+                            }catch(err){
+                                const dbg = document.getElementById('debugBanner');
+                                if (dbg) dbg.textContent = 'Init error: ' + (err && err.message ? err.message : String(err));
+                                console.error('Error during calendar init', err);
+                            }
+                            function render() {
+                                calendarGrid.innerHTML = '';
+                                const first = new Date(viewYear, viewMonth, 1);
+                                currentMonthElement.textContent = first.toLocaleString(undefined, { month: 'long', year: 'numeric' });
+                                if (currentViewMode === 'week') {
+                                    // render a single week (Sunday - Saturday) starting from weekStartDate
+                                    renderWeek();
+                                    return;
+                                }
+
+                                const last = new Date(viewYear, viewMonth + 1, 0);
+                                // start blanks for month view
+                                const startDay = first.getDay();
+                                for (let i=0;i<startDay;i++) {
+                                    const d = document.createElement('div');
+                                    d.className = '';
+                                    calendarGrid.appendChild(d);
+                                }
+
+                                for (let d=1; d<= last.getDate(); d++) {
+                                    const cell = document.createElement('button');
+                                    cell.type = 'button';
+                                    cell.className = 'aspect-square rounded-lg text-sm font-medium transition-all cal-day border border-gray-200 hover:border-teal-400';
+                                    cell.textContent = d;
+                                    const y = viewYear;
+                                    const m = viewMonth; // zero-based month stored here
+                                    const day = ('0' + d).slice(-2);
+                                    const iso = y + '-' + ('0' + (m+1)).slice(-2) + '-' + day;
+
+                                    // expose year/month on the button for availability marking
+                                    cell.setAttribute('data-year', String(y));
+                                    cell.setAttribute('data-month', String(m));
+
+                                    // highlight today by default (grey border) even without clicking
+                                    const cellDate = new Date(viewYear, viewMonth, d);
+                                    if (cellDate.getFullYear() === currentDate.getFullYear() && cellDate.getMonth() === currentDate.getMonth() && cellDate.getDate() === currentDate.getDate()) {
+                                        // Today's cell: stronger black border
+                                        cell.classList.remove('border-gray-200');
+                                        cell.classList.add('border-2','border-gray-900','text-gray-700','font-semibold');
+                                    }
+
+                                    cell.addEventListener('click', function(){
+                                        // select date and fetch slots via AJAX
+                                        // pass zero-based month (m is already zero-based)
+                                        selectDate(y, m, d);
+                                    });
+                                    calendarGrid.appendChild(cell);
+                                }
+                                // restore selection if current selectedDate is within this month view
+                                if (selectedDate) {
+                                    if (selectedDate.getFullYear() === viewYear && selectedDate.getMonth() === viewMonth) {
+                                        selectDate(selectedDate.getFullYear(), selectedDate.getMonth(), selectedDate.getDate());
+                                    }
+                                }
+                                updateNavButtons();
+                            }
+
+                            function renderWeek() {
+                                if (!weekStartDate) {
+                                    // find first Sunday within the current month
+                                    const s = new Date(viewYear, viewMonth, 1);
+                                    while (s.getMonth() === viewMonth && s.getDay() !== 0) {
+                                        s.setDate(s.getDate() + 1);
+                                    }
+                                    if (s.getMonth() !== viewMonth) {
+                                        // fallback to the 1st of month
+                                        weekStartDate = new Date(viewYear, viewMonth, 1);
+                                    } else {
+                                        weekStartDate = new Date(s.getFullYear(), s.getMonth(), s.getDate());
+                                    }
+                                }
+
+                                calendarGrid.innerHTML = '';
+                                for (let i = 0; i < 7; i++) {
+                                    const d = new Date(weekStartDate);
+                                    d.setDate(weekStartDate.getDate() + i);
+                                    const cell = document.createElement('button');
+                                    cell.type = 'button';
+                                    cell.className = 'aspect-square rounded-lg text-sm font-medium transition-all cal-day border border-gray-200 hover:border-teal-400';
+                                    cell.textContent = d.getDate();
+                                    const y = d.getFullYear();
+                                    const m = d.getMonth();
+                                    const day = ('0' + d.getDate()).slice(-2);
+                                    const iso = y + '-' + ('0' + (m+1)).slice(-2) + '-' + day;
+
+                                    cell.setAttribute('data-year', String(y));
+                                    cell.setAttribute('data-month', String(m));
+
+                                    // highlight today
+                                    if (d.getFullYear() === currentDate.getFullYear() && d.getMonth() === currentDate.getMonth() && d.getDate() === currentDate.getDate()) {
+                                        cell.classList.remove('border-gray-200');
+                                        cell.classList.add('border-2','border-gray-900','text-gray-700','font-semibold');
+                                    }
+
+                                    // dim days outside the current view month
+                                    if (m !== viewMonth) {
+                                        cell.classList.add('opacity-50');
+                                    }
+
+                                    cell.addEventListener('click', function(){
+                                        selectDate(y, m, d.getDate());
+                                    });
+                                    calendarGrid.appendChild(cell);
+                                }
+                                // restore selection if selectedDate falls within this week
+                                if (selectedDate && weekStartDate) {
+                                    const weekStart = new Date(weekStartDate);
+                                    const weekEnd = new Date(weekStartDate);
+                                    weekEnd.setDate(weekEnd.getDate() + 6);
+                                    if (selectedDate >= weekStart && selectedDate <= weekEnd) {
+                                        selectDate(selectedDate.getFullYear(), selectedDate.getMonth(), selectedDate.getDate());
+                                    } else {
+                                        // clear slots if selected date is outside current week
+                                        const container = document.getElementById('timeSlotsContainer');
+                                        if (container) container.innerHTML = '<div class="text-center text-gray-400 py-12"><p class="text-sm">Select a date to view available time slots</p></div>';
+                                        selectedDateDisplay.textContent = 'Please select a date';
+                                    }
+                                }
+                                updateNavButtons();
+                            }
+                            function generateDefaultSlots(isoDate) {
+                                const slots = [];
+                                const startHour = 8;
+                                const endHour = 22;
+                                for (let h = startHour; h < endHour; h++) {
+                                    for (let m = 0; m < 60; m += 15) {
+                                        const hh = String(h).padStart(2, '0');
+                                        const mm = String(m).padStart(2, '0');
+                                        const startTime = hh + ':' + mm;
+                                        const scheduleId = 'MANUAL-' + isoDate + '-' + hh + mm;
+                                        slots.push({ scheduleId: scheduleId, startTime: startTime, duration: 15, teacherName: 'Click to add' });
+                                    }
+                                }
+                                return slots;
+                            }
+
+                            function computeEndTime(start, duration) {
+                                if (!start) return '';
+                                const parts = start.split(':');
+                                let hh = parseInt(parts[0], 10) || 0;
+                                let mm = parseInt(parts[1], 10) || 0;
+                                let dur = parseInt(duration, 10) || 15;
+                                let total = hh * 60 + mm + dur;
+                                let eh = Math.floor(total / 60) % 24;
+                                let em = total % 60;
+                                return String(eh).padStart(2, '0') + ':' + String(em).padStart(2, '0');
+                            }
+
+                            function renderSlots(list, isoDate) {
+                                const ctx = '/TalaqqiHub';
+                                const container = document.getElementById('timeSlotsContainer');
+                                if (!container) return;
+                                if (!Array.isArray(list) || list.length === 0) {
+                                    container.innerHTML = '<div class="text-center py-8 text-gray-400"><p class="text-sm">No available time slots for this date</p></div>';
+                                    return;
+                                }
+
+                                const html = list.map(function(s){
+                                    // Ensure scheduleId exists
+                                    const sched = s.scheduleId || ('MANUAL-' + isoDate + '-' + s.startTime.replace(':',''));
+                                    const endTime = s.endTime && s.endTime !== '' ? s.endTime : computeEndTime(s.startTime, s.duration);
+                                    return '<div class="flex items-center justify-between p-4 border-2 border-dashed border-gray-300 rounded-lg hover:border-teal-400 transition">'
+                                        + '<div>'
+                                            + '<p class="font-semibold text-gray-800">' + s.startTime + ' - ' + endTime + ' <span class="text-sm text-gray-500">(' + s.duration + ' min)</span></p>'
+                                            + '<p class="text-xs text-gray-500">' + (s.teacherName || '') + '</p>'
+                                        + '</div>'
+                                        + '<form method="POST" action="' + ctx + '/student/book-session" class="inline">'
+                                            + '<input type="hidden" name="scheduleId" value="' + sched + '">'
+                                            + '<input type="hidden" name="bookingDate" value="' + isoDate + '">'
+                                            + '<input type="hidden" name="bookingTime" value="' + s.startTime + '">'
+                                            + '<button type="submit" class="px-4 py-2 bg-teal-500 text-white rounded-lg text-sm font-medium hover:bg-teal-600">Book</button>'
+                                        + '</form>'
+                                    + '</div>';
+                                }).join('');
+
+                                container.innerHTML = html;
+                            }
+
+                            function fetchMonthlyAvailability(year, monthIndex) {
+                                const ctx = '/TalaqqiHub';
+                                const month = (monthIndex + 1);
+                                const url = ctx + '/student/api/available-schedules?year=' + encodeURIComponent(year) + '&month=' + encodeURIComponent(month);
+                                fetch(url, { credentials: 'same-origin' })
+                                    .then(res => res.json())
+                                    .then(list => {
+                                        if (!Array.isArray(list) || list.length === 0) return;
+                                        // mark buttons that match dates in list
+                                        list.forEach(dateStr => {
+                                            const btns = document.querySelectorAll('#calendarGrid button');
+                                            btns.forEach(b => {
+                                                const y = b.getAttribute('data-year');
+                                                const m = (parseInt(b.getAttribute('data-month'),10) + 1).toString().padStart(2,'0');
+                                                const d = b.textContent.toString().padStart(2,'0');
+                                                const iso = y + '-' + m + '-' + d;
+                                                if (iso === dateStr) {
+                                                    b.classList.add('bg-green-200','text-green-800','font-semibold');
+                                                }
+                                            });
+                                        });
+                                    })
+                                    .catch(err => console.error('Error fetching monthly availability', err));
+                            }
+                        })();
+                    </script>
+                </div>
+                
+                <div class="bg-white rounded-2xl p-6 shadow-sm border border-gray-200">
+                    <h3 class="text-xl font-bold text-gray-800 mb-6">My Booked Classes</h3>
+                    
+                    
+                        <div class="text-center py-12 text-gray-400">
+                            <svg class="w-20 h-20 mx-auto mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                            </svg>
+                            <p>No bookings found</p>
+                        </div>
+                    
+                    
+                    <div class="space-y-4">
+                        
+                    </div>
+                </div>
+            </div>
+        </main>
+    </div>
+    
+    <div id="cancelModal" class="hidden fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+        <div class="bg-white rounded-2xl p-8 max-w-md w-full mx-4 shadow-2xl">
+            <h3 class="text-2xl font-bold text-gray-800 mb-2">Cancel Booking</h3>
+            <p class="text-sm text-gray-600 mb-6">Please provide a reason for cancelling this booking</p>
+            <form method="POST" action="/TalaqqiHub/student/cancel-booking">
+                <input type="hidden" name="bookingId" id="cancelBookingId">
+                <div class="mb-6">
+                    <label class="block text-sm font-semibold text-gray-700 mb-2">Cancellation Reason</label>
+                    <textarea name="reason" rows="4" placeholder="Enter your reason here..." 
+                              class="w-full px-4 py-3 border-2 border-gray-300 rounded-xl focus:outline-none focus:border-red-500 transition-colors resize-none" required></textarea>
+                </div>
+                <div class="flex gap-3">
+                    <button type="button" onclick="closeCancelModal()" class="flex-1 px-4 py-3 border-2 border-gray-300 text-gray-700 rounded-xl font-semibold hover:bg-gray-50 transition-colors">
+                        Close
+                    </button>
+                    <button type="submit" class="flex-1 px-4 py-3 bg-red-500 text-white rounded-xl font-semibold hover:bg-red-600 transition-colors">
+                        Confirm Cancel
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+    
+    <script>
+        function openCancelModal(bookingId) {
+            document.getElementById('cancelBookingId').value = bookingId;
+            document.getElementById('cancelModal').classList.remove('hidden');
+        }
+        
+        function closeCancelModal() {
+            document.getElementById('cancelModal').classList.add('hidden');
+        }
+    </script>
+</body>
+</html>

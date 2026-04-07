@@ -1,0 +1,534 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<web-app xmlns="http://xmlns.jcp.org/xml/ns/javaee"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://xmlns.jcp.org/xml/ns/javaee
+                             http://xmlns.jcp.org/xml/ns/javaee/web-app_3_1.xsd"
+         version="3.1">
+
+    <display-name>TalaqqiHub</display-name>
+
+    <!-- DevtoolsFilter removed - recompiling classes -->
+    <!--
+    <filter>
+        <filter-name>DevtoolsFilter</filter-name>
+        <filter-class>controller.DevtoolsFilter</filter-class>
+    </filter>
+
+    <filter-mapping>
+        <filter-name>DevtoolsFilter</filter-name>
+        <url-pattern>/*</url-pattern>
+    </filter-mapping>
+    -->
+
+    <servlet>
+        <servlet-name>HomeServlet</servlet-name>
+        <servlet-class>controller.HomeServlet</servlet-class>
+    </servlet>
+
+    <servlet>
+        <servlet-name>RolesServlet</servlet-name>
+        <servlet-class>controller.RolesServlet</servlet-class>
+    </servlet>
+
+    <servlet>
+        <servlet-name>PackagesServlet</servlet-name>
+        <servlet-class>controller.PackagesServlet</servlet-class>
+    </servlet>
+
+    <servlet>
+        <servlet-name>AdminPackagesServlet</servlet-name>
+        <servlet-class>controller.AdminPackagesServlet</servlet-class>
+    </servlet>
+
+    <servlet>
+        <servlet-name>AdminPackageEditServlet</servlet-name>
+        <servlet-class>controller.AdminPackageEditServlet</servlet-class>
+    </servlet>
+
+    <servlet>
+        <servlet-name>AdminPackageAddServlet</servlet-name>
+        <servlet-class>controller.AdminPackageAddServlet</servlet-class>
+    </servlet>
+
+    <servlet>
+        <servlet-name>AdminPackageDeleteServlet</servlet-name>
+        <servlet-class>controller.AdminPackageDeleteServlet</servlet-class>
+    </servlet>
+
+    <servlet>
+        <servlet-name>AdminPackageJsonServlet</servlet-name>
+        <servlet-class>controller.AdminPackageJsonServlet</servlet-class>
+    </servlet>
+
+    <servlet>
+        <servlet-name>AdminPackageDbCheckServlet</servlet-name>
+        <servlet-class>controller.AdminPackageDbCheckServlet</servlet-class>
+    </servlet>
+
+    <servlet>
+        <servlet-name>ChoosePackagesServlet</servlet-name>
+        <servlet-class>controller.ChoosePackagesServlet</servlet-class>
+    </servlet>
+
+    <servlet>
+        <servlet-name>ChoosePackageActionServlet</servlet-name>
+        <servlet-class>controller.ChoosePackageActionServlet</servlet-class>
+    </servlet>
+
+    <servlet>
+        <servlet-name>StudentLoginServlet</servlet-name>
+        <servlet-class>controller.StudentLoginServlet</servlet-class>
+    </servlet>
+
+    <servlet>
+        <servlet-name>StudentRegisterServlet</servlet-name>
+        <servlet-class>controller.StudentRegisterServlet</servlet-class>
+    </servlet>
+
+    <servlet>
+        <servlet-name>TestRegistrationServlet</servlet-name>
+        <servlet-class>controller.TestRegistrationServlet</servlet-class>
+    </servlet>
+
+    <servlet>
+        <servlet-name>ForgotPasswordServlet</servlet-name>
+        <servlet-class>controller.ForgotPasswordServlet</servlet-class>
+    </servlet>
+
+    <servlet>
+        <servlet-name>SecurityVerificationServlet</servlet-name>
+        <servlet-class>controller.SecurityVerificationServlet</servlet-class>
+    </servlet>
+
+    <servlet>
+        <servlet-name>ResetPasswordServlet</servlet-name>
+        <servlet-class>controller.ResetPasswordServlet</servlet-class>
+    </servlet>
+
+    <servlet>
+        <servlet-name>StudentDashboardServlet</servlet-name>
+        <servlet-class>controller.StudentDashboardServlet</servlet-class>
+    </servlet>
+
+    <servlet>
+        <servlet-name>TeacherLoginServlet</servlet-name>
+        <servlet-class>controller.TeacherLoginServlet</servlet-class>
+    </servlet>
+
+    <servlet>
+        <servlet-name>TeacherRegisterServlet</servlet-name>
+        <servlet-class>controller.TeacherRegisterServlet</servlet-class>
+    </servlet>
+
+    <servlet>
+        <servlet-name>TeacherForgotPasswordServlet</servlet-name>
+        <servlet-class>controller.TeacherForgotPasswordServlet</servlet-class>
+    </servlet>
+
+    <servlet>
+        <servlet-name>TeacherSecurityVerificationServlet</servlet-name>
+        <servlet-class>controller.TeacherSecurityVerificationServlet</servlet-class>
+    </servlet>
+
+    <servlet>
+        <servlet-name>TeacherResetPasswordServlet</servlet-name>
+        <servlet-class>controller.TeacherResetPasswordServlet</servlet-class>
+    </servlet>
+
+    <servlet>
+        <servlet-name>TeacherDashboardServlet</servlet-name>
+        <servlet-class>controller.TeacherDashboardServlet</servlet-class>
+    </servlet>
+
+    <servlet>
+        <servlet-name>ClassScheduleServlet</servlet-name>
+        <servlet-class>controller.ClassScheduleServlet</servlet-class>
+    </servlet>
+
+    <servlet>
+        <servlet-name>TeacherClassDetailsServlet</servlet-name>
+        <servlet-class>controller.TeacherClassDetailsServlet</servlet-class>
+    </servlet>
+
+    <servlet>
+        <servlet-name>AdminLoginServlet</servlet-name>
+        <servlet-class>controller.AdminLoginServlet</servlet-class>
+    </servlet>
+
+    <servlet>
+        <servlet-name>AdminDashboardServlet</servlet-name>
+        <servlet-class>controller.AdminDashboardServlet</servlet-class>
+    </servlet>
+
+    <servlet>
+        <servlet-name>AdminForgotPasswordServlet</servlet-name>
+        <servlet-class>controller.AdminForgotPasswordServlet</servlet-class>
+    </servlet>
+
+    <servlet>
+        <servlet-name>AdminSecurityVerificationServlet</servlet-name>
+        <servlet-class>controller.AdminSecurityVerificationServlet</servlet-class>
+    </servlet>
+
+    <servlet>
+        <servlet-name>AdminResetPasswordServlet</servlet-name>
+        <servlet-class>controller.AdminResetPasswordServlet</servlet-class>
+    </servlet>
+
+    <servlet>
+        <servlet-name>AdminManageStudentsServlet</servlet-name>
+        <servlet-class>controller.AdminManageStudentsServlet</servlet-class>
+    </servlet>
+
+    <servlet>
+        <servlet-name>AdminStudentProfileServlet</servlet-name>
+        <servlet-class>controller.AdminStudentProfileServlet</servlet-class>
+    </servlet>
+
+    <servlet>
+        <servlet-name>AdminManageTeachersServlet</servlet-name>
+        <servlet-class>controller.AdminManageTeachersServlet</servlet-class>
+    </servlet>
+
+    <servlet>
+        <servlet-name>AdminClassScheduleServlet</servlet-name>
+        <servlet-class>controller.AdminClassScheduleServlet</servlet-class>
+    </servlet>
+
+    <servlet>
+        <servlet-name>AdminClassScheduleActionServlet</servlet-name>
+        <servlet-class>controller.AdminClassScheduleActionServlet</servlet-class>
+    </servlet>
+
+    <servlet>
+        <servlet-name>TeacherSetAvailabilityServlet</servlet-name>
+        <servlet-class>controller.TeacherSetAvailabilityServlet</servlet-class>
+    </servlet>
+
+    <!-- Talaqqi Session: live session management -->
+    <servlet>
+        <servlet-name>TeacherTalaqqiSessionServlet</servlet-name>
+        <servlet-class>controller.TeacherTalaqqiSessionServlet</servlet-class>
+    </servlet>
+
+    <servlet>
+        <servlet-name>StudentTalaqqiSessionServlet</servlet-name>
+        <servlet-class>controller.StudentTalaqqiSessionServlet</servlet-class>
+    </servlet>
+
+    <!-- Quran API proxy (Al-Quran Cloud) -->
+    <servlet>
+        <servlet-name>QuranApiServlet</servlet-name>
+        <servlet-class>controller.QuranApiServlet</servlet-class>
+    </servlet>
+
+    <servlet>
+        <servlet-name>StudentLogoutServlet</servlet-name>
+        <servlet-class>controller.StudentLogoutServlet</servlet-class>
+    </servlet>
+
+    <servlet>
+        <servlet-name>TeacherLogoutServlet</servlet-name>
+        <servlet-class>controller.TeacherLogoutServlet</servlet-class>
+    </servlet>
+
+    <servlet>
+        <servlet-name>AdminLogoutServlet</servlet-name>
+        <servlet-class>controller.AdminLogoutServlet</servlet-class>
+    </servlet>
+
+    <!-- Admin Talaqqi Session management -->
+    <servlet>
+        <servlet-name>AdminTalaqqiSessionServlet</servlet-name>
+        <servlet-class>controller.AdminTalaqqiSessionServlet</servlet-class>
+    </servlet>
+
+    <!-- Student Attendance -->
+    <servlet>
+        <servlet-name>StudentAttendanceServlet</servlet-name>
+        <servlet-class>controller.StudentAttendanceServlet</servlet-class>
+    </servlet>
+
+    <!-- Teacher Attendance -->
+    <servlet>
+        <servlet-name>TeacherAttendanceServlet</servlet-name>
+        <servlet-class>controller.TeacherAttendanceServlet</servlet-class>
+    </servlet>
+
+    <servlet-mapping>
+        <servlet-name>HomeServlet</servlet-name>
+        <url-pattern>/home</url-pattern>
+    </servlet-mapping>
+
+    <!-- View Profile servlet -->
+    <servlet>
+        <servlet-name>ViewProfileServlet</servlet-name>
+        <servlet-class>controller.ViewProfileServlet</servlet-class>
+    </servlet>
+
+    <servlet-mapping>
+        <servlet-name>ViewProfileServlet</servlet-name>
+        <url-pattern>/student/profile</url-pattern>
+    </servlet-mapping>
+
+    <servlet>
+        <servlet-name>UploadProfilePicServlet</servlet-name>
+        <servlet-class>controller.UploadProfilePicServlet</servlet-class>
+    </servlet>
+
+    <servlet-mapping>
+        <servlet-name>UploadProfilePicServlet</servlet-name>
+        <url-pattern>/student/upload-profile-pic</url-pattern>
+    </servlet-mapping>
+
+    <servlet>
+        <servlet-name>EditProfileServlet</servlet-name>
+        <servlet-class>controller.EditProfileServlet</servlet-class>
+    </servlet>
+
+    <servlet-mapping>
+        <servlet-name>EditProfileServlet</servlet-name>
+        <url-pattern>/student/edit-profile</url-pattern>
+    </servlet-mapping>
+
+    <servlet>
+        <servlet-name>StudentChangePasswordServlet</servlet-name>
+        <servlet-class>controller.StudentChangePasswordServlet</servlet-class>
+    </servlet>
+
+    <servlet-mapping>
+        <servlet-name>StudentChangePasswordServlet</servlet-name>
+        <url-pattern>/student/change-password</url-pattern>
+    </servlet-mapping>
+
+    <servlet-mapping>
+        <servlet-name>RolesServlet</servlet-name>
+        <url-pattern>/roles</url-pattern>
+    </servlet-mapping>
+
+    <servlet-mapping>
+        <servlet-name>PackagesServlet</servlet-name>
+        <url-pattern>/packages</url-pattern>
+    </servlet-mapping>
+
+    <servlet-mapping>
+        <servlet-name>AdminPackagesServlet</servlet-name>
+        <url-pattern>/admin/packages</url-pattern>
+    </servlet-mapping>
+
+    <servlet-mapping>
+        <servlet-name>AdminPackageEditServlet</servlet-name>
+        <url-pattern>/admin/packages/edit</url-pattern>
+    </servlet-mapping>
+
+    <servlet-mapping>
+        <servlet-name>AdminPackageAddServlet</servlet-name>
+        <url-pattern>/admin/packages/add</url-pattern>
+    </servlet-mapping>
+
+    <servlet-mapping>
+        <servlet-name>AdminPackageDeleteServlet</servlet-name>
+        <url-pattern>/admin/packages/delete</url-pattern>
+    </servlet-mapping>
+
+    <servlet-mapping>
+        <servlet-name>AdminPackageJsonServlet</servlet-name>
+        <url-pattern>/admin/packages/get</url-pattern>
+    </servlet-mapping>
+
+    <servlet-mapping>
+        <servlet-name>AdminPackageDbCheckServlet</servlet-name>
+        <url-pattern>/admin/packages/dbcheck</url-pattern>
+    </servlet-mapping>
+
+    <servlet-mapping>
+        <servlet-name>ChoosePackagesServlet</servlet-name>
+        <url-pattern>/choosePackages</url-pattern>
+    </servlet-mapping>
+
+    <servlet-mapping>
+        <servlet-name>ChoosePackageActionServlet</servlet-name>
+        <url-pattern>/student/choose-package</url-pattern>
+    </servlet-mapping>
+
+    <servlet-mapping>
+        <servlet-name>StudentLoginServlet</servlet-name>
+        <url-pattern>/student/login</url-pattern>
+    </servlet-mapping>
+
+    <servlet-mapping>
+        <servlet-name>StudentRegisterServlet</servlet-name>
+        <url-pattern>/student/register</url-pattern>
+    </servlet-mapping>
+
+    <servlet-mapping>
+        <servlet-name>TestRegistrationServlet</servlet-name>
+        <url-pattern>/testRegistration</url-pattern>
+    </servlet-mapping>
+
+    <servlet-mapping>
+        <servlet-name>ForgotPasswordServlet</servlet-name>
+        <url-pattern>/student/forgot-password</url-pattern>
+    </servlet-mapping>
+
+    <servlet-mapping>
+        <servlet-name>SecurityVerificationServlet</servlet-name>
+        <url-pattern>/student/security-question</url-pattern>
+    </servlet-mapping>
+
+    <servlet-mapping>
+        <servlet-name>ResetPasswordServlet</servlet-name>
+        <url-pattern>/student/reset-password</url-pattern>
+    </servlet-mapping>
+
+    <servlet-mapping>
+        <servlet-name>StudentDashboardServlet</servlet-name>
+        <url-pattern>/student/dashboard</url-pattern>
+    </servlet-mapping>
+
+    <servlet-mapping>
+        <servlet-name>TeacherLoginServlet</servlet-name>
+        <url-pattern>/teacher/login</url-pattern>
+    </servlet-mapping>
+
+    <servlet-mapping>
+        <servlet-name>TeacherRegisterServlet</servlet-name>
+        <url-pattern>/teacher/register</url-pattern>
+    </servlet-mapping>
+
+    <servlet-mapping>
+        <servlet-name>TeacherForgotPasswordServlet</servlet-name>
+        <url-pattern>/teacher/forgot-password</url-pattern>
+    </servlet-mapping>
+
+    <servlet-mapping>
+        <servlet-name>TeacherSecurityVerificationServlet</servlet-name>
+        <url-pattern>/teacher/security-verification</url-pattern>
+    </servlet-mapping>
+
+    <servlet-mapping>
+        <servlet-name>TeacherResetPasswordServlet</servlet-name>
+        <url-pattern>/teacher/reset-password</url-pattern>
+    </servlet-mapping>
+
+    <servlet-mapping>
+        <servlet-name>TeacherDashboardServlet</servlet-name>
+        <url-pattern>/teacher/teacherdashboard</url-pattern>
+    </servlet-mapping>
+
+    <servlet-mapping>
+        <servlet-name>ClassScheduleServlet</servlet-name>
+        <url-pattern>/teacher/classschedule</url-pattern>
+    </servlet-mapping>
+
+    <servlet-mapping>
+        <servlet-name>TeacherClassDetailsServlet</servlet-name>
+        <url-pattern>/teacher/class-details</url-pattern>
+    </servlet-mapping>
+
+    <servlet-mapping>
+        <servlet-name>TeacherAttendanceServlet</servlet-name>
+        <url-pattern>/teacher/attendance</url-pattern>
+    </servlet-mapping>
+
+    <servlet-mapping>
+        <servlet-name>AdminLoginServlet</servlet-name>
+        <url-pattern>/admin/login</url-pattern>
+    </servlet-mapping>
+
+    <servlet-mapping>
+        <servlet-name>AdminDashboardServlet</servlet-name>
+        <url-pattern>/admin/dashboard</url-pattern>
+    </servlet-mapping>
+
+    <servlet-mapping>
+        <servlet-name>AdminForgotPasswordServlet</servlet-name>
+        <url-pattern>/admin/forgot-password</url-pattern>
+    </servlet-mapping>
+
+    <servlet-mapping>
+        <servlet-name>AdminSecurityVerificationServlet</servlet-name>
+        <url-pattern>/admin/security-verification</url-pattern>
+    </servlet-mapping>
+
+    <servlet-mapping>
+        <servlet-name>AdminResetPasswordServlet</servlet-name>
+        <url-pattern>/admin/reset-password</url-pattern>
+    </servlet-mapping>
+
+    <servlet-mapping>
+        <servlet-name>AdminManageStudentsServlet</servlet-name>
+        <url-pattern>/admin/manage-students</url-pattern>
+    </servlet-mapping>
+
+    <servlet-mapping>
+        <servlet-name>AdminStudentProfileServlet</servlet-name>
+        <url-pattern>/admin/student-profile</url-pattern>
+    </servlet-mapping>
+
+    <servlet-mapping>
+        <servlet-name>AdminManageTeachersServlet</servlet-name>
+        <url-pattern>/admin/manage-teachers</url-pattern>
+    </servlet-mapping>
+
+    <servlet-mapping>
+        <servlet-name>AdminClassScheduleServlet</servlet-name>
+        <url-pattern>/admin/class-schedule</url-pattern>
+    </servlet-mapping>
+
+    <servlet-mapping>
+        <servlet-name>AdminClassScheduleActionServlet</servlet-name>
+        <url-pattern>/admin/class-schedule/action</url-pattern>
+    </servlet-mapping>
+
+    <servlet-mapping>
+        <servlet-name>TeacherSetAvailabilityServlet</servlet-name>
+        <url-pattern>/teacher/setAvailability</url-pattern>
+    </servlet-mapping>
+
+    <servlet-mapping>
+        <servlet-name>TeacherTalaqqiSessionServlet</servlet-name>
+        <url-pattern>/teacher/sessions</url-pattern>
+    </servlet-mapping>
+
+    <servlet-mapping>
+        <servlet-name>StudentTalaqqiSessionServlet</servlet-name>
+        <url-pattern>/student/sessions</url-pattern>
+    </servlet-mapping>
+
+    <servlet-mapping>
+        <servlet-name>QuranApiServlet</servlet-name>
+        <url-pattern>/teacher/quran-api</url-pattern>
+    </servlet-mapping>
+
+    <servlet-mapping>
+        <servlet-name>StudentLogoutServlet</servlet-name>
+        <url-pattern>/student/logout</url-pattern>
+    </servlet-mapping>
+
+    <servlet-mapping>
+        <servlet-name>TeacherLogoutServlet</servlet-name>
+        <url-pattern>/teacher/logout</url-pattern>
+    </servlet-mapping>
+
+    <servlet-mapping>
+        <servlet-name>AdminLogoutServlet</servlet-name>
+        <url-pattern>/admin/logout</url-pattern>
+    </servlet-mapping>
+
+    <servlet-mapping>
+        <servlet-name>AdminTalaqqiSessionServlet</servlet-name>
+        <url-pattern>/admin/talaqqi-sessions</url-pattern>
+    </servlet-mapping>
+
+    <servlet-mapping>
+        <servlet-name>StudentAttendanceServlet</servlet-name>
+        <url-pattern>/student/attendance</url-pattern>
+    </servlet-mapping>
+
+    <welcome-file-list>
+        <welcome-file>index.jsp</welcome-file>
+    </welcome-file-list>
+
+</web-app>
+

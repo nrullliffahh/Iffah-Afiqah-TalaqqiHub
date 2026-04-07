@@ -1,0 +1,372 @@
+/**
+ * TalaqqiHub Color Palette
+ * A calm, spiritual, and trustworthy color system
+ * Inspired by Islamic values of peace, knowledge, and growth
+ */
+
+@layer theme {
+  :root {
+    /* ========================================
+       PRIMARY COLORS - Deep Sage Green
+       ======================================== */
+    --color-primary-50: #f0f7f4;
+    --color-primary-100: #dceee6;
+    --color-primary-200: #b9ddd0;
+    --color-primary-300: #8cc5b3;
+    --color-primary-400: #5fa594;
+    --color-primary-500: #4a8b7a; /* Deep Sage Green - Main Primary */
+    --color-primary-600: #3d7265;
+    --color-primary-700: #335c53;
+    --color-primary-800: #2d4a45;
+    --color-primary-900: #283e3a;
+
+    /* ========================================
+       SECONDARY COLORS - Soft Royal Purple
+       ======================================== */
+    --color-secondary-50: #f5f3ff;
+    --color-secondary-100: #ede9fe;
+    --color-secondary-200: #ddd6fe;
+    --color-secondary-300: #c4b5fd;
+    --color-secondary-400: #a78bfa;
+    --color-secondary-500: #8b5cf6; /* Soft Royal Purple - Main Secondary */
+    --color-secondary-600: #7c3aed;
+    --color-secondary-700: #6d28d9;
+    --color-secondary-800: #5b21b6;
+    --color-secondary-900: #4c1d95;
+
+    /* ========================================
+       BACKGROUND COLORS
+       ======================================== */
+    /* Warm off-white for main backgrounds */
+    --color-bg-primary: #fdfcfb;
+    --color-bg-secondary: #f9f8f6;
+    
+    /* Light mint green for cards and sections */
+    --color-bg-mint-light: #f0f9f6;
+    --color-bg-mint: #e6f5f0;
+    --color-bg-mint-dark: #d4ede5;
+    
+    /* Lavender for alternating sections */
+    --color-bg-lavender-light: #f8f7ff;
+    --color-bg-lavender: #f0edff;
+    --color-bg-lavender-dark: #e5dfff;
+    
+    /* Card backgrounds */
+    --color-card-bg: #ffffff;
+    --color-card-bg-hover: #fdfcfb;
+
+    /* ========================================
+       TEXT COLORS - Dark Charcoal Based
+       ======================================== */
+    --color-text-primary: #2d3748; /* Dark charcoal for main text */
+    --color-text-secondary: #4a5568; /* Medium gray for secondary text */
+    --color-text-muted: #718096; /* Muted gray for less important text */
+    --color-text-light: #a0aec0; /* Light gray for placeholders */
+    
+    /* Text on colored backgrounds */
+    --color-text-on-primary: #ffffff;
+    --color-text-on-secondary: #ffffff;
+
+    /* ========================================
+       ACCENT COLORS
+       ======================================== */
+    /* Teal accent (bridge between green and purple) */
+    --color-accent-teal-light: #b2f5ea;
+    --color-accent-teal: #4fd1c5;
+    --color-accent-teal-dark: #319795;
+    
+    /* Pink accent (for special highlights) */
+    --color-accent-pink-light: #fed7e2;
+    --color-accent-pink: #f687b3;
+    --color-accent-pink-dark: #d53f8c;
+
+    /* ========================================
+       CTA BUTTON COLORS
+       ======================================== */
+    /* Primary CTA (Green to Purple gradient) */
+    --color-cta-primary-start: #4a8b7a;
+    --color-cta-primary-end: #8b5cf6;
+    --color-cta-primary-hover-start: #3d7265;
+    --color-cta-primary-hover-end: #7c3aed;
+    
+    /* Secondary CTA (Solid purple) */
+    --color-cta-secondary: #8b5cf6;
+    --color-cta-secondary-hover: #7c3aed;
+    
+    /* Tertiary CTA (Solid green) */
+    --color-cta-tertiary: #4a8b7a;
+    --color-cta-tertiary-hover: #3d7265;
+
+    /* ========================================
+       GRADIENTS
+       ======================================== */
+    /* Hero gradient (soft green to purple) */
+    --gradient-hero: linear-gradient(135deg, #f0f9f6 0%, #f0edff 100%);
+    
+    /* Card gradient (subtle) */
+    --gradient-card: linear-gradient(135deg, #ffffff 0%, #f8f7ff 100%);
+    
+    /* Button gradient (vibrant green to purple) */
+    --gradient-button: linear-gradient(135deg, #4a8b7a 0%, #8b5cf6 100%);
+    --gradient-button-hover: linear-gradient(135deg, #3d7265 0%, #7c3aed 100%);
+    
+    /* Background gradient (page backgrounds) */
+    --gradient-bg: linear-gradient(135deg, #f0f9f6 0%, #f8f7ff 50%, #fed7e2 100%);
+    --gradient-bg-alt: linear-gradient(135deg, #e6f5f0 0%, #f0edff 100%);
+    
+    /* Feature card gradients */
+    --gradient-feature-green: linear-gradient(135deg, #5fa594 0%, #4fd1c5 100%);
+    --gradient-feature-purple: linear-gradient(135deg, #a78bfa 0%, #f687b3 100%);
+    --gradient-feature-teal: linear-gradient(135deg, #4fd1c5 0%, #8b5cf6 100%);
+
+    /* ========================================
+       BORDER & SHADOW COLORS
+       ======================================== */
+    --color-border-light: #e2e8f0;
+    --color-border-medium: #cbd5e0;
+    --color-border-dark: #a0aec0;
+    
+    /* Shadows */
+    --shadow-sm: 0 1px 2px 0 rgba(74, 139, 122, 0.05);
+    --shadow-md: 0 4px 6px -1px rgba(74, 139, 122, 0.1), 0 2px 4px -1px rgba(74, 139, 122, 0.06);
+    --shadow-lg: 0 10px 15px -3px rgba(74, 139, 122, 0.1), 0 4px 6px -2px rgba(74, 139, 122, 0.05);
+    --shadow-xl: 0 20px 25px -5px rgba(74, 139, 122, 0.15), 0 10px 10px -5px rgba(74, 139, 122, 0.04);
+    --shadow-2xl: 0 25px 50px -12px rgba(74, 139, 122, 0.25);
+    
+    /* Purple shadows for special elements */
+    --shadow-purple: 0 10px 15px -3px rgba(139, 92, 246, 0.1), 0 4px 6px -2px rgba(139, 92, 246, 0.05);
+
+    /* ========================================
+       STATUS COLORS
+       ======================================== */
+    --color-success: #48bb78;
+    --color-warning: #ed8936;
+    --color-error: #f56565;
+    --color-info: #4299e1;
+  }
+}
+
+/* ========================================
+   UTILITY CLASSES
+   ======================================== */
+@layer components {
+  /* Background utilities */
+  .bg-sage {
+    background-color: var(--color-primary-500);
+  }
+  
+  .bg-purple {
+    background-color: var(--color-secondary-500);
+  }
+  
+  .bg-mint {
+    background-color: var(--color-bg-mint);
+  }
+  
+  .bg-lavender {
+    background-color: var(--color-bg-lavender);
+  }
+
+  /* Text utilities */
+  .text-sage {
+    color: var(--color-primary-500);
+  }
+  
+  .text-purple {
+    color: var(--color-secondary-500);
+  }
+
+  /* Gradient backgrounds */
+  .bg-gradient-hero {
+    background: var(--gradient-hero);
+  }
+  
+  .bg-gradient-button {
+    background: var(--gradient-button);
+  }
+  
+  .bg-gradient-button:hover {
+    background: var(--gradient-button-hover);
+  }
+
+  /* Feature icon gradients (used on homepage feature cards) */
+  .bg-gradient-feature-green {
+    background: var(--gradient-feature-green);
+  }
+
+  .bg-gradient-feature-purple {
+    background: var(--gradient-feature-purple);
+  }
+
+  .bg-gradient-feature-teal {
+    background: var(--gradient-feature-teal);
+  }
+
+  /* Ensure feature badges are visible even if some utilities are overridden */
+  .bg-gradient-feature-green,
+  .bg-gradient-feature-purple,
+  .bg-gradient-feature-teal {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    color: #ffffff !important;
+    -webkit-text-fill-color: #ffffff !important;
+    border: 1px solid rgba(255,255,255,0.08);
+  }
+
+  .bg-gradient-feature-green svg,
+  .bg-gradient-feature-purple svg,
+  .bg-gradient-feature-teal svg {
+    color: #ffffff !important;
+    stroke: currentColor;
+    fill: currentColor;
+  }
+
+  /* Feature badge exact styling to match design */
+  .feature-badge {
+    width: 56px;
+    height: 56px;
+    border-radius: 14px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    color: #ffffff !important;
+    box-shadow: 0 8px 20px rgba(16,24,40,0.06);
+    -webkit-font-smoothing: antialiased;
+  }
+
+  .feature-badge svg {
+    width: 28px;
+    height: 28px;
+    stroke: currentColor !important;
+    fill: none !important;
+    stroke-width: 1.8 !important;
+  }
+
+  /* Card visual to match screenshot */
+  .feature-card {
+    border-radius: 16px;
+    box-shadow: 0 8px 22px rgba(2,6,23,0.06);
+    border: 1px solid rgba(2,6,23,0.04);
+    background: var(--color-card-bg);
+  }
+
+  .feature-card h3 {
+    margin-top: 8px;
+    margin-bottom: 8px;
+  }
+
+  /* Packages section styles */
+  .packages-header {
+    font-size: 56px;
+    line-height: 1.02;
+    font-weight: 800;
+    margin: 0 auto 1.25rem auto;
+    max-width: 1000px;
+    background: linear-gradient(90deg, var(--color-primary-500) 15%, var(--color-secondary-500) 85%);
+    -webkit-background-clip: text;
+    background-clip: text;
+    -webkit-text-fill-color: transparent;
+    text-align: center;
+  }
+
+  .package-card {
+    border-radius: 32px;
+    background: var(--color-card-bg);
+    box-shadow: 0 28px 60px rgba(2,6,23,0.09);
+    border: 1px solid rgba(2,6,23,0.04);
+    padding: 3rem;
+    min-height: 420px;
+    display: flex;
+    flex-direction: column;
+    justify-content: space-between;
+    transition: transform 250ms ease, box-shadow 250ms ease;
+  }
+
+  .package-card:hover {
+    transform: translateY(-8px);
+    box-shadow: 0 40px 80px rgba(2,6,23,0.12);
+  }
+
+  .package-card.popular {
+    border: 2px solid rgba(139,92,246,0.22);
+    position: relative;
+    z-index: 2;
+    background: var(--color-card-bg);
+  }
+
+  .package-price {
+    font-size: 64px;
+    line-height: 1;
+    font-weight: 800;
+    background: linear-gradient(90deg, var(--color-primary-500) 25%, var(--color-secondary-500) 85%);
+    -webkit-background-clip: text;
+    background-clip: text;
+    -webkit-text-fill-color: transparent;
+    margin: 0.25rem 0 0.5rem 0;
+    letter-spacing: -0.5px;
+  }
+
+  .package-pill {
+    display: inline-block;
+    padding: 6px 16px;
+    border-radius: 999px;
+    font-size: 0.9rem;
+    background: linear-gradient(90deg,#5fa594,#8b5cf6);
+    color: #fff;
+    box-shadow: 0 8px 22px rgba(16,24,40,0.10);
+    border: 2px solid rgba(255,255,255,0.06);
+    position: relative;
+    top: -12px;
+    z-index: 3;
+  }
+
+  .package-badge {
+    width: 48px;
+    height: 48px;
+    border-radius: 14px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    color: #fff !important;
+    box-shadow: 0 8px 20px rgba(16,24,40,0.08);
+  }
+
+  .package-badge svg {
+    stroke: #ffffff !important;
+    fill: none !important;
+    stroke-width: 2.2 !important;
+  }
+
+  .package-button {
+    display: block;
+    width: 100%;
+    padding: 14px 24px;
+    border-radius: 999px;
+    font-weight: 700;
+    color: #ffffff !important;
+    box-shadow: 0 14px 30px rgba(16,24,40,0.12);
+    border: none;
+    text-align: center;
+    transition: transform 180ms ease, box-shadow 180ms ease, opacity 180ms ease;
+  }
+
+  .package-button:hover {
+    transform: translateY(-3px);
+    box-shadow: 0 18px 36px rgba(16,24,40,0.14);
+    opacity: 0.98;
+  }
+
+
+  /* Gradient text */
+  .text-gradient-primary {
+    background: linear-gradient(135deg, var(--color-primary-500) 0%, var(--color-secondary-500) 100%);
+    -webkit-background-clip: text;
+    background-clip: text;
+    -webkit-text-fill-color: transparent;
+  }
+  /* Navbar link hover using theme secondary color */
+  .nav-link:hover {
+    color: var(--color-secondary-500);
+  }
+}

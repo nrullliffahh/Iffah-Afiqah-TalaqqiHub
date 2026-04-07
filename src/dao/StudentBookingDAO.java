@@ -1,0 +1,918 @@
+package dao;
+
+import model.StudentBooking;
+import model.ClassSchedule;
+import util.DBConnection;
+import java.sql.Connection;
+import java.sql.PreparedStatement;
+import java.sql.ResultSet;
+import java.sql.SQLException;
+import java.time.LocalDate;
+import java.time.LocalTime;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.HashMap;
+import java.util.Map;
+
+public class StudentBookingDAO {
+
+    public Map<String, Object> getBookingSummary(String studentId) {
+        Map<String, Object> summary = new HashMap<>();
+        int totalSessions = 16;
+        int usedSessions = 0;
+
+        String sql = "SELECT COUNT(*) as used FROM classbooking " +
+                 "WHERE studentId = ? " +
+                 "AND MONTH(bookingDate) = MONTH(CURRENT_DATE()) " +
+                 "AND YEAR(bookingDate) = YEAR(CURRENT_DATE()) " +
+                 "AND bookingStatus IN ('Completed','Upcoming')";
+
+        Connection conn = null;
+        try {
+            conn = DBConnection.getConnection();
+            if (conn == null) {
+                System.err.println("getBookingSummary: DB connection is null");
+                return summary;
+            }
+
+            try (PreparedStatement ps = conn.prepareStatement(sql)) {
+                ps.setString(1, studentId);
+
+                try (ResultSet rs = ps.executeQuery()) {
+                    if (rs.next()) {
+                        usedSessions = rs.getInt("used");
+                    }
+                }
+            }
+        } catch (SQLException e) {
+            e.printStackTrace();
+        } finally {
+            if (conn != null) {
+                try {
+                    conn.close();
+                } catch (SQLException ignored) {}
+            }
+        }
+
+        int remainingSessions = totalSessions - usedSessions;
+        double progressPercentage = totalSessions > 0 ? (usedSessions * 100.0 / totalSessions) : 0;
+
+        summary.put("totalSessions", totalSessions);
+        summary.put("usedSessions", usedSessions);
+        summary.put("remainingSessions", remainingSessions);
+        summary.put("progressPercentage", String.format("%.0f", progressPercentage));
+
+        return summary;
+    }
+
+    public List<ClassSchedule> getAvailableSchedulesByDate(LocalDate date) {
+        List<ClassSchedule> schedules = new ArrayList<>();
+        // Return slots for the date that are not booked and are either explicitly Available
+        // or were created by a teacher as Scheduled (teacher availability).
+        String sql = "SELECT cs.scheduleId, cs.className, cs.scheduleDate, cs.startTime, cs.endTime, " +
+                 "cs.duration, cs.classStatus, cs.teacherId, t.teacherName AS teacherName " +
+                 "FROM classschedule cs " +
+                 "LEFT JOIN teacher t ON cs.teacherId = t.teacherId " +
+                 "LEFT JOIN classbooking cb ON cs.scheduleId = cb.scheduleId " +
+                     "WHERE cs.scheduleDate = ? " +
+                     "AND (cb.bookingId IS NULL) " +
+                     "AND (cs.classStatus = 'Available' OR (cs.teacherId IS NOT NULL AND cs.classStatus = 'Scheduled')) " +
+                     "ORDER BY cs.startTime ASC";
+
+        Connection conn = null;
+        try {
+            conn = DBConnection.getConnection();
+            if (conn == null) {
+                System.err.println("getAvailableSchedulesByDate: DB connection is null");
+                return schedules;
+            }
+
+            System.out.println("[StudentBookingDAO] Executing getAvailableSchedulesByDate for date=" + date + " with SQL: " + sql);
+            try (PreparedStatement ps = conn.prepareStatement(sql)) {
+                ps.setDate(1, java.sql.Date.valueOf(date));
+
+                try (ResultSet rs = ps.executeQuery()) {
+                    int count = 0;
+                    while (rs.next()) {
+                        ClassSchedule schedule = new ClassSchedule();
+                        schedule.setScheduleId(rs.getString("scheduleId"));
+                        schedule.setClassName(rs.getString("className"));
+
+                        if (rs.getDate("scheduleDate") != null) {
+                            schedule.setScheduleDate(rs.getDate("scheduleDate").toLocalDate());
+                        }
+                        if (rs.getTime("startTime") != null) {
+                            schedule.setStartTime(rs.getTime("startTime").toLocalTime());
+                        }
+                        if (rs.getTime("endTime") != null) {
+                            schedule.setEndTime(rs.getTime("endTime").toLocalTime());
+                        }
+
+                        schedule.setDuration(rs.getInt("duration"));
+                        schedule.setClassStatus(rs.getString("classStatus"));
+                        schedule.setTeacherId(rs.getString("teacherId"));
+                        // Try teacherName, fallback to teacherId if null
+                        String tname = rs.getString("teacherName");
+                        if (tname == null || tname.trim().isEmpty()) tname = rs.getString("teacherId");
+                        schedule.setTeacherName(tname);
+
+                        schedules.add(schedule);
+                        count++;
+                    }
+                    System.out.println("[StudentBookingDAO] Rows found: " + count);
+                }
+            }
+        } catch (SQLException e) {
+            e.printStackTrace();
+        } finally {
+            if (conn != null) {
+                try {
+                    conn.close();
+                } catch (SQLException ignored) {}
+            }
+        }
+
+        return schedules;
+    }
+
+    public List<String> getAvailableDatesForMonth(int year, int month) {
+        List<String> dates = new ArrayList<>();
+        // Include dates that have either Available slots or teacher-created Scheduled availability
+        String sql = "SELECT DISTINCT cs.scheduleDate FROM classschedule cs " +
+                     "LEFT JOIN classbooking cb ON cs.scheduleId = cb.scheduleId " +
+                     "WHERE YEAR(cs.scheduleDate)=? AND MONTH(cs.scheduleDate)=? " +
+                     "AND (cb.bookingId IS NULL) " +
+                     "AND (cs.classStatus='Available' OR (cs.teacherId IS NOT NULL AND cs.classStatus='Scheduled'))";
+
+        try (Connection conn = DBConnection.getConnection();
+             PreparedStatement ps = conn.prepareStatement(sql)) {
+
+            System.out.println("[StudentBookingDAO] Executing getAvailableDatesForMonth year=" + year + " month=" + month + " SQL: " + sql);
+            ps.setInt(1, year);
+            ps.setInt(2, month);
+
+            try (ResultSet rs = ps.executeQuery()) {
+                int count = 0;
+                while (rs.next()) {
+                    if (rs.getDate("scheduleDate") != null) {
+                        dates.add(rs.getDate("scheduleDate").toLocalDate().toString());
+                        count++;
+                    }
+                }
+                System.out.println("[StudentBookingDAO] Dates found: " + count);
+            }
+        } catch (SQLException e) {
+            e.printStackTrace();
+        }
+
+        return dates;
+    }
+
+    /**
+     * Return distinct booking dates in a month where students have booked (excluding cancelled).
+     */
+    public List<String> getBookedDatesForMonth(int year, int month) {
+        List<String> dates = new ArrayList<>();
+        String sql = "SELECT DISTINCT bookingDate FROM classbooking " +
+                     "WHERE YEAR(bookingDate)=? AND MONTH(bookingDate)=? " +
+                     "AND bookingStatus != 'Cancelled'";
+
+        try (Connection conn = DBConnection.getConnection();
+             PreparedStatement ps = conn.prepareStatement(sql)) {
+
+            ps.setInt(1, year);
+            ps.setInt(2, month);
+
+            try (ResultSet rs = ps.executeQuery()) {
+                while (rs.next()) {
+                    if (rs.getDate("bookingDate") != null) {
+                        dates.add(rs.getDate("bookingDate").toLocalDate().toString());
+                    }
+                }
+            }
+        } catch (SQLException e) {
+            e.printStackTrace();
+        }
+
+        return dates;
+    }
+
+    /**
+     * Return distinct booking dates in a month where the given student has booked (excluding cancelled).
+     */
+    public List<String> getBookedDatesForMonthForStudent(int year, int month, String studentId) {
+        List<String> dates = new ArrayList<>();
+        String sql = "SELECT DISTINCT bookingDate FROM classbooking " +
+                     "WHERE YEAR(bookingDate)=? AND MONTH(bookingDate)=? " +
+                     "AND bookingStatus != 'Cancelled' AND studentId = ?";
+
+        try (Connection conn = DBConnection.getConnection();
+             PreparedStatement ps = conn.prepareStatement(sql)) {
+
+            ps.setInt(1, year);
+            ps.setInt(2, month);
+            ps.setString(3, studentId);
+
+            try (ResultSet rs = ps.executeQuery()) {
+                while (rs.next()) {
+                    if (rs.getDate("bookingDate") != null) {
+                        dates.add(rs.getDate("bookingDate").toLocalDate().toString());
+                    }
+                }
+            }
+        } catch (SQLException e) {
+            e.printStackTrace();
+        }
+
+        return dates;
+    }
+
+    /**
+     * Return all schedules for a date including any booking info (if present).
+     * Each map contains: scheduleId, startTime, endTime, duration, teacherName,
+     * booked (boolean), bookingId, bookingStudentId, bookingStatus
+     */
+    public List<Map<String, Object>> getSchedulesWithBookingInfoByDate(LocalDate date) {
+        List<Map<String, Object>> list = new ArrayList<>();
+        String sql = "SELECT cs.scheduleId, cs.startTime, cs.endTime, cs.duration, cs.teacherId, t.teacherName, " +
+                 "cb.bookingId, cb.studentId AS bookingStudentId, cb.bookingStatus, sc.cancellationReason AS cancellationReason " +
+                    "FROM classschedule cs " +
+                    "LEFT JOIN teacher t ON cs.teacherId = t.teacherId " +
+                    "LEFT JOIN classbooking cb ON cs.scheduleId = cb.scheduleId AND cb.bookingStatus != 'Cancelled' " +
+                    "LEFT JOIN studentcancellation sc ON cb.bookingId = sc.bookingId " +
+                     "WHERE cs.scheduleDate = ? " +
+                     "ORDER BY cs.startTime ASC";
+
+        try (Connection conn = DBConnection.getConnection();
+             PreparedStatement ps = conn.prepareStatement(sql)) {
+
+            ps.setDate(1, java.sql.Date.valueOf(date));
+            try (ResultSet rs = ps.executeQuery()) {
+                while (rs.next()) {
+                    Map<String, Object> m = new HashMap<>();
+                    m.put("scheduleId", rs.getString("scheduleId"));
+                    m.put("startTime", rs.getTime("startTime") != null ? rs.getTime("startTime").toString() : "");
+                    m.put("endTime", rs.getTime("endTime") != null ? rs.getTime("endTime").toString() : "");
+                    m.put("duration", rs.getInt("duration"));
+                    String tname = rs.getString("teacherName");
+                    m.put("teacherName", tname != null ? tname : "");
+                    m.put("teacherId", rs.getString("teacherId"));
+                    String bookingId = rs.getString("bookingId");
+                    m.put("bookingId", bookingId);
+                    m.put("bookingStudentId", rs.getString("bookingStudentId"));
+                    m.put("bookingStatus", rs.getString("bookingStatus"));
+                    m.put("booked", bookingId != null);
+                    m.put("cancellationReason", rs.getString("cancellationReason"));
+                    list.add(m);
+                }
+            }
+        } catch (SQLException e) {
+            e.printStackTrace();
+        }
+
+        return list;
+    }
+
+    public boolean bookSession(String studentId, String scheduleId, LocalDate bookingDate, LocalTime bookingTime) {
+        Connection conn = null;
+        String bookingId = generateBookingId(studentId);
+
+        // Primary attempt: include createdAt (works when schema has createdAt column)
+        String sqlWithCreatedAt = "INSERT INTO classbooking (bookingId, studentId, scheduleId, bookingDate, bookingTime, " +
+             "bookingStatus, createdAt) VALUES (?, ?, ?, ?, ?, 'Upcoming', ?)";
+
+        // Fallback attempt: omit createdAt for older schemas
+        String sqlWithoutCreatedAt = "INSERT INTO classbooking (bookingId, studentId, scheduleId, bookingDate, bookingTime, bookingStatus) " +
+            "VALUES (?, ?, ?, ?, ?, 'Upcoming')";
+
+        try {
+            conn = DBConnection.getConnection();
+            if (conn == null) {
+                System.err.println("bookSession: DB connection is null");
+                return false;
+            }
+
+            conn.setAutoCommit(false);
+
+            boolean insertedBooking = false;
+            try (PreparedStatement bookingPs = conn.prepareStatement(sqlWithCreatedAt)) {
+                bookingPs.setString(1, bookingId);
+                bookingPs.setString(2, studentId);
+                bookingPs.setString(3, scheduleId);
+                bookingPs.setDate(4, java.sql.Date.valueOf(bookingDate));
+                bookingPs.setTime(5, java.sql.Time.valueOf(bookingTime));
+                bookingPs.setDate(6, java.sql.Date.valueOf(LocalDate.now()));
+                insertedBooking = bookingPs.executeUpdate() > 0;
+            } catch (SQLException e) {
+                String message = e.getMessage() == null ? "" : e.getMessage();
+                if (!(message.contains("Unknown column") || message.contains("createdAt"))) {
+                    throw e;
+                }
+
+                try (PreparedStatement bookingFallbackPs = conn.prepareStatement(sqlWithoutCreatedAt)) {
+                    bookingFallbackPs.setString(1, bookingId);
+                    bookingFallbackPs.setString(2, studentId);
+                    bookingFallbackPs.setString(3, scheduleId);
+                    bookingFallbackPs.setDate(4, java.sql.Date.valueOf(bookingDate));
+                    bookingFallbackPs.setTime(5, java.sql.Time.valueOf(bookingTime));
+                    insertedBooking = bookingFallbackPs.executeUpdate() > 0;
+                }
+            }
+
+            if (!insertedBooking) {
+                conn.rollback();
+                return false;
+            }
+
+            boolean sessionLinked = ensureTalaqqiSessionForBooking(conn, bookingId, bookingDate);
+            if (!sessionLinked) {
+                conn.rollback();
+                return false;
+            }
+
+            conn.commit();
+
+            try {
+                new ClassScheduleDAO().updateClassStatus(scheduleId, "Booked");
+            } catch (Exception ignore) {
+                ignore.printStackTrace();
+            }
+
+            return true;
+
+        } catch (SQLException e) {
+            if (conn != null) {
+                try {
+                    conn.rollback();
+                } catch (SQLException rollbackError) {
+                    rollbackError.printStackTrace();
+                }
+            }
+            e.printStackTrace();
+            return false;
+        } finally {
+            if (conn != null) {
+                try {
+                    conn.setAutoCommit(true);
+                    conn.close();
+                } catch (SQLException ignored) {}
+            }
+        }
+    }
+
+    private boolean ensureTalaqqiSessionForBooking(Connection conn, String bookingId, LocalDate sessionDate)
+            throws SQLException {
+        String existsSql = "SELECT sessionId FROM talaqqisession WHERE bookingId = ? LIMIT 1";
+        try (PreparedStatement existsPs = conn.prepareStatement(existsSql)) {
+            existsPs.setString(1, bookingId);
+            try (ResultSet rs = existsPs.executeQuery()) {
+                if (rs.next()) return true;
+            }
+        }
+
+        String nextSessionId = generateNextSessionId(conn);
+        String insertSql = "INSERT INTO talaqqisession (sessionId, sessionType, sessionDate, bookingId) VALUES (?, 'Live Talaqqi', ?, ?)";
+        try (PreparedStatement insertPs = conn.prepareStatement(insertSql)) {
+            insertPs.setString(1, nextSessionId);
+            insertPs.setDate(2, java.sql.Date.valueOf(sessionDate));
+            insertPs.setString(3, bookingId);
+            return insertPs.executeUpdate() > 0;
+        }
+    }
+
+    private String generateNextSessionId(Connection conn) throws SQLException {
+        String sql = "SELECT sessionId FROM talaqqisession " +
+                     "WHERE sessionId REGEXP '^S[0-9]+$' " +
+                     "ORDER BY CAST(SUBSTRING(sessionId, 2) AS UNSIGNED) DESC LIMIT 1";
+
+        try (PreparedStatement ps = conn.prepareStatement(sql);
+             ResultSet rs = ps.executeQuery()) {
+            if (rs.next()) {
+                String latest = rs.getString(1);
+                int current = 0;
+                if (latest != null && latest.length() > 1) {
+                    try {
+                        current = Integer.parseInt(latest.substring(1));
+                    } catch (NumberFormatException ignored) {
+                        current = 0;
+                    }
+                }
+
+                int next = current + 1;
+                String format = next <= 999 ? "%03d" : "%06d";
+                return "S" + String.format(format, next);
+            }
+        }
+
+        return "S001";
+    }
+
+    /**
+     * Check whether a scheduleId is valid and currently bookable for the given date/time.
+     * Returns true if the schedule exists, matches the requested date/time, is available
+     * (or scheduled by a teacher), and is not already booked (excluding cancelled bookings).
+     */
+    public boolean isScheduleBookable(String scheduleId, LocalDate bookingDate, LocalTime bookingTime) {
+        if (scheduleId == null || scheduleId.trim().isEmpty()) return false;
+        String sql = "SELECT cs.scheduleId FROM classschedule cs " +
+                     "LEFT JOIN classbooking cb ON cs.scheduleId = cb.scheduleId AND cb.bookingStatus != 'Cancelled' " +
+                     "WHERE cs.scheduleId = ? AND cs.scheduleDate = ? " +
+                     "AND (cs.classStatus = 'Available' OR (cs.teacherId IS NOT NULL AND cs.classStatus = 'Scheduled')) " +
+                     "AND cb.bookingId IS NULL";
+
+        try (Connection conn = DBConnection.getConnection();
+             PreparedStatement ps = conn.prepareStatement(sql)) {
+
+            if (conn == null) return false;
+            ps.setString(1, scheduleId);
+            ps.setDate(2, java.sql.Date.valueOf(bookingDate));
+
+            try (ResultSet rs = ps.executeQuery()) {
+                return rs.next();
+            }
+        } catch (SQLException e) {
+            e.printStackTrace();
+            return false;
+        }
+    }
+
+    /**
+     * Ensure a row exists in `classschedule` for the given scheduleId. If missing,
+     * create a minimal scheduled record so teacher-side queries that join
+     * against `classschedule` will be able to pick up the booking.
+     */
+    public void ensureScheduleExists(String scheduleId, LocalDate scheduleDate, LocalTime startTime, String teacherId) {
+        if (scheduleId == null || scheduleId.trim().isEmpty()) return;
+
+        String checkSql = "SELECT scheduleId FROM classschedule WHERE scheduleId = ?";
+        String insertSql = "INSERT INTO classschedule (scheduleId, className, scheduleDate, startTime, endTime, duration, classStatus, teacherId) " +
+            "VALUES (?, ?, ?, ?, ?, ?, 'Scheduled', ?)";
+
+        Connection conn = null;
+        PreparedStatement ps = null;
+        ResultSet rs = null;
+        try {
+            conn = DBConnection.getConnection();
+            if (conn == null) return;
+
+            ps = conn.prepareStatement(checkSql);
+            ps.setString(1, scheduleId);
+            rs = ps.executeQuery();
+            if (rs.next()) return; // already exists
+            rs.close(); ps.close();
+
+            // compute a default endTime = startTime + 15 minutes
+            java.time.LocalTime endTime = startTime != null ? startTime.plusMinutes(15) : null;
+            int duration = 15;
+
+            ps = conn.prepareStatement(insertSql);
+            ps.setString(1, scheduleId);
+            ps.setString(2, "Booked Session");
+            ps.setDate(3, java.sql.Date.valueOf(scheduleDate));
+            ps.setTime(4, startTime != null ? java.sql.Time.valueOf(startTime) : null);
+            ps.setTime(5, endTime != null ? java.sql.Time.valueOf(endTime) : null);
+            ps.setInt(6, duration);
+            if (teacherId != null && !teacherId.trim().isEmpty()) ps.setString(7, teacherId); else ps.setNull(7, java.sql.Types.VARCHAR);
+
+            ps.executeUpdate();
+
+        } catch (SQLException e) {
+            e.printStackTrace();
+        } finally {
+            try { if (rs != null) rs.close(); } catch (SQLException ignored) {}
+            try { if (ps != null) ps.close(); } catch (SQLException ignored) {}
+            try { if (conn != null) conn.close(); } catch (SQLException ignored) {}
+        }
+    }
+
+    public List<StudentBooking> getMyBookings(String studentId) {
+        List<StudentBooking> bookings = new ArrayList<>();
+        String sql = "SELECT b.bookingId, b.studentId, b.scheduleId, " +
+             "b.bookingDate, b.bookingTime, b.bookingStatus, b.createdAt, " +
+             "cs.className, t.teacherName AS teacherName, cs.teacherId, cs.duration, sc.cancellationReason AS cancellationReason " +
+                 "FROM classbooking b " +
+                 "LEFT JOIN classschedule cs ON b.scheduleId = cs.scheduleId " +
+                 "LEFT JOIN teacher t ON cs.teacherId = t.teacherId " +
+                 "LEFT JOIN studentcancellation sc ON b.bookingId = sc.bookingId " +
+                 "WHERE b.studentId = ? " +
+                 "ORDER BY b.bookingDate DESC, b.bookingTime DESC";
+
+        Connection conn = null;
+        try {
+            conn = DBConnection.getConnection();
+            if (conn == null) {
+                System.err.println("getMyBookings: DB connection is null");
+                return bookings;
+            }
+
+            try (PreparedStatement ps = conn.prepareStatement(sql)) {
+                ps.setString(1, studentId);
+
+                try (ResultSet rs = ps.executeQuery()) {
+                    while (rs.next()) {
+                        StudentBooking booking = new StudentBooking();
+                    booking.setBookingId(rs.getString("bookingId"));
+                    booking.setStudentId(rs.getString("studentId"));
+                    booking.setScheduleId(rs.getString("scheduleId"));
+                    
+                    if (rs.getDate("bookingDate") != null) {
+                        booking.setBookingDate(rs.getDate("bookingDate").toLocalDate());
+                    }
+                    if (rs.getTime("bookingTime") != null) {
+                        booking.setBookingTime(rs.getTime("bookingTime").toLocalTime());
+                    }
+                    
+                    booking.setBookingStatus(rs.getString("bookingStatus"));
+                    
+                    if (rs.getDate("createdAt") != null) {
+                        booking.setCreatedAt(rs.getDate("createdAt").toLocalDate());
+                    }
+                    
+                    booking.setClassName(rs.getString("className"));
+                    booking.setTeacherName(rs.getString("teacherName"));
+                    booking.setTeacherId(rs.getString("teacherId"));
+                    booking.setDuration(rs.getInt("duration"));
+                    booking.setCancellationReason(rs.getString("cancellationReason"));
+                    
+                    bookings.add(booking);
+                }
+            } catch (SQLException e) {
+                // Some installations may not have `createdAt` column in `classbooking`.
+                // Fall back to a query that supplies a NULL createdAt column so result mapping still works.
+                String fallbackSql = "SELECT b.bookingId, b.studentId, b.scheduleId, " +
+                     "b.bookingDate, b.bookingTime, b.bookingStatus, NULL AS createdAt, " +
+                     "cs.className, t.teacherName AS teacherName, cs.teacherId, cs.duration, sc.cancellationReason AS cancellationReason " +
+                         "FROM classbooking b " +
+                         "LEFT JOIN classschedule cs ON b.scheduleId = cs.scheduleId " +
+                         "LEFT JOIN teacher t ON cs.teacherId = t.teacherId " +
+                         "LEFT JOIN studentcancellation sc ON b.bookingId = sc.bookingId " +
+                         "WHERE b.studentId = ? " +
+                         "ORDER BY b.bookingDate DESC, b.bookingTime DESC";
+                try (PreparedStatement ps2 = conn.prepareStatement(fallbackSql)) {
+                    ps2.setString(1, studentId);
+                    try (ResultSet rs = ps2.executeQuery()) {
+                        while (rs.next()) {
+                            StudentBooking booking = new StudentBooking();
+                            booking.setBookingId(rs.getString("bookingId"));
+                            booking.setStudentId(rs.getString("studentId"));
+                            booking.setScheduleId(rs.getString("scheduleId"));
+
+                            if (rs.getDate("bookingDate") != null) {
+                                booking.setBookingDate(rs.getDate("bookingDate").toLocalDate());
+                            }
+                            if (rs.getTime("bookingTime") != null) {
+                                booking.setBookingTime(rs.getTime("bookingTime").toLocalTime());
+                            }
+
+                            booking.setBookingStatus(rs.getString("bookingStatus"));
+
+                            if (rs.getDate("createdAt") != null) {
+                                booking.setCreatedAt(rs.getDate("createdAt").toLocalDate());
+                            }
+
+                            booking.setClassName(rs.getString("className"));
+                            booking.setTeacherName(rs.getString("teacherName"));
+                            booking.setTeacherId(rs.getString("teacherId"));
+                            booking.setDuration(rs.getInt("duration"));
+                            booking.setCancellationReason(rs.getString("cancellationReason"));
+
+                            bookings.add(booking);
+                        }
+                    }
+                } catch (SQLException ex2) {
+                    ex2.printStackTrace();
+                }
+            }
+            }
+        } catch (SQLException e) {
+            e.printStackTrace();
+        } finally {
+            if (conn != null) {
+                try {
+                    conn.close();
+                } catch (SQLException ignored) {}
+            }
+        }
+
+        return bookings;
+    }
+
+    /**
+     * Get bookings for the current month only
+     * This resets booked classes at the beginning of each new month
+     */
+    public List<StudentBooking> getMyBookingsByMonth(String studentId) {
+        List<StudentBooking> bookings = new ArrayList<>();
+        String sql = "SELECT b.bookingId, b.studentId, b.scheduleId, " +
+             "b.bookingDate, b.bookingTime, b.bookingStatus, b.createdAt, " +
+             "cs.className, t.teacherName AS teacherName, cs.teacherId, cs.duration, sc.cancellationReason AS cancellationReason " +
+                 "FROM classbooking b " +
+                 "LEFT JOIN classschedule cs ON b.scheduleId = cs.scheduleId " +
+                 "LEFT JOIN teacher t ON cs.teacherId = t.teacherId " +
+                 "LEFT JOIN studentcancellation sc ON b.bookingId = sc.bookingId " +
+                 "WHERE b.studentId = ? " +
+                 "AND MONTH(b.bookingDate) = MONTH(CURRENT_DATE()) " +
+                 "AND YEAR(b.bookingDate) = YEAR(CURRENT_DATE()) " +
+                 "ORDER BY b.bookingDate DESC, b.bookingTime DESC";
+
+        Connection conn = null;
+        try {
+            conn = DBConnection.getConnection();
+            if (conn == null) {
+                System.err.println("getMyBookingsByMonth: DB connection is null");
+                return bookings;
+            }
+
+            try (PreparedStatement ps = conn.prepareStatement(sql)) {
+                ps.setString(1, studentId);
+
+                try (ResultSet rs = ps.executeQuery()) {
+                    while (rs.next()) {
+                        StudentBooking booking = new StudentBooking();
+                    booking.setBookingId(rs.getString("bookingId"));
+                    booking.setStudentId(rs.getString("studentId"));
+                    booking.setScheduleId(rs.getString("scheduleId"));
+                    
+                    if (rs.getDate("bookingDate") != null) {
+                        booking.setBookingDate(rs.getDate("bookingDate").toLocalDate());
+                    }
+                    if (rs.getTime("bookingTime") != null) {
+                        booking.setBookingTime(rs.getTime("bookingTime").toLocalTime());
+                    }
+                    
+                    booking.setBookingStatus(rs.getString("bookingStatus"));
+                    
+                    if (rs.getDate("createdAt") != null) {
+                        booking.setCreatedAt(rs.getDate("createdAt").toLocalDate());
+                    }
+                    
+                    booking.setClassName(rs.getString("className"));
+                    booking.setTeacherName(rs.getString("teacherName"));
+                    booking.setTeacherId(rs.getString("teacherId"));
+                    booking.setDuration(rs.getInt("duration"));
+                    booking.setCancellationReason(rs.getString("cancellationReason"));
+                    
+                    bookings.add(booking);
+                }
+            } catch (SQLException e) {
+                // Fallback query without createdAt column if it doesn't exist
+                String fallbackSql = "SELECT b.bookingId, b.studentId, b.scheduleId, " +
+                     "b.bookingDate, b.bookingTime, b.bookingStatus, NULL AS createdAt, " +
+                     "cs.className, t.teacherName AS teacherName, cs.teacherId, cs.duration, sc.cancellationReason AS cancellationReason " +
+                         "FROM classbooking b " +
+                         "LEFT JOIN classschedule cs ON b.scheduleId = cs.scheduleId " +
+                         "LEFT JOIN teacher t ON cs.teacherId = t.teacherId " +
+                         "LEFT JOIN studentcancellation sc ON b.bookingId = sc.bookingId " +
+                         "WHERE b.studentId = ? " +
+                         "AND MONTH(b.bookingDate) = MONTH(CURRENT_DATE()) " +
+                         "AND YEAR(b.bookingDate) = YEAR(CURRENT_DATE()) " +
+                         "ORDER BY b.bookingDate DESC, b.bookingTime DESC";
+                try (PreparedStatement ps2 = conn.prepareStatement(fallbackSql)) {
+                    ps2.setString(1, studentId);
+                    try (ResultSet rs = ps2.executeQuery()) {
+                        while (rs.next()) {
+                            StudentBooking booking = new StudentBooking();
+                            booking.setBookingId(rs.getString("bookingId"));
+                            booking.setStudentId(rs.getString("studentId"));
+                            booking.setScheduleId(rs.getString("scheduleId"));
+
+                            if (rs.getDate("bookingDate") != null) {
+                                booking.setBookingDate(rs.getDate("bookingDate").toLocalDate());
+                            }
+                            if (rs.getTime("bookingTime") != null) {
+                                booking.setBookingTime(rs.getTime("bookingTime").toLocalTime());
+                            }
+
+                            booking.setBookingStatus(rs.getString("bookingStatus"));
+
+                            if (rs.getDate("createdAt") != null) {
+                                booking.setCreatedAt(rs.getDate("createdAt").toLocalDate());
+                            }
+
+                            booking.setClassName(rs.getString("className"));
+                            booking.setTeacherName(rs.getString("teacherName"));
+                            booking.setTeacherId(rs.getString("teacherId"));
+                            booking.setDuration(rs.getInt("duration"));
+                            booking.setCancellationReason(rs.getString("cancellationReason"));
+
+                            bookings.add(booking);
+                        }
+                    }
+                } catch (SQLException ex2) {
+                    ex2.printStackTrace();
+                }
+            }
+            }
+        } catch (SQLException e) {
+            e.printStackTrace();
+        } finally {
+            if (conn != null) {
+                try {
+                    conn.close();
+                } catch (SQLException ignored) {}
+            }
+        }
+
+        return bookings;
+    }
+
+    public boolean cancelBooking(String bookingId, String reason) {
+        Connection conn = null;
+        PreparedStatement ps1 = null;
+        PreparedStatement ps2 = null;
+        String scheduleId = null;
+
+        try {
+            conn = DBConnection.getConnection();
+            conn.setAutoCommit(false);
+
+            // get scheduleId for this booking so we can update classschedule after cancellation
+            try (PreparedStatement ps0 = conn.prepareStatement("SELECT scheduleId FROM classbooking WHERE bookingId = ?")) {
+                ps0.setString(1, bookingId);
+                try (ResultSet rs0 = ps0.executeQuery()) {
+                    if (rs0.next()) {
+                        scheduleId = rs0.getString(1);
+                    }
+                }
+            } catch (SQLException ignore) { ignore.printStackTrace(); }
+
+            String updateSql = "UPDATE classbooking SET bookingStatus = 'Cancelled' WHERE bookingId = ?";
+            ps1 = conn.prepareStatement(updateSql);
+            ps1.setString(1, bookingId);
+            int rowsUpdated = ps1.executeUpdate();
+
+            if (rowsUpdated > 0) {
+                // Insert or update cancellation reason into `studentcancellation` table
+                String insertSql = "INSERT INTO studentcancellation (bookingId, cancellationReason, cancelledAt, cancelledBy) " +
+                                   "SELECT bookingId, ?, NOW(), 'student' FROM classbooking WHERE bookingId = ? " +
+                                   "ON DUPLICATE KEY UPDATE cancellationReason = VALUES(cancellationReason), cancelledAt = NOW(), cancelledBy = 'student'";
+                ps2 = conn.prepareStatement(insertSql);
+                ps2.setString(1, reason);
+                ps2.setString(2, bookingId);
+                ps2.executeUpdate();
+            }
+
+            // After successful cancellation, create a notification for the teacher (if assigned)
+            try {
+                String teacherLookup = "SELECT cs.teacherId FROM classbooking b LEFT JOIN classschedule cs ON b.scheduleId = cs.scheduleId WHERE b.bookingId = ? LIMIT 1";
+                try (PreparedStatement psT = conn.prepareStatement(teacherLookup)) {
+                    psT.setString(1, bookingId);
+                    try (ResultSet rsT = psT.executeQuery()) {
+                        if (rsT.next()) {
+                            String teacherId = rsT.getString(1);
+                            if (teacherId != null && !teacherId.trim().isEmpty()) {
+                                String notifSql = "INSERT INTO notifications (userId, userType, title, message, bookingId, relatedScheduleId, isRead, createdAt) VALUES (?, 'teacher', ?, ?, ?, ?, 0, NOW())";
+                                try (PreparedStatement psN = conn.prepareStatement(notifSql)) {
+                                    psN.setString(1, teacherId);
+                                    psN.setString(2, "Booking Cancelled");
+                                    String msg = "Student cancelled booking " + bookingId + " - Reason: " + reason;
+                                    psN.setString(3, msg);
+                                    psN.setString(4, bookingId);
+                                    psN.setString(5, scheduleId);
+                                    psN.executeUpdate();
+                                }
+                            }
+                        }
+                    }
+                }
+            } catch (SQLException ignore) { ignore.printStackTrace(); }
+
+            conn.commit();
+            // update schedule status back to Available (if applicable)
+            if (rowsUpdated > 0 && scheduleId != null) {
+                try { new ClassScheduleDAO().updateClassStatus(scheduleId, "Available"); } catch (Exception ignore) { ignore.printStackTrace(); }
+            }
+            return rowsUpdated > 0;
+
+        } catch (SQLException e) {
+            if (conn != null) {
+                try {
+                    conn.rollback();
+                } catch (SQLException ex) {
+                    ex.printStackTrace();
+                }
+            }
+            e.printStackTrace();
+            return false;
+        } finally {
+            try {
+                if (ps1 != null) ps1.close();
+                if (ps2 != null) ps2.close();
+                if (conn != null) {
+                    conn.setAutoCommit(true);
+                    conn.close();
+                }
+            } catch (SQLException e) {
+                e.printStackTrace();
+            }
+        }
+    }
+
+    /**
+     * Mark a booking as 'Rescheduled' and record the reschedule reason.
+     * This is similar to cancelBooking but uses the 'Rescheduled' status so
+     * the UI can show rescheduled classes separately.
+     */
+    public boolean rescheduleBooking(String bookingId, String reason) {
+        Connection conn = null;
+        PreparedStatement ps1 = null;
+        PreparedStatement ps2 = null;
+        String scheduleId = null;
+
+        try {
+            conn = DBConnection.getConnection();
+            conn.setAutoCommit(false);
+
+            // find scheduleId for this booking so we can update schedule status
+            try (PreparedStatement ps0 = conn.prepareStatement("SELECT scheduleId FROM classbooking WHERE bookingId = ?")) {
+                ps0.setString(1, bookingId);
+                try (ResultSet rs0 = ps0.executeQuery()) {
+                    if (rs0.next()) scheduleId = rs0.getString(1);
+                }
+            } catch (SQLException ignore) { ignore.printStackTrace(); }
+
+            String updateSql = "UPDATE classbooking SET bookingStatus = 'Rescheduled' WHERE bookingId = ?";
+            ps1 = conn.prepareStatement(updateSql);
+            System.out.println("[StudentBookingDAO] Executing reschedule update SQL: " + updateSql + " with bookingId=" + bookingId);
+            ps1.setString(1, bookingId);
+            int rowsUpdated = ps1.executeUpdate();
+            System.out.println("[StudentBookingDAO] reschedule update rowsUpdated=" + rowsUpdated + " for bookingId=" + bookingId);
+
+            if (rowsUpdated > 0) {
+                // Insert or update reschedule reason into `studentcancellation` table
+                String insertSql = "INSERT INTO studentcancellation (bookingId, cancellationReason, cancelledAt, cancelledBy) " +
+                                   "SELECT bookingId, ?, NOW(), 'student' FROM classbooking WHERE bookingId = ? " +
+                                   "ON DUPLICATE KEY UPDATE cancellationReason = VALUES(cancellationReason), cancelledAt = NOW(), cancelledBy = 'student'";
+                ps2 = conn.prepareStatement(insertSql);
+                System.out.println("[StudentBookingDAO] Executing upsert cancellation reason SQL for bookingId=" + bookingId);
+                ps2.setString(1, reason);
+                ps2.setString(2, bookingId);
+                ps2.executeUpdate();
+            }
+
+            conn.commit();
+            // set schedule back to Available (slot freed)
+            if (rowsUpdated > 0 && scheduleId != null) {
+                try { new ClassScheduleDAO().updateClassStatus(scheduleId, "Available"); } catch (Exception ignore) { ignore.printStackTrace(); }
+            }
+            return rowsUpdated > 0;
+
+        } catch (SQLException e) {
+            if (conn != null) {
+                try {
+                    conn.rollback();
+                } catch (SQLException ex) {
+                    ex.printStackTrace();
+                }
+            }
+            e.printStackTrace();
+            return false;
+        } finally {
+            try {
+                if (ps1 != null) ps1.close();
+                if (ps2 != null) ps2.close();
+                if (conn != null) {
+                    conn.setAutoCommit(true);
+                    conn.close();
+                }
+            } catch (SQLException e) {
+                e.printStackTrace();
+            }
+        }
+    }
+
+    /**
+     * Generate a readable, non-hashed booking id.
+     * Format: BKG-<short-uuid>
+     */
+    private String generateBookingId(String studentId) {
+        // Generate a short, sequential booking id in the form B001, B002, ...
+        // Query the DB for the current max bookingId starting with 'B' and increment.
+        String defaultId = "B001";
+        String sql = "SELECT bookingId FROM classbooking WHERE bookingId LIKE 'B%' ORDER BY bookingId DESC LIMIT 1";
+        try (Connection conn = DBConnection.getConnection()) {
+            if (conn == null) return defaultId;
+            try (PreparedStatement ps = conn.prepareStatement(sql)) {
+                try (ResultSet rs = ps.executeQuery()) {
+                    if (rs.next()) {
+                        String maxId = rs.getString(1);
+                        if (maxId != null) {
+                            // Extract digits from the end of the id
+                            String digits = maxId.replaceAll("\\D", "");
+                            int num = 0;
+                            try { num = Integer.parseInt(digits); } catch (NumberFormatException nfe) { num = 0; }
+                            int next = num + 1;
+                            // Use 3-digit padding (B001). If it grows beyond 999, switch to 6 digits.
+                            String fmt = next <= 999 ? "%03d" : "%06d";
+                            return "B" + String.format(fmt, next);
+                        }
+                    }
+                }
+            }
+        } catch (SQLException e) {
+            e.printStackTrace();
+        }
+
+        return defaultId;
+    }
+}

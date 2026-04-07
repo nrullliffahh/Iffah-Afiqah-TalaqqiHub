@@ -1,0 +1,598 @@
+package dao;
+
+import model.Teacher;
+import util.DBConnection;
+import java.sql.*;
+import java.security.MessageDigest;
+import java.security.NoSuchAlgorithmException;
+import java.util.UUID;
+
+public class TeacherDAO {
+    
+    public boolean isEmailExists(String email) {
+        Connection conn = null;
+        PreparedStatement stmt = null;
+        ResultSet rs = null;
+        
+        try {
+            conn = DBConnection.getConnection();
+            if (conn == null) {
+                System.err.println("isEmailExists (TeacherDAO): DB connection is null.");
+                return false;
+            }
+            String sql = "SELECT COUNT(*) FROM teacher WHERE teacherEmail = ?";
+            stmt = conn.prepareStatement(sql);
+            stmt.setString(1, email);
+            rs = stmt.executeQuery();
+            
+            if (rs.next()) {
+                return rs.getInt(1) > 0;
+            }
+        } catch (SQLException e) {
+            e.printStackTrace();
+        } finally {
+            try {
+                if (rs != null) rs.close();
+                if (stmt != null) stmt.close();
+                if (conn != null) conn.close();
+            } catch (SQLException e) {
+                e.printStackTrace();
+            }
+        }
+        
+        return false;
+    }
+    
+    private String getNextTeacherId() {
+        Connection conn = null;
+        PreparedStatement stmt = null;
+        ResultSet rs = null;
+        
+        try {
+            conn = DBConnection.getConnection();
+            if (conn == null) {
+                System.err.println("getNextTeacherId: DB connection is null. Returning default T001.");
+                return "T001";
+            }
+            String sql = "SELECT teacherId FROM teacher WHERE teacherId LIKE 'T%' ORDER BY CAST(SUBSTRING(teacherId, 2) AS UNSIGNED) DESC LIMIT 1";
+            stmt = conn.prepareStatement(sql);
+            rs = stmt.executeQuery();
+            
+            if (rs.next()) {
+                String lastId = rs.getString("teacherId");
+                int number = Integer.parseInt(lastId.substring(1));
+                return String.format("T%03d", number + 1);
+            } else {
+                return "T001";
+            }
+        } catch (SQLException | NumberFormatException e) {
+            e.printStackTrace();
+            return "T001";
+        } finally {
+            try {
+                if (rs != null) rs.close();
+                if (stmt != null) stmt.close();
+                if (conn != null) conn.close();
+            } catch (SQLException e) {
+                e.printStackTrace();
+            }
+        }
+    }
+    
+    public boolean registerTeacher(Teacher teacher) {
+        Connection conn = null;
+        PreparedStatement stmt = null;
+        
+        try {
+            conn = DBConnection.getConnection();
+            if (conn == null) {
+                System.err.println("registerTeacher: DB connection is null.");
+                return false;
+            }
+            String sql = "INSERT INTO teacher (teacherId, teacherName, teacherEmail, teacherPassword, teacherPhoneNo, teacherDateofBirth, registrationDate, teacherSecQues, teacherSecPassword, qualifications, specialtyArea, certificationPath) VALUES (?, ?, ?, ?, ?, ?, CURDATE(), ?, ?, ?, ?, ?)";
+            stmt = conn.prepareStatement(sql);
+            
+            String teacherId = getNextTeacherId();
+            stmt.setString(1, teacherId);
+            stmt.setString(2, teacher.getFullName());
+            stmt.setString(3, teacher.getEmail());
+            stmt.setString(4, teacher.getPassword());
+            stmt.setString(5, teacher.getPhone());
+            stmt.setDate(6, Date.valueOf(teacher.getDateOfBirth()));
+            stmt.setString(7, teacher.getSecurityQuestion());
+            stmt.setString(8, teacher.getSecurityAnswer());
+            stmt.setString(9, teacher.getQualification());
+            stmt.setString(10, teacher.getSpecialty());
+            stmt.setString(11, teacher.getCertificationPath());
+            
+            int result = stmt.executeUpdate();
+            System.out.println("Teacher registration result: " + result);
+            if (result > 0) {
+                teacher.setTeacherId(teacherId);
+            }
+            return result > 0;
+        } catch (SQLException e) {
+            System.err.println("SQL Error in registerTeacher: " + e.getMessage());
+            e.printStackTrace();
+            return false;
+        } finally {
+            try {
+                if (stmt != null) stmt.close();
+                if (conn != null) conn.close();
+            } catch (SQLException e) {
+                e.printStackTrace();
+            }
+        }
+    }
+    
+    private String hashPassword(String password) {
+        try {
+            MessageDigest md = MessageDigest.getInstance("SHA-256");
+            byte[] hash = md.digest(password.getBytes());
+            StringBuilder hexString = new StringBuilder();
+            
+            for (byte b : hash) {
+                String hex = Integer.toHexString(0xff & b);
+                if (hex.length() == 1) hexString.append('0');
+                hexString.append(hex);
+            }
+            
+            return hexString.toString();
+        } catch (NoSuchAlgorithmException e) {
+            e.printStackTrace();
+            return password;
+        }
+    }
+    
+    public Teacher authenticateTeacher(String email, String password) {
+        Teacher teacher = null;
+        Connection conn = null;
+        PreparedStatement stmt = null;
+        ResultSet rs = null;
+        
+        try {
+            conn = DBConnection.getConnection();
+            if (conn == null) {
+                System.err.println("authenticateTeacher: DB connection is null.");
+                return null;
+            }
+            String sql = "SELECT teacherId, teacherName, teacherEmail FROM teacher WHERE teacherEmail = ? AND teacherPassword = ?";
+            stmt = conn.prepareStatement(sql);
+            stmt.setString(1, email);
+            stmt.setString(2, password);
+            
+            rs = stmt.executeQuery();
+            
+            if (rs.next()) {
+                teacher = new Teacher();
+                teacher.setTeacherId(rs.getString("teacherId"));
+                teacher.setFullName(rs.getString("teacherName"));
+                teacher.setEmail(rs.getString("teacherEmail"));
+            }
+        } catch (SQLException e) {
+            e.printStackTrace();
+        } finally {
+            try {
+                if (rs != null) rs.close();
+                if (stmt != null) stmt.close();
+                if (conn != null) conn.close();
+            } catch (SQLException e) {
+                e.printStackTrace();
+            }
+        }
+        
+        return teacher;
+    }
+    
+    public boolean isTeacherEmailExists(String email) {
+        Connection conn = null;
+        PreparedStatement stmt = null;
+        ResultSet rs = null;
+        
+        try {
+            conn = DBConnection.getConnection();
+            if (conn == null) {
+                System.err.println("isTeacherEmailExists: DB connection is null.");
+                return false;
+            }
+            String sql = "SELECT COUNT(*) FROM teacher WHERE teacherEmail = ?";
+            stmt = conn.prepareStatement(sql);
+            stmt.setString(1, email);
+            rs = stmt.executeQuery();
+            
+            if (rs.next()) {
+                return rs.getInt(1) > 0;
+            }
+        } catch (SQLException e) {
+            e.printStackTrace();
+        } finally {
+            try {
+                if (rs != null) rs.close();
+                if (stmt != null) stmt.close();
+                if (conn != null) conn.close();
+            } catch (SQLException e) {
+                e.printStackTrace();
+            }
+        }
+        
+        return false;
+    }
+    
+    public String getSecurityQuestionByEmail(String email) {
+        Connection conn = null;
+        PreparedStatement stmt = null;
+        ResultSet rs = null;
+        
+        try {
+            conn = DBConnection.getConnection();
+            if (conn == null) {
+                System.err.println("getSecurityQuestionByEmail (TeacherDAO): DB connection is null.");
+                return null;
+            }
+            String sql = "SELECT teacherSecQues FROM teacher WHERE teacherEmail = ?";
+            stmt = conn.prepareStatement(sql);
+            stmt.setString(1, email);
+            rs = stmt.executeQuery();
+            
+            if (rs.next()) {
+                return rs.getString("teacherSecQues");
+            }
+        } catch (SQLException e) {
+            e.printStackTrace();
+        } finally {
+            try {
+                if (rs != null) rs.close();
+                if (stmt != null) stmt.close();
+                if (conn != null) conn.close();
+            } catch (SQLException e) {
+                e.printStackTrace();
+            }
+        }
+        
+        return null;
+    }
+    
+    public boolean verifySecurityAnswer(String email, String answer) {
+        Connection conn = null;
+        PreparedStatement stmt = null;
+        ResultSet rs = null;
+        
+        try {
+            conn = DBConnection.getConnection();
+            if (conn == null) {
+                System.err.println("verifySecurityAnswer (TeacherDAO): DB connection is null.");
+                return false;
+            }
+            String sql = "SELECT teacherSecPassword FROM teacher WHERE teacherEmail = ?";
+            stmt = conn.prepareStatement(sql);
+            stmt.setString(1, email);
+            rs = stmt.executeQuery();
+            
+            if (rs.next()) {
+                String storedAnswer = rs.getString("teacherSecPassword");
+                return storedAnswer.equalsIgnoreCase(answer);
+            }
+        } catch (SQLException e) {
+            e.printStackTrace();
+        } finally {
+            try {
+                if (rs != null) rs.close();
+                if (stmt != null) stmt.close();
+                if (conn != null) conn.close();
+            } catch (SQLException e) {
+                e.printStackTrace();
+            }
+        }
+        
+        return false;
+    }
+    
+    public boolean updateTeacherPassword(String email, String newPassword) {
+        Connection conn = null;
+        PreparedStatement stmt = null;
+        
+        try {
+            conn = DBConnection.getConnection();
+            if (conn == null) {
+                System.err.println("updateTeacherPassword: DB connection is null.");
+                return false;
+            }
+            String sql = "UPDATE teacher SET teacherPassword = ? WHERE teacherEmail = ?";
+            stmt = conn.prepareStatement(sql);
+            stmt.setString(1, newPassword);
+            stmt.setString(2, email);
+            
+            return stmt.executeUpdate() > 0;
+        } catch (SQLException e) {
+            e.printStackTrace();
+            return false;
+        } finally {
+            try {
+                if (stmt != null) stmt.close();
+                if (conn != null) conn.close();
+            } catch (SQLException e) {
+                e.printStackTrace();
+            }
+        }
+    }
+    
+    /**
+     * Get teacher details by teacher ID for dashboard
+     */
+    public Teacher getTeacherById(String teacherId) {
+        Teacher teacher = null;
+        Connection conn = null;
+        PreparedStatement stmt = null;
+        ResultSet rs = null;
+        
+        try {
+            conn = DBConnection.getConnection();
+            if (conn == null) {
+                System.err.println("getTeacherById: DB connection is null.");
+                return null;
+            }
+            String sql = "SELECT teacherId, teacherName, teacherEmail, registrationDate, specialtyArea, teacherPhoneNo, qualifications, approvalStatus, certificationPath " +
+                        "FROM teacher WHERE teacherId = ?";
+            stmt = conn.prepareStatement(sql);
+            stmt.setString(1, teacherId);
+            rs = stmt.executeQuery();
+            
+            if (rs.next()) {
+                teacher = new Teacher();
+                teacher.setTeacherId(rs.getString("teacherId"));
+                teacher.setFullName(rs.getString("teacherName"));
+                teacher.setEmail(rs.getString("teacherEmail"));
+                teacher.setSpecialty(rs.getString("specialtyArea"));
+                teacher.setPhone(rs.getString("teacherPhoneNo"));
+                teacher.setQualification(rs.getString("qualifications"));
+                teacher.setStatus(rs.getString("approvalStatus"));
+                teacher.setCertificationPath(rs.getString("certificationPath"));
+
+                // Convert SQL Date to LocalDate (registration date reused)
+                java.sql.Date sqlDate = rs.getDate("registrationDate");
+                if (sqlDate != null) {
+                    teacher.setDateOfBirth(sqlDate.toLocalDate()); // Using dateOfBirth field for joined date
+                }
+            }
+        } catch (SQLException e) {
+            e.printStackTrace();
+        } finally {
+            try {
+                if (rs != null) rs.close();
+                if (stmt != null) stmt.close();
+                if (conn != null) conn.close();
+            } catch (SQLException e) {
+                e.printStackTrace();
+            }
+        }
+        
+        return teacher;
+    }
+    
+    /**
+     * Get count of classes scheduled for this week for a specific teacher
+     */
+    public int getClassesThisWeekCount(String teacherId) {
+        int count = 0;
+        Connection conn = null;
+        PreparedStatement stmt = null;
+        ResultSet rs = null;
+        
+        try {
+            conn = DBConnection.getConnection();
+            if (conn == null) {
+                System.err.println("getClassesThisWeekCount: DB connection is null. Returning 0.");
+                return 0;
+            }
+            String sql = "SELECT COUNT(*) as count FROM classschedule " +
+                        "WHERE teacherId = ? " +
+                        "AND YEARWEEK(scheduleDate, 1) = YEARWEEK(CURDATE(), 1)";
+            stmt = conn.prepareStatement(sql);
+            stmt.setString(1, teacherId);
+            rs = stmt.executeQuery();
+            
+            if (rs.next()) {
+                count = rs.getInt("count");
+            }
+        } catch (SQLException e) {
+            e.printStackTrace();
+        } finally {
+            try {
+                if (rs != null) rs.close();
+                if (stmt != null) stmt.close();
+                if (conn != null) conn.close();
+            } catch (SQLException e) {
+                e.printStackTrace();
+            }
+        }
+        
+        return count;
+    }
+    
+    /**
+     * Get total number of unique students taught by this teacher
+     */
+    public int getTotalStudentsTaught(String teacherId) {
+        int count = 0;
+        Connection conn = null;
+        PreparedStatement stmt = null;
+        ResultSet rs = null;
+        
+        try {
+            conn = DBConnection.getConnection();
+            if (conn == null) {
+                System.err.println("getTotalStudentsTaught: DB connection is null. Returning 0.");
+                return 0;
+            }
+            String sql = "SELECT COUNT(DISTINCT studentId) as count FROM classschedule " +
+                        "WHERE teacherId = ? AND studentId IS NOT NULL";
+            stmt = conn.prepareStatement(sql);
+            stmt.setString(1, teacherId);
+            rs = stmt.executeQuery();
+            
+            if (rs.next()) {
+                count = rs.getInt("count");
+            }
+        } catch (SQLException e) {
+            e.printStackTrace();
+        } finally {
+            try {
+                if (rs != null) rs.close();
+                if (stmt != null) stmt.close();
+                if (conn != null) conn.close();
+            } catch (SQLException e) {
+                e.printStackTrace();
+            }
+        }
+        
+        return count;
+    }
+    
+    /**
+     * Get average rating for this teacher from evaluations
+     */
+    public double getAverageRating(String teacherId) {
+        double avgRating = 0.0;
+        Connection conn = null;
+        PreparedStatement stmt = null;
+        ResultSet rs = null;
+        
+        try {
+            conn = DBConnection.getConnection();
+            if (conn == null) {
+                System.err.println("getAverageRating: DB connection is null. Returning 0.0.");
+                return 0.0;
+            }
+            // Calculate average based on available score columns
+            String sql = "SELECT AVG((COALESCE(tajweedScore,0)+COALESCE(fluencyScore,0)+COALESCE(accuracyScore,0))/3) as avgRating " +
+                        "FROM studentevaluation " +
+                        "WHERE teacherId = ? AND (tajweedScore IS NOT NULL OR fluencyScore IS NOT NULL OR accuracyScore IS NOT NULL)";
+            stmt = conn.prepareStatement(sql);
+            stmt.setString(1, teacherId);
+            rs = stmt.executeQuery();
+            
+            if (rs.next()) {
+                avgRating = rs.getDouble("avgRating");
+            }
+        } catch (SQLException e) {
+            e.printStackTrace();
+        } finally {
+            try {
+                if (rs != null) rs.close();
+                if (stmt != null) stmt.close();
+                if (conn != null) conn.close();
+            } catch (SQLException e) {
+                e.printStackTrace();
+            }
+        }
+        
+        return avgRating;
+    }
+    
+    public int getTotalActiveTeachers() {
+        int count = 0;
+        Connection conn = null;
+        PreparedStatement pstmt = null;
+        ResultSet rs = null;
+        
+        try {
+            conn = DBConnection.getConnection();
+            if (conn == null) {
+                System.err.println("getTotalActiveTeachers: DB connection is null. Returning 0.");
+                return 0;
+            }
+            String sql = "SELECT COUNT(*) as total FROM teacher WHERE teacherStatus = 'Active'";
+            pstmt = conn.prepareStatement(sql);
+            rs = pstmt.executeQuery();
+            
+            if (rs.next()) {
+                count = rs.getInt("total");
+            }
+            
+        } catch (SQLException e) {
+            System.err.println("Error getting total active teachers: " + e.getMessage());
+            e.printStackTrace();
+        } finally {
+            try {
+                if (rs != null) rs.close();
+                if (pstmt != null) pstmt.close();
+                if (conn != null) conn.close();
+            } catch (SQLException e) {
+                e.printStackTrace();
+            }
+        }
+        
+        return count;
+    }
+
+    /**
+     * Get all teachers for admin listing
+     */
+    public java.util.List<model.Teacher> getAllTeachers() {
+        java.util.List<model.Teacher> list = new java.util.ArrayList<>();
+        Connection conn = null;
+        PreparedStatement pstmt = null;
+        ResultSet rs = null;
+
+        try {
+            conn = DBConnection.getConnection();
+            if (conn == null) {
+                System.err.println("getAllTeachers: DB connection is null.");
+                return list;
+            }
+            String sql = "SELECT teacherId, teacherName, teacherEmail, teacherPhoneNo, specialtyArea, qualifications, registrationDate, approvalStatus FROM teacher ORDER BY registrationDate DESC";
+            pstmt = conn.prepareStatement(sql);
+            rs = pstmt.executeQuery();
+
+            while (rs.next()) {
+                model.Teacher t = new model.Teacher();
+                t.setTeacherId(rs.getString("teacherId"));
+                t.setFullName(rs.getString("teacherName"));
+                t.setEmail(rs.getString("teacherEmail"));
+                t.setPhone(rs.getString("teacherPhoneNo"));
+                t.setSpecialty(rs.getString("specialtyArea"));
+                t.setQualification(rs.getString("qualifications"));
+                // reuse dateOfBirth field for registration date as other code does
+                java.sql.Date sqlDate = rs.getDate("registrationDate");
+                if (sqlDate != null) t.setDateOfBirth(sqlDate.toLocalDate());
+                try { t.setStatus(rs.getString("approvalStatus")); } catch (Throwable ignore) {}
+                list.add(t);
+            }
+        } catch (SQLException e) {
+            e.printStackTrace();
+        } finally {
+            try { if (rs != null) rs.close(); } catch (SQLException ignored) {}
+            try { if (pstmt != null) pstmt.close(); } catch (SQLException ignored) {}
+            try { if (conn != null) conn.close(); } catch (SQLException ignored) {}
+        }
+
+        return list;
+    }
+
+    /**
+     * Update teacher status (Approved / Pending / Rejected)
+     */
+    public boolean updateTeacherStatus(String teacherId, String status) {
+        Connection conn = null;
+        PreparedStatement pstmt = null;
+        try {
+            conn = DBConnection.getConnection();
+            if (conn == null) {
+                System.err.println("updateTeacherStatus: DB connection is null.");
+                return false;
+            }
+            String sql = "UPDATE teacher SET approvalStatus = ? WHERE teacherId = ?";
+            pstmt = conn.prepareStatement(sql);
+            pstmt.setString(1, status);
+            pstmt.setString(2, teacherId);
+            int updated = pstmt.executeUpdate();
+            return updated > 0;
+        } catch (SQLException e) {
+            e.printStackTrace();
+            return false;
+        } finally {
+            try { if (pstmt != null) pstmt.close(); } catch (SQLException ignored) {}
+            try { if (conn != null) conn.close(); } catch (SQLException ignored) {}
+        }
+    }
+}
