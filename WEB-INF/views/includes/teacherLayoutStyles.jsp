@@ -16,16 +16,16 @@
     }
     * { font-family: 'Poppins', sans-serif; margin: 0; padding: 0; box-sizing: border-box; }
     body { background: var(--teacher-bg); overflow-x: hidden; color: var(--teacher-text); }
-    .sidebar { position: fixed; left: 0; top: 0; width: 280px; height: 100vh; background: var(--teacher-sidebar); overflow-y: auto; z-index: 1000; padding: 30px 0; padding-bottom: 100px; }
+    .sidebar { position: fixed; left: 0; top: 0; width: 280px; height: 100vh; background: var(--teacher-sidebar); overflow-y: auto; z-index: 1000; padding: 30px 0; display: flex; flex-direction: column; }
     .sidebar-brand { padding: 0 25px 30px; margin-bottom: 20px; border-bottom: 1px solid rgba(255,255,255,0.1); }
     .brand-title { font-size: 24px; font-weight: 700; color: rgba(255,255,255,0.95); }
     .brand-subtitle { font-size: 13px; color: rgba(255,255,255,0.6); }
-    .sidebar-menu { list-style: none; padding: 0 15px; }
+    .sidebar-menu { list-style: none; padding: 0 15px; flex: 1; overflow-y: auto; }
     .sidebar-menu li { margin-bottom: 10px; }
     .sidebar-menu a { display: flex; align-items: center; padding: 12px 15px; color: rgba(255,255,255,0.65); text-decoration: none; border-radius: 25px; font-size: 14px; font-weight: 500; transition: all .3s; }
     .sidebar-menu a i { width: 20px; margin-right: 15px; text-align: center; }
     .sidebar-menu a:hover, .sidebar-menu a.active { color: white; background: rgba(255,255,255,0.12); font-weight: 600; }
-    .sidebar-logout { position: absolute; bottom: 30px; left: 15px; right: 15px; }
+    .sidebar-logout { position: relative; flex-shrink: 0; margin-top: auto; padding: 16px 15px 0; border-top: 1px solid rgba(255,255,255,0.1); }
     .sidebar-logout a { display: flex; align-items: center; padding: 12px 15px; color: rgba(255,255,255,0.65); text-decoration: none; border-radius: 25px; font-size: 14px; font-weight: 500; transition: all .3s; }
     .sidebar-logout a:hover { color: white; background: rgba(255,255,255,0.12); }
     .sidebar-logout a i { width: 20px; margin-right: 15px; text-align: center; }
@@ -87,4 +87,5 @@
     .notif-menu-foot { padding: 12px; text-align: center; border-top: 1px solid #f1f5f9; }
     .notif-menu-foot a { font-size: 13px; font-weight: 600; color: var(--teacher-purple); text-decoration: none; }
 </style>
-<%@ include file="/WEB-INF/views/includes/portalResponsive.jsp" %>
+<link rel="stylesheet" href="<%= request.getContextPath() %>/css/portal-responsive.css">
+<script src="<%= request.getContextPath() %>/js/portal-responsive.js" defer></script>
