@@ -8,8 +8,8 @@
 
               url="jdbc:mysql://mysql-2b375d73-nrullliffahh-3229.i.aivencloud.com:16135/defaultdb?sslMode=REQUIRED"
 
-              username=""
-              password=""
+              username="${env.DB_USER}"
+              password="${env.DB_PASSWORD}"
 
               initialSize="2"
               maxActive="20"
