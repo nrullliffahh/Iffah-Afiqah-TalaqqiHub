@@ -12,6 +12,13 @@ import java.util.List;
 
 public class PackageDAO {
 
+    private static String stripRM(String val) {
+        if (val == null) return "0";
+        val = val.trim();
+        if (val.toUpperCase().startsWith("RM")) val = val.substring(2).trim();
+        return val.isEmpty() ? "0" : val;
+    }
+
     public List<Package> getAllPackages() {
         List<Package> packages = new ArrayList<>();
         Connection conn = null;
@@ -73,7 +80,7 @@ public class PackageDAO {
                     p.setCategory(pkgType);
                     p.setSessions(totalSessions);
 
-                    try { p.setPrice(priceCol != null ? rs.getString(priceCol) : "RM0"); } catch (Exception ignore) { p.setPrice("RM0"); }
+                    try { p.setPrice(stripRM(priceCol != null ? rs.getString(priceCol) : "0")); } catch (Exception ignore) { p.setPrice("0"); }
                     try { p.setDurationPerSession(durationCol != null ? rs.getInt(durationCol) : 15); } catch (Exception ignore) { p.setDurationPerSession(15); }
                     try { p.setDescription(descCol != null ? rs.getString(descCol) : ""); } catch (Exception ignore) { p.setDescription(""); }
                     try { p.setAgeRange(ageCol != null ? rs.getString(ageCol) : ""); } catch (Exception ignore) { p.setAgeRange(""); }
@@ -82,9 +89,9 @@ public class PackageDAO {
                     // if price or description empty, provide reasonable defaults for known packages
                     if ((p.getPrice() == null || p.getPrice().isEmpty()) && pkgIdStr != null) {
                         switch (pkgIdStr) {
-                            case "P003": p.setPrice("RM160"); break;
-                            case "P004": p.setPrice("RM300"); break;
-                            default: p.setPrice("RM0");
+                            case "P003": p.setPrice("160"); break;
+                            case "P004": p.setPrice("300"); break;
+                            default: p.setPrice("0");
                         }
                     }
 
@@ -122,7 +129,7 @@ public class PackageDAO {
                     if (pkgIdStr != null) {
                         switch (pkgIdStr) {
                             case "P001": // TalaqqiSpark (Kids)
-                                p.setPrice("RM120");
+                                p.setPrice("120");
                                 p.setDurationPerSession(15);
                                 p.setDescription("A gentle introduction to Quran learning for children. Short and focused sessions help kids stay attentive while building confidence step by step.");
                                 p.setPopular(false);
@@ -130,7 +137,7 @@ public class PackageDAO {
                                 p.setAgeRange("");
                                 break;
                             case "P002": // TalaqqiSpark+ (Kids)
-                                p.setPrice("RM220");
+                                p.setPrice("220");
                                 p.setDurationPerSession(15);
                                 p.setDescription("Perfect for children who need more regular practice. Consistent sessions support better recitation, focus, and learning habits.");
                                 p.setAgeRange("");
@@ -138,28 +145,28 @@ public class PackageDAO {
                                 p.setGradient("linear-gradient(90deg,#8b5cf6,#f687b3)");
                                 break;
                             case "P003": // TalaqqiPro (Adults)
-                                p.setPrice("RM160");
+                                p.setPrice("160");
                                 p.setDurationPerSession(15);
                                 p.setDescription("Suitable for adult learners who want guided Quran learning in short, focused sessions that fit into a busy schedule.");
                                 p.setPopular(false);
                                 p.setGradient("linear-gradient(90deg,#7c3aed,#f472b6)");
                                 break;
                             case "P004": // TalaqqiPro+ (Adults)
-                                p.setPrice("RM300");
+                                p.setPrice("300");
                                 p.setDurationPerSession(15);
                                 p.setDescription("Best for adults who want consistent guidance and steady improvement through regular talaqqi sessions and teacher feedback.");
                                 p.setPopular(true);
                                 p.setGradient("linear-gradient(90deg,#f472b6,#ef476f)");
                                 break;
                             default:
-                                p.setPrice("RM0");
+                                p.setPrice("0");
                                 p.setDurationPerSession(15);
                                 p.setDescription("");
                                 p.setPopular(false);
                                 p.setGradient("linear-gradient(90deg,#e6f5f0,#f0edff)");
                         }
                     } else {
-                        p.setPrice("RM0");
+                        p.setPrice("0");
                         p.setDurationPerSession(15);
                         p.setDescription("");
                         p.setPopular(false);

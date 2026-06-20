@@ -5,7 +5,10 @@ import util.DBConnection;
 
 import java.sql.*;
 import java.text.SimpleDateFormat;
+import java.time.Duration;
 import java.time.LocalDate;
+import java.time.LocalDateTime;
+import java.time.LocalTime;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
@@ -29,6 +32,11 @@ import java.util.UUID;
  *                         classStatus, classJuzuk, classSurah, classAyah
  */
 public class TalaqqiSessionDAO {
+
+    /** Minutes after teacher starts before a joining student is marked Late. */
+    public static final int LATE_THRESHOLD_MINUTES = 5;
+    /** Seconds after scheduled start before marking Late (> 5 minutes). */
+    private static final long LATE_THRESHOLD_SECONDS = LATE_THRESHOLD_MINUTES * 60L;
 
     // ── Common SELECT columns shared by every query ──────────────────────────
     private static final String BASE_SELECT =
@@ -419,10 +427,10 @@ public class TalaqqiSessionDAO {
             closeQuietly(null, ps, conn);
         }
 
-        // Then, save to qurandisplay table (primary storage for display data)
-        boolean quranDisplaySaved = saveQuranDisplay(sessionId, surahNumber, ayahStart);
-        
-        return classScheduleUpdated && quranDisplaySaved;
+        // Save to qurandisplay (start ayah only — end range lives on classschedule.classAyahEnd)
+        saveQuranDisplay(sessionId, surahNumber, ayahStart);
+
+        return classScheduleUpdated;
     }
 
     /**
@@ -556,7 +564,7 @@ public class TalaqqiSessionDAO {
      * @return true on success
      */
     public boolean recordSessionStartTime(String sessionId) {
-        String sql = "UPDATE talaqqisession SET sessionStartTime = NOW() WHERE sessionId = ?";
+        String sql = "UPDATE talaqqisession SET sessionStartTime = CURTIME() WHERE sessionId = ?";
         
         Connection conn = null;
         PreparedStatement ps = null;
@@ -692,26 +700,31 @@ public class TalaqqiSessionDAO {
     public boolean recordAttendance(String sessionId, String studentId,
                                     String teacherId, String status,
                                     Time joinTime, boolean markAutoAttendance) {
-        // Step 1: Resolve scheduleId from talaqqisession chain
         String scheduleId = getScheduleIdBySessionId(sessionId);
         if (scheduleId == null) {
             System.err.println("[TalaqqiSessionDAO] recordAttendance: scheduleId not found for sessionId=" + sessionId);
             return false;
         }
 
-        // Step 2: Generate attendance ID (AT + 8 random hex chars)
-        String attendanceId = "AT" + UUID.randomUUID().toString().replace("-", "").substring(0, 8).toUpperCase();
-        java.sql.Date today = java.sql.Date.valueOf(LocalDate.now());
+        java.sql.Date sessionDate = getSessionDateBySessionId(sessionId);
+        if (sessionDate == null) {
+            sessionDate = java.sql.Date.valueOf(LocalDate.now());
+        }
 
-        // Step 3: Try upsert (requires UNIQUE key on studentId+scheduleId+attendanceDate)
+        ensureAttendanceUniqueIndex();
+
+        String attendanceId = "AT" + UUID.randomUUID().toString().replace("-", "").substring(0, 8).toUpperCase();
         String upsertSql =
-            "INSERT INTO attendance (attendanceId, attendanceDate, attendanceStatus, " +
-            "  joinTime, markAutoAttendance, studentId, teacherId, scheduleId) " +
+            "INSERT INTO attendance (attendanceId, attendanceDate, attendanceStatus, joinTime, " +
+            "  markAutoAttendance, studentId, teacherId, scheduleId) " +
             "VALUES (?, ?, ?, ?, ?, ?, ?, ?) " +
             "ON DUPLICATE KEY UPDATE " +
-            "  attendanceStatus     = VALUES(attendanceStatus), " +
-            "  joinTime             = VALUES(joinTime), " +
-            "  markAutoAttendance   = VALUES(markAutoAttendance)";
+            "  attendanceStatus   = CASE " +
+            "    WHEN VALUES(attendanceStatus) = 'Late' OR attendanceStatus = 'Late' THEN 'Late' " +
+            "    WHEN VALUES(attendanceStatus) = 'Present' OR attendanceStatus = 'Present' THEN 'Present' " +
+            "    ELSE VALUES(attendanceStatus) END, " +
+            "  joinTime           = COALESCE(VALUES(joinTime), joinTime), " +
+            "  markAutoAttendance = VALUES(markAutoAttendance)";
 
         Connection conn = null;
         PreparedStatement ps = null;
@@ -720,7 +733,7 @@ public class TalaqqiSessionDAO {
             if (conn == null) return false;
             ps = conn.prepareStatement(upsertSql);
             ps.setString(1, attendanceId);
-            ps.setDate(2, today);
+            ps.setDate(2, sessionDate);
             ps.setString(3, status);
             ps.setTime(4, joinTime);
             ps.setBoolean(5, markAutoAttendance);
@@ -730,66 +743,126 @@ public class TalaqqiSessionDAO {
             ps.executeUpdate();
             return true;
         } catch (SQLException e) {
-            // Fallback: plain INSERT IGNORE when no unique key exists
-            System.err.println("[TalaqqiSessionDAO] recordAttendance upsert failed, trying INSERT IGNORE: " + e.getMessage());
-            closeQuietly(null, ps, null);
-            try {
-                String insertSql =
-                    "INSERT IGNORE INTO attendance " +
-                    "(attendanceId, attendanceDate, attendanceStatus, joinTime, " +
-                    " markAutoAttendance, studentId, teacherId, scheduleId) " +
-                    "VALUES (?, ?, ?, ?, ?, ?, ?, ?)";
-                ps = conn.prepareStatement(insertSql);
-                ps.setString(1, attendanceId);
-                ps.setDate(2, today);
-                ps.setString(3, status);
-                ps.setTime(4, joinTime);
-                ps.setBoolean(5, markAutoAttendance);
-                ps.setString(6, studentId);
-                ps.setString(7, teacherId);
-                ps.setString(8, scheduleId);
-                ps.executeUpdate();
-                return true;
-            } catch (SQLException e2) {
-                System.err.println("[TalaqqiSessionDAO] recordAttendance INSERT IGNORE failed: " + e2.getMessage());
-                return false;
-            }
+            System.err.println("[TalaqqiSessionDAO] recordAttendance failed: " + e.getMessage());
+            return false;
         } finally {
             closeQuietly(null, ps, conn);
         }
     }
 
     /**
-     * Sets the leaveTime on an existing attendance row (called when session ends).
-     * Resolves scheduleId from talaqqisession chain internally.
-     *
-     * @param sessionId  talaqqisession primary key
-     * @param studentId  student primary key
-     * @param leaveTime  time the student left
+     * Removes duplicate attendance rows and adds a unique key so one student
+     * can only have one record per schedule per day.
+     */
+    private void ensureAttendanceUniqueIndex() {
+        Connection conn = null;
+        Statement st = null;
+        try {
+            conn = DBConnection.getConnection();
+            if (conn == null) return;
+            st = conn.createStatement();
+            try {
+                st.executeUpdate(
+                    "DELETE a FROM attendance a " +
+                    "INNER JOIN (" +
+                    "  SELECT studentId, scheduleId, attendanceDate, MIN(attendanceId) AS keepId " +
+                    "  FROM attendance " +
+                    "  GROUP BY studentId, scheduleId, attendanceDate " +
+                    "  HAVING COUNT(*) > 1" +
+                    ") d ON a.studentId = d.studentId " +
+                    "   AND a.scheduleId = d.scheduleId " +
+                    "   AND a.attendanceDate = d.attendanceDate " +
+                    "   AND a.attendanceId <> d.keepId");
+            } catch (SQLException ignored) {}
+            try {
+                st.execute(
+                    "ALTER TABLE attendance " +
+                    "ADD UNIQUE KEY uq_att_student_schedule_date (studentId, scheduleId, attendanceDate)");
+            } catch (SQLException ignored) {}
+        } catch (SQLException e) {
+            System.err.println("[TalaqqiSessionDAO] ensureAttendanceUniqueIndex: " + e.getMessage());
+        } finally {
+            if (st != null) {
+                try { st.close(); } catch (SQLException ignored) {}
+            }
+            if (conn != null) {
+                try { conn.close(); } catch (SQLException ignored) {}
+            }
+        }
+    }
+
+    /**
+     * Sets leaveTime on attendance row(s) for a student in this session.
+     * Uses the talaqqisession → booking chain so attendanceDate mismatches do not block updates.
      */
     public boolean updateLeaveTime(String sessionId, String studentId, Time leaveTime) {
-        // Resolve scheduleId through the chain
-        String scheduleId = getScheduleIdBySessionId(sessionId);
-        if (scheduleId == null) return false;
+        if (sessionId == null || sessionId.isEmpty() || leaveTime == null) {
+            return false;
+        }
 
         String sql =
-            "UPDATE attendance SET leaveTime = ? " +
-            "WHERE scheduleId = ? AND studentId = ? " +
-            "  AND attendanceDate = CURDATE()";
+            "UPDATE attendance a " +
+            "JOIN classbooking cb ON cb.scheduleId = a.scheduleId AND cb.studentId = a.studentId " +
+            "JOIN talaqqisession ts ON ts.bookingId = cb.bookingId " +
+            "SET a.leaveTime = ? " +
+            "WHERE ts.sessionId = ? " +
+            "  AND a.joinTime IS NOT NULL " +
+            "  AND (a.leaveTime IS NULL)";
 
         Connection conn = null;
         PreparedStatement ps = null;
         try {
             conn = DBConnection.getConnection();
             if (conn == null) return false;
+
+            if (studentId != null && !studentId.isEmpty()) {
+                sql += " AND a.studentId = ?";
+            }
+
             ps = conn.prepareStatement(sql);
             ps.setTime(1, leaveTime);
-            ps.setString(2, scheduleId);
-            ps.setString(3, studentId);
+            ps.setString(2, sessionId);
+            if (studentId != null && !studentId.isEmpty()) {
+                ps.setString(3, studentId);
+            }
             return ps.executeUpdate() > 0;
         } catch (SQLException e) {
             System.err.println("[TalaqqiSessionDAO] updateLeaveTime: " + e.getMessage());
             return false;
+        } finally {
+            closeQuietly(null, ps, conn);
+        }
+    }
+
+    /**
+     * Sets leaveTime for every student who joined this session (teacher end session).
+     */
+    public int updateLeaveTimesForSession(String sessionId, Time leaveTime) {
+        if (sessionId == null || sessionId.isEmpty() || leaveTime == null) {
+            return 0;
+        }
+
+        String sql =
+            "UPDATE attendance a " +
+            "JOIN classbooking cb ON cb.scheduleId = a.scheduleId AND cb.studentId = a.studentId " +
+            "JOIN talaqqisession ts ON ts.bookingId = cb.bookingId " +
+            "SET a.leaveTime = ? " +
+            "WHERE ts.sessionId = ? " +
+            "  AND a.joinTime IS NOT NULL " +
+            "  AND a.leaveTime IS NULL";
+
+        Connection conn = null;
+        PreparedStatement ps = null;
+        try {
+            conn = DBConnection.getConnection();
+            if (conn == null) return 0;
+            ps = conn.prepareStatement(sql);
+            ps.setTime(1, leaveTime);
+            ps.setString(2, sessionId);
+            return ps.executeUpdate();
+        } catch (SQLException e) {
+            System.err.println("[TalaqqiSessionDAO] updateLeaveTimesForSession: " + e.getMessage());
+            return 0;
         } finally {
             closeQuietly(null, ps, conn);
         }
@@ -1250,18 +1323,19 @@ public class TalaqqiSessionDAO {
         
         // Step 1: Get all students booked for this session who have NO attendance record
         String findMissingStudentsSql =
-            "SELECT DISTINCT cb.studentId, cb.scheduleId, cs.teacherId " +
+            "SELECT DISTINCT cb.studentId, cb.scheduleId, cs.teacherId, ts.sessionDate " +
             "FROM talaqqisession ts " +
             "JOIN classbooking cb ON ts.bookingId = cb.bookingId " +
             "JOIN classschedule cs ON cb.scheduleId = cs.scheduleId " +
             "WHERE ts.sessionId = ? " +
             "  AND cs.teacherId = ? " +
-            "  AND cb.bookingStatus IN ('Upcoming', 'Approved') " +
+            "  AND cb.bookingStatus NOT IN ('Cancelled', 'Completed', 'Rescheduled') " +
             "  AND NOT EXISTS (" +
             "      SELECT 1 FROM attendance a " +
             "      WHERE a.scheduleId = cb.scheduleId " +
             "        AND a.studentId = cb.studentId " +
-            "        AND a.attendanceDate = CURDATE()" +
+            "        AND a.attendanceDate = ts.sessionDate " +
+            "        AND (a.attendanceStatus IN ('Present', 'Late') OR a.joinTime IS NOT NULL)" +
             "  )";
 
         Connection conn = null;
@@ -1282,17 +1356,19 @@ public class TalaqqiSessionDAO {
             while (rs.next()) {
                 String studentId = rs.getString("studentId");
                 String scheduleId = rs.getString("scheduleId");
+                java.sql.Date sessionDate = rs.getDate("sessionDate");
+                if (sessionDate == null) {
+                    sessionDate = java.sql.Date.valueOf(LocalDate.now());
+                }
 
                 // Record ABSENT attendance
                 String attendanceId = "AT" + UUID.randomUUID().toString().replace("-", "").substring(0, 8).toUpperCase();
-                java.sql.Date today = java.sql.Date.valueOf(LocalDate.now());
+                java.sql.Date today = sessionDate;
 
                 String insertAbsentSql =
                     "INSERT INTO attendance (attendanceId, attendanceDate, attendanceStatus, " +
                     "  studentId, teacherId, scheduleId, markAutoAttendance) " +
-                    "VALUES (?, ?, 'Absent', ?, ?, ?, true) " +
-                    "ON DUPLICATE KEY UPDATE attendanceStatus = 'Absent', " +
-                    "  markAutoAttendance = true, attendanceDate = VALUES(attendanceDate)";
+                    "VALUES (?, ?, 'Absent', ?, ?, ?, true)";
 
                 try (PreparedStatement insertPs = conn.prepareStatement(insertAbsentSql)) {
                     insertPs.setString(1, attendanceId);
@@ -1327,62 +1403,112 @@ public class TalaqqiSessionDAO {
     }
 
     /**
-     * Marks a student as LATE if they joined the session more than 5 minutes after it started.
-     * Called when a student joins the session.
-     * 
-     * Logic:
-     * - Get session start time from talaqqisession.sessionStartTime
-     * - Calculate join time (current time)
-     * - If join time > start time + 5 minutes, mark as LATE
-     * Otherwise, mark as PRESENT
-     * 
-     * @param sessionId   talaqqisession primary key
-     * @param studentId   student primary key
-     * @param teacherId   teacher primary key
-     * @return attendance status: "Present" or "Late"
+     * Marks a student as LATE if they joined more than 5 minutes after the
+     * scheduled class start (classschedule.startTime on session/schedule date).
+     * Uses MySQL TIMESTAMPDIFF so clock/timezone matches the database server.
      */
     public String determineAttendanceStatus(String sessionId, String studentId) {
-        String statusSql =
-            "SELECT ts.sessionStartTime " +
+        String sql =
+            "SELECT TIMESTAMPDIFF(SECOND, " +
+            "  TIMESTAMP(COALESCE(ts.sessionDate, cs.scheduleDate), cs.startTime), " +
+            "  NOW()) AS secondsLate " +
             "FROM talaqqisession ts " +
-            "WHERE ts.sessionId = ?";
+            "JOIN classbooking cb ON ts.bookingId = cb.bookingId " +
+            "JOIN classschedule cs ON cb.scheduleId = cs.scheduleId " +
+            "WHERE ts.sessionId = ? LIMIT 1";
 
         Connection conn = null;
         PreparedStatement ps = null;
         ResultSet rs = null;
-
         try {
             conn = DBConnection.getConnection();
-            if (conn == null) return "Present";  // Safety default
-
-            ps = conn.prepareStatement(statusSql);
+            if (conn == null) return "Present";
+            ps = conn.prepareStatement(sql);
             ps.setString(1, sessionId);
             rs = ps.executeQuery();
-
-            if (rs.next()) {
-                java.sql.Timestamp sessionStartTime = rs.getTimestamp("sessionStartTime");
-                
-                if (sessionStartTime != null) {
-                    // Get current time
-                    java.sql.Timestamp currentTime = new java.sql.Timestamp(System.currentTimeMillis());
-                    
-                    // Calculate difference in minutes
-                    long diffMs = currentTime.getTime() - sessionStartTime.getTime();
-                    long diffMinutes = diffMs / (60 * 1000);  // convert milliseconds to minutes
-                    
-                    // If more than 5 minutes late, mark as LATE
-                    if (diffMinutes > 5) {
-                        System.out.println("[TalaqqiSessionDAO] Student " + studentId + " joined " + diffMinutes + " minutes after session start - marking as LATE");
-                        return "Late";
-                    }
-                }
+            if (!rs.next()) {
+                System.out.println("[TalaqqiSessionDAO] determineAttendanceStatus: session not found " + sessionId);
+                return "Present";
             }
+
+            long secondsLate = rs.getLong("secondsLate");
+            if (rs.wasNull()) {
+                return "Present";
+            }
+
+            // Joined before scheduled start → on time
+            if (secondsLate <= 0) {
+                return "Present";
+            }
+
+            if (secondsLate > LATE_THRESHOLD_SECONDS) {
+                long minutesLate = secondsLate / 60;
+                System.out.println("[TalaqqiSessionDAO] Student " + studentId
+                        + " joined " + minutesLate + " min (" + secondsLate + "s) after scheduled start — Late");
+                return "Late";
+            }
+
+            System.out.println("[TalaqqiSessionDAO] Student " + studentId
+                    + " joined " + (secondsLate / 60) + " min after scheduled start — Present");
+            return "Present";
         } catch (SQLException e) {
             System.err.println("[TalaqqiSessionDAO] determineAttendanceStatus: " + e.getMessage());
+            return "Present";
         } finally {
             closeQuietly(rs, ps, conn);
         }
+    }
 
-        return "Present";
+    /**
+     * Actual live-session start (when teacher clicked Join). Used for duration only.
+     */
+    private LocalDateTime getSessionStartDateTime(String sessionId) {
+        String sql = "SELECT ts.sessionDate, ts.sessionStartTime FROM talaqqisession ts WHERE ts.sessionId = ?";
+        Connection conn = null;
+        PreparedStatement ps = null;
+        ResultSet rs = null;
+        try {
+            conn = DBConnection.getConnection();
+            if (conn == null) return null;
+            ps = conn.prepareStatement(sql);
+            ps.setString(1, sessionId);
+            rs = ps.executeQuery();
+            if (!rs.next()) return null;
+
+            java.sql.Date sessionDate = rs.getDate("sessionDate");
+            Time startTime = rs.getTime("sessionStartTime");
+            if (sessionDate == null || startTime == null) return null;
+
+            LocalDate date = sessionDate.toLocalDate();
+            LocalTime time = startTime.toLocalTime();
+            return LocalDateTime.of(date, time);
+        } catch (SQLException e) {
+            System.err.println("[TalaqqiSessionDAO] getSessionStartDateTime: " + e.getMessage());
+            return null;
+        } finally {
+            closeQuietly(rs, ps, conn);
+        }
+    }
+
+    private java.sql.Date getSessionDateBySessionId(String sessionId) {
+        String sql = "SELECT sessionDate FROM talaqqisession WHERE sessionId = ?";
+        Connection conn = null;
+        PreparedStatement ps = null;
+        ResultSet rs = null;
+        try {
+            conn = DBConnection.getConnection();
+            if (conn == null) return null;
+            ps = conn.prepareStatement(sql);
+            ps.setString(1, sessionId);
+            rs = ps.executeQuery();
+            if (rs.next()) {
+                return rs.getDate("sessionDate");
+            }
+        } catch (SQLException e) {
+            System.err.println("[TalaqqiSessionDAO] getSessionDateBySessionId: " + e.getMessage());
+        } finally {
+            closeQuietly(rs, ps, conn);
+        }
+        return null;
     }
 }

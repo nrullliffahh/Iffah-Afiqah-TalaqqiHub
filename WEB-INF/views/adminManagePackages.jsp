@@ -11,43 +11,46 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Manage Packages - Admin</title>
+    <%@ include file="/WEB-INF/views/includes/adminLayoutStyles.jsp" %>
     <script src="https://cdn.tailwindcss.com"></script>
     <link rel="stylesheet" href="<%= request.getContextPath() %>/css/theme.css">
     <link rel="stylesheet" href="<%= request.getContextPath() %>/css/colors.css">
     <link rel="stylesheet" href="<%= request.getContextPath() %>/css/styles.css">
     <link rel="stylesheet" href="<%= request.getContextPath() %>/css/admin-packages.css">
 </head>
-<body class="bg-gray-50 font-sans">
-    <div class="flex min-h-screen">
-        <%@ include file="includes/adminSidebar.jsp" %>
+<body>
+    <jsp:include page="/WEB-INF/views/includes/adminSidebar.jsp">
+        <jsp:param name="activePage" value="packages"/>
+    </jsp:include>
 
-        <main class="flex-1 ml-56 overflow-y-auto">
-            <header class="bg-white shadow-sm sticky top-0 z-10">
-                <div class="flex items-center justify-between px-8 py-4">
-                    <h2 class="text-2xl font-bold text-gray-800">Manage Packages</h2>
-                    <div class="flex items-center space-x-4">
-                        <a href="#" class="bg-white px-4 py-2 rounded-full shadow text-sm">Export PDF</a>
-                        <a href="#" class="bg-white px-4 py-2 rounded-full shadow text-sm">CSV</a>
-                        <a href="#" class="bg-white px-4 py-2 rounded-full shadow text-sm">Print</a>
-                        <button id="openAddModal" type="button" class="bg-gradient-to-r from-purple-400 to-pink-400 text-white px-4 py-2 rounded-full shadow text-sm">+ Add Package</button>
-                    </div>
+    <div class="main-content">
+        <jsp:include page="/WEB-INF/views/includes/adminTopNavbar.jsp">
+            <jsp:param name="pageTitle" value="Manage Packages"/>
+        </jsp:include>
+
+        <div class="page-content">
+            <div class="panel-head no-print" style="margin-bottom: 24px;">
+                <div>
+                    <h1 class="page-title" style="margin-bottom: 4px;">Manage Packages</h1>
+                    <p class="page-subtitle" style="margin-bottom: 0;">Create, edit, and manage all TalaqqiHub learning packages</p>
                 </div>
-            </header>
-
-            <div class="p-8">
+                <div style="display:flex; gap:10px; flex-wrap:wrap;">
+                    <button id="openAddModal" type="button" class="btn-primary">+ Add Package</button>
+                </div>
+            </div>
                 <%
                     String deletedParam = request.getParameter("deleted");
                     String deletedReason = request.getParameter("reason");
                     if (deletedParam != null) {
                         if ("1".equals(deletedParam)) {
                 %>
-                <div class="mb-4 p-4 bg-green-50 border border-green-200 text-green-800 rounded">
+                <div class="mb-4 p-4 bg-green-50 border border-green-200 text-green-800 rounded flash-success">
                     Package deleted successfully.
                 </div>
                 <%
                         } else {
                 %>
-                <div class="mb-4 p-4 bg-red-50 border border-red-200 text-red-800 rounded">
+                <div class="mb-4 p-4 bg-red-50 border border-red-200 text-red-800 rounded flash-error">
                     Failed to delete package. 
                     <% if ("referenced".equals(deletedReason)) { %>
                         There are students assigned to this package; reassign or remove them before deleting.
@@ -59,10 +62,6 @@
                         }
                     }
                 %>
-                <div class="mb-8">
-                    <h1 class="text-3xl font-bold text-gray-800 mb-2">Manage Packages</h1>
-                    <p class="text-gray-600">Create, edit, and manage all TalaqqiHub learning packages</p>
-                </div>
 
                 <!-- Dynamic top packages summary cards -->
                 <c:if test="${not empty topPackages}">
@@ -211,8 +210,7 @@
                         </c:forEach>
                     </div>
                 </div>
-            </div>
-        </main>
+        </div>
     </div>
 
     <!-- Add Package Modal (hidden by default) -->

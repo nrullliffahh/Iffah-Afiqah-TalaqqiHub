@@ -1,5 +1,6 @@
 package controller;
 
+import dao.ClassScheduleDAO;
 import dao.StudentBookingDAO;
 import model.StudentBooking;
 import model.ClassSchedule;
@@ -36,6 +37,16 @@ public class ClassBookingServlet extends HttpServlet {
 
         Map<String, Object> summary = bookingDAO.getBookingSummary(studentId);
         List<StudentBooking> myBookings = bookingDAO.getMyBookingsByMonth(studentId);
+
+        ClassScheduleDAO scheduleDAO = new ClassScheduleDAO();
+        if (myBookings != null) {
+            for (StudentBooking booking : myBookings) {
+                if (booking.getBookingId() != null) {
+                    booking.setCancellationAllowed(
+                        scheduleDAO.isCancellationAllowedByBookingId(booking.getBookingId()));
+                }
+            }
+        }
 
         // Partition bookings so JSP can render Upcoming, Completed, then Cancelled
         java.util.List<StudentBooking> upcomingBookings = new java.util.ArrayList<>();

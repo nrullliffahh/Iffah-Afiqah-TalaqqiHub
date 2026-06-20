@@ -6,9 +6,8 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Class Booking - TalaqqiHub</title>
-    
-                            <script src="https://cdn.tailwindcss.com"></script>
-    
+    <%@ include file="/WEB-INF/views/includes/studentLayoutStyles.jsp" %>
+    <script src="https://cdn.tailwindcss.com"></script>
     <link rel="stylesheet" href="<%= request.getContextPath() %>/css/theme.css">
     <link rel="stylesheet" href="<%= request.getContextPath() %>/css/colors.css">
     <link rel="stylesheet" href="<%= request.getContextPath() %>/css/fonts.css">
@@ -16,183 +15,41 @@
     <link rel="stylesheet" href="<%= request.getContextPath() %>/css/styles.css">
     <link rel="stylesheet" href="<%= request.getContextPath() %>/css/index.css">
 </head>
-<body class="bg-gray-50">
-    <!-- Debug banner (temporary) - shown only when ?debug=1 is present -->
+<body>
     <c:if test="${param.debug == '1'}">
         <div id="debugBanner" style="position:fixed;top:8px;right:8px;z-index:60;padding:8px;border-radius:6px;background:#fee2e2;color:#991b1b;font-size:12px;box-shadow:0 2px 6px rgba(0,0,0,0.08)">Debug: session.studentId=${sessionScope.studentId} selectedDate=${selectedDate}</div>
     </c:if>
-    <div class="flex min-h-screen">
-        <aside class="w-64 fixed h-screen" style="background: linear-gradient(180deg, #2d5f4f 0%, #1a3d30 100%);">
-            <div class="p-6">
-                <h1 class="text-2xl font-bold text-white">TalaqqiHub</h1>
-                <p class="text-sm text-green-200">Student Portal</p>
-            </div>
-            
-            <nav class="mt-6">
-                <a href="<%= request.getContextPath() %>/student/dashboard" class="flex items-center px-6 py-3 text-green-200 hover:bg-green-800 hover:bg-opacity-30">
-                    <svg class="w-5 h-5 mr-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6" />
-                    </svg>
-                    Dashboard
-                </a>
-                <a href="<%= request.getContextPath() %>/student/class-booking" class="flex items-center px-6 py-3 text-white bg-green-800 bg-opacity-50">
-                    <svg class="w-5 h-5 mr-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
-                    </svg>
-                    Class Booking
-                </a>
-                <a href="<%= request.getContextPath() %>/student/attendance" class="flex items-center px-6 py-3 text-green-200 hover:bg-green-800 hover:bg-opacity-30">
-                    <svg class="w-5 h-5 mr-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
-                    </svg>
-                    Attendance
-                </a>
-                <a href="<%= request.getContextPath() %>/student/sessions" class="flex items-center px-6 py-3 text-green-200 hover:bg-green-800 hover:bg-opacity-30">
-                    <svg class="w-5 h-5 mr-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253" />
-                    </svg>
-                    Talaqqi Sessions
-                </a>
-                <a href="<%= request.getContextPath() %>/student/evaluation" class="flex items-center px-6 py-3 text-green-200 hover:bg-green-800 hover:bg-opacity-30">
-                    <svg class="w-5 h-5 mr-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11.049 2.927c.3-.921 1.603-.921 1.902 0l1.519 4.674a1 1 0 00.95.69h4.915c.969 0 1.371 1.24.588 1.81l-3.976 2.888a1 1 0 00-.363 1.118l1.518 4.674c.3.922-.755 1.688-1.538 1.118l-3.976-2.888a1 1 0 00-1.176 0l-3.976 2.888c-.783.57-1.838-.197-1.538-1.118l1.518-4.674a1 1 0 00-.363-1.118l-3.976-2.888c-.784-.57-.38-1.81.588-1.81h4.914a1 1 0 00.951-.69l1.519-4.674z" />
-                    </svg>
-                    Evaluation
-                </a>
-                <a href="<%= request.getContextPath() %>/student/announcements" class="flex items-center px-6 py-3 text-green-200 hover:bg-green-800 hover:bg-opacity-30">
-                    <svg class="w-5 h-5 mr-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5.882V19.24a1.76 1.76 0 01-3.417.592l-2.147-6.15M18 13a3 3 0 100-6M5.436 13.683A4.001 4.001 0 017 6h1.832c4.1 0 7.625-1.234 9.168-3v14c-1.543-1.766-5.067-3-9.168-3H7a3.988 3.988 0 01-1.564-.317z" />
-                    </svg>
-                    Announcements
-                </a>
-                <a href="<%= request.getContextPath() %>/student/ai-assistance" class="flex items-center px-6 py-3 text-green-200 hover:bg-green-800 hover:bg-opacity-30">
-                    <svg class="w-5 h-5 mr-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z" />
-                    </svg>
-                    AI Assistance
-                </a>
-            </nav>
-            
-            <div class="absolute bottom-0 w-64 p-6">
-                <a href="<%= request.getContextPath() %>/student/logout" class="flex items-center px-4 py-2 text-green-200 hover:bg-red-600 hover:text-white rounded-lg transition-colors">
-                    <svg class="w-5 h-5 mr-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
-                    </svg>
-                    Logout
-                </a>
-            </div>
-        </aside>
-        
-        <main class="flex-1 ml-64">
-            <header class="bg-white shadow-sm sticky top-0 z-10">
-                <div class="flex items-center justify-between px-8 py-4">
-                    <h2 class="text-2xl font-bold text-gray-800">Class Booking</h2>
-                    
-                    <div class="flex items-center space-x-4">
-                        <!-- Notifications -->
-                        <div class="relative">
-                            <button id="notificationBtn" class="relative p-2 text-gray-600 hover:bg-gray-100 rounded-lg" onclick="openNotificationMenu()">
-                            <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9" />
-                            </svg>
-                                <span id="notificationBadge" class="absolute top-0 right-0 inline-flex items-center justify-center px-2 py-1 text-xs font-bold leading-none text-white transform translate-x-1/2 -translate-y-1/2 bg-purple-600 rounded-full" style="display:none">0</span>
-                            </button>
 
-                            <div id="notificationMenu" class="hidden absolute right-0 mt-2 w-80 bg-white rounded-lg shadow-lg py-2 z-50">
-                                <div id="notificationItems" class="max-h-64 overflow-y-auto"></div>
-                                <div class="border-t p-2 text-center text-sm"><a href="<%= request.getContextPath() %>/student/announcements" class="text-purple-600">View all</a></div>
-                            </div>
-                        </div>
-                        
-                        <!-- Profile Dropdown -->
-                        <!-- Export / Print -->
-                        <div class="relative">
-                            <button id="exportBtn" onclick="document.getElementById('exportMenu').classList.toggle('hidden')" class="px-4 py-2 bg-teal-400 text-white rounded-lg flex items-center space-x-2 hover:opacity-95">
-                                <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 3v12m0 0l-4-4m4 4l4-4M21 21H3" />
-                                </svg>
-                                <span>Export</span>
-                            </button>
-                            <div id="exportMenu" class="hidden absolute right-0 mt-2 w-44 bg-white rounded-lg shadow-lg py-2 z-40">
-                                <button onclick="exportAsPDF()" class="w-full text-left px-4 py-2 hover:bg-gray-50">Export as PDF</button>
-                                <button onclick="exportAsCSV()" class="w-full text-left px-4 py-2 hover:bg-gray-50">Export as CSV</button>
-                                <button onclick="exportAsExcel()" class="w-full text-left px-4 py-2 hover:bg-gray-50">Export as Excel</button>
-                            </div>
-                        </div>
+    <jsp:include page="/WEB-INF/views/includes/studentSidebar.jsp">
+        <jsp:param name="activePage" value="class-booking"/>
+    </jsp:include>
 
-                        <button id="printBtn" onclick="printPage()" class="px-4 py-2 border-2 border-gray-200 bg-white text-gray-700 rounded-lg text-sm font-medium hover:bg-gray-50">
-                            Print
-                        </button>
-                        <div class="relative">
-                            <button class="flex items-center space-x-2 focus:outline-none" onclick="document.getElementById('profileDropdown').classList.toggle('hidden')">
-                                <%
-                                    String initials = "";
-                                    String name = null;
-                                    Object rn = request.getAttribute("studentName");
-                                    if (rn != null) name = rn.toString();
-                                    if ((name == null || name.trim().isEmpty()) && session.getAttribute("studentName") != null) {
-                                        name = (String) session.getAttribute("studentName");
-                                    }
-                                    if ((name == null || name.trim().isEmpty()) && session.getAttribute("student") != null) {
-                                        model.Student s = (model.Student) session.getAttribute("student");
-                                        if (s != null) {
-                                            if (s.getFullName() != null && !s.getFullName().trim().isEmpty()) name = s.getFullName();
-                                            else if (s.getStudentName() != null && !s.getStudentName().trim().isEmpty()) name = s.getStudentName();
-                                        }
-                                    }
-                                    if (name != null && !name.trim().isEmpty()) {
-                                        String[] parts = name.trim().split("\\s+");
-                                        StringBuilder sb = new StringBuilder();
-                                        for (String p : parts) {
-                                            if (p.length() > 0) sb.append(Character.toUpperCase(p.charAt(0)));
-                                            if (sb.length() >= 2) break;
-                                        }
-                                        initials = sb.toString();
-                                    }
-                                    if (initials.length() == 0) initials = "U";
-                                %>
-                                <div class="w-10 h-10 rounded-full flex items-center justify-center text-white font-semibold" style="background: var(--gradient-feature-green);">
-                                    <%= initials %>
-                                </div>
-                                <span class="font-medium text-gray-700">${studentName}</span>
-                                <svg class="w-4 h-4 text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7" />
-                                </svg>
-                            </button>
-                            
-                            <div id="profileDropdown" class="hidden absolute right-0 mt-2 w-48 bg-white rounded-lg shadow-lg py-2 z-20">
-                                <a href="<%= request.getContextPath() %>/student/profile" class="flex items-center px-4 py-2 text-gray-700 hover:bg-gray-100">
-                                    <svg class="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
-                                    </svg>
-                                    View Profile
-                                </a>
-                                <a href="<%= request.getContextPath() %>/student/edit-profile" class="flex items-center px-4 py-2 text-gray-700 hover:bg-gray-100">
-                                    <svg class="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
-                                    </svg>
-                                    Edit Profile
-                                </a>
-                                <a href="<%= request.getContextPath() %>/student/change-password" class="flex items-center px-4 py-2 text-gray-700 hover:bg-gray-100">
-                                    <svg class="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 7a2 2 0 012 2m4 0a6 6 0 01-7.743 5.743L11 17H9v2H7v2H4a1 1 0 01-1-1v-2.586a1 1 0 01.293-.707l5.964-5.964A6 6 0 1121 9z" />
-                                    </svg>
-                                    Change Password
-                                </a>
-                                <hr class="my-2">
-                                <a href="<%= request.getContextPath() %>/student/logout" class="flex items-center px-4 py-2 text-red-600 hover:bg-red-50">
-                                    <svg class="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
-                                    </svg>
-                                    Logout
-                                </a>
-                            </div>
-                        </div>
+    <div class="main-content">
+        <jsp:include page="/WEB-INF/views/includes/studentTopNavbar.jsp">
+            <jsp:param name="pageTitle" value="Class Booking"/>
+            <jsp:param name="notifPrefix" value="bookingNotif"/>
+        </jsp:include>
+
+        <div class="page-content">
+            <div class="flex items-center justify-end gap-3 mb-6">
+                <div class="relative">
+                    <button id="exportBtn" onclick="document.getElementById('exportMenu').classList.toggle('hidden')" class="px-4 py-2 text-white rounded-lg flex items-center space-x-2 hover:opacity-95" style="background:var(--student-green);">
+                        <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 3v12m0 0l-4-4m4 4l4-4M21 21H3" />
+                        </svg>
+                        <span>Export</span>
+                    </button>
+                    <div id="exportMenu" class="hidden absolute right-0 mt-2 w-44 bg-white rounded-lg shadow-lg py-2 z-40">
+                        <button onclick="exportAsPDF()" class="w-full text-left px-4 py-2 hover:bg-gray-50">Export as PDF</button>
+                        <button onclick="exportAsCSV()" class="w-full text-left px-4 py-2 hover:bg-gray-50">Export as CSV</button>
+                        <button onclick="exportAsExcel()" class="w-full text-left px-4 py-2 hover:bg-gray-50">Export as Excel</button>
                     </div>
                 </div>
-            </header>
-            
-            <div class="p-8">
+                <button id="printBtn" onclick="printPage()" class="px-4 py-2 border-2 border-gray-200 bg-white text-gray-700 rounded-lg text-sm font-medium hover:bg-gray-50">
+                    Print
+                </button>
+            </div>
+
                 <c:if test="${not empty sessionScope.successMessage}">
                     <div class="bg-green-100 border border-green-400 text-green-700 px-4 py-3 rounded mb-4">
                         ${sessionScope.successMessage}
@@ -853,7 +710,7 @@
                             // Embed student's bookings into JS for client-side slot marking
                             const myBookings = [
                                 <c:forEach var="b" items="${myBookings}">
-                                    { bookingId: '${b.bookingId}', bookingDate: '${b.bookingDate}', bookingTime: '${b.bookingTime}', bookingStatus: '${b.bookingStatus}', teacherName: '${b.teacherName}' },
+                                    { bookingId: "${b.bookingId}", bookingDate: "${b.bookingDate}", bookingTime: "${b.bookingTime}", bookingStatus: "${b.bookingStatus}", teacherName: "${b.teacherName}" },
                                 </c:forEach>
                             ];
 
@@ -1055,7 +912,7 @@
                         <!-- Upcoming bookings -->
                         <c:forEach var="booking" items="${upcomingBookings}">
                             <c:set var="borderClass" value="border-blue-200 bg-blue-50" />
-                            <div class="border-2 rounded-xl p-5 ${borderClass} booking-entry" data-booking-id="${booking.bookingId}" data-booking-date="${booking.bookingDate}" data-booking-time="${booking.bookingTime}" data-teacher-name="${booking.teacherName}" data-class-type="${booking.className}" data-booking-status="${booking.bookingStatus}">
+                            <div class="border-2 rounded-xl p-5 ${borderClass} booking-entry" data-booking-id="${booking.bookingId}" data-booking-date="${booking.bookingDate}" data-booking-time="${booking.bookingTime}" data-teacher-name="${booking.teacherName}" data-class-type="${booking.className}" data-booking-status="${booking.bookingStatus}" data-can-cancel="${booking.cancellationAllowed}">
                                 <div class="flex items-start justify-between">
                                     <div class="flex-1">
                                         <div class="flex items-center gap-3 mb-3">
@@ -1096,7 +953,7 @@
                                         <button type="button" onclick="openDetailsModal('${booking.bookingId}')" class="px-4 py-2 border-2 border-gray-300 bg-white text-gray-700 rounded-lg text-sm font-semibold hover:bg-gray-100 transition-colors">
                                             View Details
                                         </button>
-                                        <button type="button" onclick="openCancelModal('${booking.bookingId}')" class="px-4 py-2 bg-red-500 text-white rounded-lg text-sm font-semibold hover:bg-red-600 transition-colors">
+                                        <button type="button" onclick="openCancelModal('${booking.bookingId}')" class="cancel-booking-btn px-4 py-2 bg-red-500 text-white rounded-lg text-sm font-semibold hover:bg-red-600 transition-colors">
                                             Cancel Booking
                                         </button>
                                     </div>
@@ -1205,8 +1062,7 @@
                     </div>
                     </div>
                 </div>
-            </div>
-        </main>
+        </div>
     </div>
     
     <div id="cancelModal" class="hidden fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
@@ -1217,6 +1073,9 @@
                 <input type="hidden" name="bookingId" id="cancelBookingId">
                 <div id="cancelBookingInfo" class="text-sm text-gray-700 mb-4"></div>
                 <div class="mb-6">
+                    <p class="text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2 mb-3">
+                        Bookings cannot be cancelled less than 12 hours before the class start time.
+                    </p>
                     <label class="block text-sm font-semibold text-gray-700 mb-2">Reason for Cancellation <span class="text-red-500">*</span></label>
                     <textarea name="reason" rows="4" placeholder="Please provide a reason for cancelling this booking..." 
                               class="w-full px-4 py-3 border-2 border-gray-300 rounded-xl focus:outline-none focus:border-red-500 transition-colors resize-none" required></textarea>
@@ -1300,65 +1159,6 @@
                 function printPage() {
                     window.print();
                 }
-                // Notifications polling: fetch recent cancellation events for current user
-                (function(){
-                    const badge = document.getElementById('notificationBadge');
-                    const itemsEl = document.getElementById('notificationItems');
-                    const ctx = '<%= request.getContextPath() %>';
-
-                    function renderNotifications(data) {
-                        if (!badge || !itemsEl) return;
-                        const count = data && data.count ? data.count : 0;
-                        if (count > 0) {
-                            badge.style.display = 'inline-flex';
-                            badge.textContent = count > 9 ? '9+' : count;
-                        } else {
-                            badge.style.display = 'none';
-                        }
-
-                        itemsEl.innerHTML = '';
-                        if (data && Array.isArray(data.items) && data.items.length > 0) {
-                            data.items.forEach(it => {
-                                const d = document.createElement('div');
-                                d.className = 'px-4 py-3 hover:bg-gray-50 border-b text-sm';
-                                const who = it.by === 'teacher' ? 'Teacher cancelled' : (it.by === 'student' ? 'Student cancelled' : 'Cancelled');
-                                let title = who + ' • ' + (it.bookingDate || '') + ' ' + (it.bookingTime || '');
-                                d.innerHTML = '<div class="font-semibold text-gray-800">' + title + '</div>' +
-                                              '<div class="text-gray-600 text-xs mt-1">' + (it.reason || '') + '</div>' +
-                                              '<div class="text-gray-400 text-xs mt-1">' + (it.time || '') + '</div>';
-                                itemsEl.appendChild(d);
-                            });
-                        } else {
-                            itemsEl.innerHTML = '<div class="p-4 text-sm text-gray-500">No notifications</div>';
-                        }
-                    }
-
-                    function fetchNotifications() {
-                        return fetch(ctx + '/api/notifications', { credentials: 'same-origin' })
-                            .then(res => res.json())
-                            .then(data => { renderNotifications(data); return data; })
-                            .catch(err => { console.error('Failed to fetch notifications', err); return null; });
-                    }
-
-                    // Open menu and mark notifications read
-                    window.openNotificationMenu = function() {
-                        const menu = document.getElementById('notificationMenu');
-                        if (!menu) return;
-                        const isHidden = menu.classList.contains('hidden');
-                        if (isHidden) {
-                            // show menu and mark notifications read
-                            menu.classList.remove('hidden');
-                            // mark all read then refresh
-                            fetch(ctx + '/api/notifications/mark-read', { method: 'POST', credentials: 'same-origin' }).then(()=>{ fetchNotifications(); }).catch(()=>{});
-                        } else {
-                            menu.classList.add('hidden');
-                        }
-                    };
-
-                    // Initial fetch and interval
-                    try { fetchNotifications(); } catch(e){}
-                    setInterval(fetchNotifications, 20000);
-                })();
             </script>
             <div class="space-y-3 text-sm text-gray-700 mb-6">
                 <div>
@@ -1425,31 +1225,41 @@
     </div>
     
     <script>
-        // Attach reschedule handlers to cancelled bookings (outside the calendar IIFE)
-        (function(){
-            function bindRescheduleButtons(){
-                const buttons = document.querySelectorAll('.reschedule-btn');
-                buttons.forEach(btn => {
-                    btn.removeEventListener('click', btn._rescheduleHandler);
-                    const handler = function(){
-                        const bookingId = btn.getAttribute('data-booking-id');
-                        const bookingDate = btn.getAttribute('data-booking-date');
-                        try { window.talaqqi.openReschedule(bookingId, bookingDate); } catch(e){
-                            try { localStorage.setItem('rescheduleBookingId', bookingId || ''); } catch(err){}
-                            try { window.talaqqi.pendingReschedule = bookingId || ''; } catch(err){}
-                        }
-                        try { if (calendarGrid) calendarGrid.dataset.pendingReschedule = bookingId || ''; } catch(e){}
-                    };
-                    btn._rescheduleHandler = handler;
-                    btn.addEventListener('click', handler);
-                });
-            }
-            // Bind now and on DOM changes
-            document.addEventListener('DOMContentLoaded', bindRescheduleButtons);
-            bindRescheduleButtons();
-        })();
+        const CANCEL_TOO_LATE_MSG = 'Classes cannot be cancelled less than 12 hours before the start time.';
+
+        function isCancelAllowed(entry) {
+            if (!entry) return false;
+            return entry.dataset.canCancel === 'true';
+        }
+
+        function updateStudentCancelButtons() {
+            document.querySelectorAll('.booking-entry .cancel-booking-btn').forEach(function(btn) {
+                const entry = btn.closest('.booking-entry');
+                if (!entry) return;
+                const status = (entry.dataset.bookingStatus || '').toLowerCase();
+                if (status && status !== 'upcoming') {
+                    btn.style.display = 'none';
+                    return;
+                }
+                btn.style.display = '';
+                btn.disabled = false;
+                const allowed = isCancelAllowed(entry);
+                if (!allowed) {
+                    btn.classList.add('opacity-50');
+                    btn.title = CANCEL_TOO_LATE_MSG;
+                } else {
+                    btn.classList.remove('opacity-50');
+                    btn.title = '';
+                }
+            });
+        }
+
         function openCancelModal(bookingId) {
             const el = document.querySelector('.booking-entry[data-booking-id="' + bookingId + '"]');
+            if (el && !isCancelAllowed(el)) {
+                alert(CANCEL_TOO_LATE_MSG);
+                return;
+            }
             if (el) {
                 const classType = el.dataset.classType || 'Quran Recitation & Tajweed';
                 const teacher = el.dataset.teacherName || '';
@@ -1478,6 +1288,32 @@
         function closeCancelModal() {
             document.getElementById('cancelModal').classList.add('hidden');
         }
+
+        (function(){
+            function bindRescheduleButtons(){
+                const buttons = document.querySelectorAll('.reschedule-btn');
+                buttons.forEach(btn => {
+                    btn.removeEventListener('click', btn._rescheduleHandler);
+                    const handler = function(){
+                        const bookingId = btn.getAttribute('data-booking-id');
+                        const bookingDate = btn.getAttribute('data-booking-date');
+                        try { window.talaqqi.openReschedule(bookingId, bookingDate); } catch(e){
+                            try { localStorage.setItem('rescheduleBookingId', bookingId || ''); } catch(err){}
+                            try { window.talaqqi.pendingReschedule = bookingId || ''; } catch(err){}
+                        }
+                        try { if (calendarGrid) calendarGrid.dataset.pendingReschedule = bookingId || ''; } catch(e){}
+                    };
+                    btn._rescheduleHandler = handler;
+                    btn.addEventListener('click', handler);
+                });
+            }
+            document.addEventListener('DOMContentLoaded', function() {
+                bindRescheduleButtons();
+                updateStudentCancelButtons();
+            });
+            bindRescheduleButtons();
+            updateStudentCancelButtons();
+        })();
 
         function openDetailsModal(bookingId) {
             const el = document.querySelector('.booking-entry[data-booking-id="' + bookingId + '"]');

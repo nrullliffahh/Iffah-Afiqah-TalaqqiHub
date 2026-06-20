@@ -2,6 +2,7 @@ package controller;
 
 import dao.AdminDAO;
 import model.Admin;
+import util.SessionRoleUtil;
 import javax.servlet.ServletException;
 import javax.servlet.http.HttpServlet;
 import javax.servlet.http.HttpServletRequest;
@@ -40,10 +41,7 @@ public class AdminLoginServlet extends HttpServlet {
 
         if (admin != null) {
             HttpSession session = request.getSession();
-            session.setAttribute("adminId", admin.getAdminId());
-            session.setAttribute("adminEmail", admin.getAdminEmail());
-            session.setAttribute("adminName", admin.getAdminName());
-            session.setAttribute("userType", "admin");
+            SessionRoleUtil.bindAdmin(session, admin.getAdminId(), admin.getAdminName(), admin.getAdminEmail());
             
             if ("on".equals(remember)) {
                 session.setMaxInactiveInterval(30 * 24 * 60 * 60); // 30 days

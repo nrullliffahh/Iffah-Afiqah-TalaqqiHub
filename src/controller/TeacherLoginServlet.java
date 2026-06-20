@@ -2,6 +2,7 @@ package controller;
 
 import dao.TeacherDAO;
 import model.Teacher;
+import util.SessionRoleUtil;
 import javax.servlet.ServletException;
 import javax.servlet.http.HttpServlet;
 import javax.servlet.http.HttpServletRequest;
@@ -33,9 +34,7 @@ public class TeacherLoginServlet extends HttpServlet {
 
         if (teacher != null) {
             HttpSession session = request.getSession();
-            session.setAttribute("teacherId", teacher.getTeacherId());
-            session.setAttribute("teacherName", teacher.getFullName());
-            session.setAttribute("teacherEmail", teacher.getEmail());
+            SessionRoleUtil.bindTeacher(session, teacher.getTeacherId(), teacher.getFullName(), teacher.getEmail());
             response.sendRedirect(request.getContextPath() + "/teacher/teacherdashboard");
         } else {
             request.setAttribute("errorMessage", "Invalid email or password");

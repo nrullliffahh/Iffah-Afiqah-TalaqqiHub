@@ -692,6 +692,12 @@ public class ClassScheduleServlet extends HttpServlet {
             return;
         }
 
+        if (!classScheduleDAO.isCancellationAllowed(scheduleId)) {
+            response.getWriter().write("{\"success\": false, \"message\": \"" +
+                ClassScheduleDAO.CANCEL_TOO_LATE_MSG.replace("\"", "\\\"") + "\"}");
+            return;
+        }
+
         Connection conn = null;
         try {
             conn = DBConnection.getConnection();
@@ -744,16 +750,10 @@ public class ClassScheduleServlet extends HttpServlet {
                             if (rsS.next()) {
                                 String studentId = rsS.getString(1);
                                 if (studentId != null && !studentId.trim().isEmpty()) {
-                                    String notifSql = "INSERT INTO notifications (userId, userType, title, message, bookingId, relatedScheduleId, isRead, createdAt) VALUES (?, 'student', ?, ?, ?, ?, 0, NOW())";
-                                    try (PreparedStatement psN = conn.prepareStatement(notifSql)) {
-                                        psN.setString(1, studentId);
-                                        psN.setString(2, "Class Cancelled");
-                                        String msg = "Teacher cancelled your booking " + bookingId + " - Reason: " + cancellationReason;
-                                        psN.setString(3, msg);
-                                        psN.setString(4, bookingId);
-                                        psN.setString(5, scheduleId);
-                                        psN.executeUpdate();
-                                    }
+                                    dao.NotificationDAO notifDao = new dao.NotificationDAO();
+                                    String msg = "Your class was cancelled by the teacher. Reason: " + cancellationReason;
+                                    notifDao.createNotification(conn, studentId, "student",
+                                        dao.NotificationDAO.TITLE_CLASS_CANCELLED, msg, bookingId, scheduleId);
                                 }
                             }
                         }

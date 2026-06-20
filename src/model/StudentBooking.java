@@ -17,6 +17,7 @@ public class StudentBooking {
     private Integer duration;
     private String teacherId;
     private String cancellationReason;
+    private boolean cancellationAllowed = true;
 
     public String getBookingId() {
         return bookingId;
@@ -120,5 +121,13 @@ public class StudentBooking {
 
     public void setCancellationReason(String cancellationReason) {
         this.cancellationReason = cancellationReason;
+    }
+
+    public boolean isCancellationAllowed() {
+        return cancellationAllowed;
+    }
+
+    public void setCancellationAllowed(boolean cancellationAllowed) {
+        this.cancellationAllowed = cancellationAllowed;
     }
 }

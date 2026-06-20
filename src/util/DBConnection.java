@@ -14,11 +14,11 @@ import javax.sql.DataSource;
  * for the TalaqqiHub application.
  * 
  * Database Details:
- * - Database: classbooking
- * - Host: localhost
+ * - Database: talaqqihub_db
+ * - Host: 127.0.0.1
  * - Port: 3306
  * - Username: root
- * - Password: (empty)
+ * - Password: admin (override via DB_PASSWORD env var)
  * - Driver: com.mysql.cj.jdbc.Driver
  * 
  * Usage:
@@ -35,7 +35,7 @@ public class DBConnection {
     private static final String DB_DRIVER = "com.mysql.cj.jdbc.Driver";
     // Force IPv4 (127.0.0.1) and add connect/socket timeouts to avoid ETIMEDOUT when localhost resolves to ::1
     // Use IPv4 and reasonable connect/socket timeouts. Removed autoReconnect to avoid hidden retry loops.
-    private static final String DB_URL = getEnvOrProperty("DB_URL", "jdbc:mysql://127.0.0.1:3306/talaqqihub?useSSL=false&serverTimezone=UTC&connectTimeout=5000&socketTimeout=10000");
+    private static final String DB_URL = getEnvOrProperty("DB_URL", "jdbc:mysql://127.0.0.1:3306/talaqqihub_db?useSSL=false&serverTimezone=Asia/Kuala_Lumpur&connectTimeout=5000&socketTimeout=10000");
     private static final String DB_USER = getEnvOrProperty("DB_USER", "root");
     // Default to local XAMPP password for developer convenience (override with env/system property)
     private static final String DB_PASSWORD = getEnvOrProperty("DB_PASSWORD", "admin");
@@ -156,7 +156,7 @@ public class DBConnection {
         
         if (conn != null) {
             System.out.println("\n✓ Connection test PASSED!");
-            System.out.println("Database: talaqqihub is accessible.");
+            System.out.println("Database: talaqqihub_db is accessible.");
             closeConnection(conn);
         } else {
             System.out.println("\n✗ Connection test FAILED!");

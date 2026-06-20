@@ -333,7 +333,7 @@ public class StudentBookingDAO {
             conn.commit();
 
             try {
-                new ClassScheduleDAO().updateClassStatus(scheduleId, "Booked");
+                new NotificationDAO().notifyTeacherOfNewBooking(bookingId, scheduleId, studentId);
             } catch (Exception ignore) {
                 ignore.printStackTrace();
             }
@@ -717,6 +717,12 @@ public class StudentBookingDAO {
     }
 
     public boolean cancelBooking(String bookingId, String reason) {
+        ClassScheduleDAO scheduleDAO = new ClassScheduleDAO();
+        if (!scheduleDAO.isCancellationAllowedByBookingId(bookingId)) {
+            System.out.println("cancelBooking blocked: less than 12 hours before class. bookingId=" + bookingId);
+            return false;
+        }
+
         Connection conn = null;
         PreparedStatement ps1 = null;
         PreparedStatement ps2 = null;
@@ -752,25 +758,31 @@ public class StudentBookingDAO {
                 ps2.executeUpdate();
             }
 
-            // After successful cancellation, create a notification for the teacher (if assigned)
+            // After successful cancellation, notify teacher and student
             try {
-                String teacherLookup = "SELECT cs.teacherId FROM classbooking b LEFT JOIN classschedule cs ON b.scheduleId = cs.scheduleId WHERE b.bookingId = ? LIMIT 1";
-                try (PreparedStatement psT = conn.prepareStatement(teacherLookup)) {
+                String lookupSql =
+                    "SELECT b.studentId, cs.teacherId, cs.className FROM classbooking b " +
+                    "LEFT JOIN classschedule cs ON b.scheduleId = cs.scheduleId WHERE b.bookingId = ? LIMIT 1";
+                try (PreparedStatement psT = conn.prepareStatement(lookupSql)) {
                     psT.setString(1, bookingId);
                     try (ResultSet rsT = psT.executeQuery()) {
                         if (rsT.next()) {
-                            String teacherId = rsT.getString(1);
+                            String teacherId = rsT.getString("teacherId");
+                            String studentId = rsT.getString("studentId");
+                            String className = rsT.getString("className");
+                            NotificationDAO notifDao = new NotificationDAO();
+
                             if (teacherId != null && !teacherId.trim().isEmpty()) {
-                                String notifSql = "INSERT INTO notifications (userId, userType, title, message, bookingId, relatedScheduleId, isRead, createdAt) VALUES (?, 'teacher', ?, ?, ?, ?, 0, NOW())";
-                                try (PreparedStatement psN = conn.prepareStatement(notifSql)) {
-                                    psN.setString(1, teacherId);
-                                    psN.setString(2, "Booking Cancelled");
-                                    String msg = "Student cancelled booking " + bookingId + " - Reason: " + reason;
-                                    psN.setString(3, msg);
-                                    psN.setString(4, bookingId);
-                                    psN.setString(5, scheduleId);
-                                    psN.executeUpdate();
-                                }
+                                String classLabel = className != null ? className : "a class";
+                                String msg = "Student cancelled " + classLabel + ". Reason: " + reason;
+                                notifDao.createNotification(conn, teacherId, "teacher",
+                                    NotificationDAO.TITLE_CLASS_CANCELLED, msg, bookingId, scheduleId);
+                            }
+                            if (studentId != null && !studentId.trim().isEmpty()) {
+                                String classLabel = className != null ? className : "your class";
+                                String msg = "You cancelled " + classLabel + ". Reason: " + reason;
+                                notifDao.createNotification(conn, studentId, "student",
+                                    NotificationDAO.TITLE_CLASS_CANCELLED, msg, bookingId, scheduleId);
                             }
                         }
                     }
@@ -778,9 +790,9 @@ public class StudentBookingDAO {
             } catch (SQLException ignore) { ignore.printStackTrace(); }
 
             conn.commit();
-            // update schedule status back to Available (if applicable)
+            // restore teacher slot as available for booking
             if (rowsUpdated > 0 && scheduleId != null) {
-                try { new ClassScheduleDAO().updateClassStatus(scheduleId, "Available"); } catch (Exception ignore) { ignore.printStackTrace(); }
+                try { new ClassScheduleDAO().updateClassStatus(scheduleId, "Scheduled"); } catch (Exception ignore) { ignore.printStackTrace(); }
             }
             return rowsUpdated > 0;
 
@@ -851,9 +863,9 @@ public class StudentBookingDAO {
             }
 
             conn.commit();
-            // set schedule back to Available (slot freed)
+            // restore teacher slot as available for booking
             if (rowsUpdated > 0 && scheduleId != null) {
-                try { new ClassScheduleDAO().updateClassStatus(scheduleId, "Available"); } catch (Exception ignore) { ignore.printStackTrace(); }
+                try { new ClassScheduleDAO().updateClassStatus(scheduleId, "Scheduled"); } catch (Exception ignore) { ignore.printStackTrace(); }
             }
             return rowsUpdated > 0;
 

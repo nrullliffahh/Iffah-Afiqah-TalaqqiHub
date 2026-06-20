@@ -168,6 +168,11 @@ public class TeacherSetAvailabilityServlet extends HttpServlet {
             System.out.println("Insert result: " + success);
             
             PrintWriter out = response.getWriter();
+            if (!success) {
+                response.setStatus(HttpServletResponse.SC_CONFLICT);
+                out.write("{\"success\": false, \"message\": \"This time slot is already available.\"}");
+                return;
+            }
             response.setStatus(HttpServletResponse.SC_OK);
             out.write("{\"success\": true, \"message\": \"Availability added successfully\", \"scheduleId\": \"" + scheduleId + "\"}");
         } catch (Exception e) {

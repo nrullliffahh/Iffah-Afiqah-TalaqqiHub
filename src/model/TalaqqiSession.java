@@ -1,5 +1,7 @@
 package model;
 
+import util.JitsiConfig;
+
 import java.time.LocalDateTime;
 
 /**
@@ -154,10 +156,7 @@ public class TalaqqiSession {
      * The same room name is used by both the teacher and the student.
      */
     public String generateRoomName() {
-        String tId = (teacherId != null) ? teacherId.replaceAll("[^a-zA-Z0-9]", "") : "T";
-        // Use the talaqqisession sessionId as the unique room identifier
-        String sid = (sessionId != null) ? sessionId.replaceAll("[^a-zA-Z0-9]", "") : "S";
-        return "TalaqqiHub-" + tId + "-" + sid;
+        return JitsiConfig.buildRoomName(teacherId, sessionId);
     }
 
     /**

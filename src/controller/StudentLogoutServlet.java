@@ -1,5 +1,7 @@
 package controller;
 
+import util.SessionRoleUtil;
+
 import javax.servlet.ServletException;
 import javax.servlet.http.HttpServlet;
 import javax.servlet.http.HttpServletRequest;
@@ -15,7 +17,10 @@ public class StudentLogoutServlet extends HttpServlet {
         
         HttpSession session = request.getSession(false);
         if (session != null) {
-            session.invalidate();
+            SessionRoleUtil.clearStudent(session);
+            if (!SessionRoleUtil.hasAnyPortal(session)) {
+                session.invalidate();
+            }
         }
         
         response.sendRedirect(request.getContextPath() + "/home");

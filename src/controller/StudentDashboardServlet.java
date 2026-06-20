@@ -73,8 +73,8 @@ public class StudentDashboardServlet extends HttpServlet {
         int announcementCount = announcementDAO.getAnnouncementCount();
 
         // Provide demo/fallback values when DAO returns empty or null data (useful for staging/demo)
-        if (evaluationResult == null || evaluationResult.trim().isEmpty()) {
-            evaluationResult = "Good progress"; // demo evaluation
+        if (evaluationResult == null || evaluationResult.trim().isEmpty() || "N/A".equals(evaluationResult)) {
+            evaluationResult = "—";
         }
 
         if (announcementList == null || announcementList.isEmpty()) {

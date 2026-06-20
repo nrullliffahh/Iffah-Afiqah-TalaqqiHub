@@ -17,118 +17,119 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Class Schedule - TalaqqiHub Teacher Portal</title>
+    <%@ include file="/WEB-INF/views/includes/teacherLayoutStyles.jsp" %>
     <script src="https://cdn.tailwindcss.com"></script>
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <style>
-        body {
-            font-family: 'Inter', system-ui, -apple-system, sans-serif;
+        .modal { display: none; }
+        .modal.active { display: flex; }
+        .slot-empty {
+            padding: 1rem;
+            border-radius: 0.75rem;
+            border: 2px dashed #d1d5db;
+            cursor: pointer;
+            transition: all 0.2s;
+            background: #fff;
         }
-        
-        .sidebar-gradient {
-            background: linear-gradient(180deg, #7c3aed 0%, #5b21b6 100%);
+        .slot-empty:hover {
+            border-color: #7c3aed;
+            background: #faf8ff;
         }
-        
-        .modal {
+        .slot-empty.selected {
+            border-color: #7c3aed;
+            border-style: solid;
+            background: #ede9fe;
+            box-shadow: 0 0 0 2px rgba(124, 58, 237, 0.15);
+        }
+        .slot-selection-bar {
             display: none;
+            align-items: center;
+            justify-content: space-between;
+            gap: 12px;
+            flex-wrap: wrap;
+            padding: 12px 14px;
+            margin-bottom: 12px;
+            border-radius: 12px;
+            background: #f3efff;
+            border: 1px solid #ddd6fe;
         }
-        
-        .modal.active {
-            display: flex;
+        .slot-selection-bar.visible { display: flex; }
+        .slot-action-btn {
+            padding: 8px 14px;
+            border-radius: 8px;
+            font-size: 13px;
+            font-weight: 600;
+            cursor: pointer;
+            border: 1px solid #e2e8f0;
+            background: white;
+            color: #475569;
+        }
+        .slot-action-btn:hover { background: #f8fafc; }
+        .slot-action-btn.primary {
+            border: none;
+            color: white;
+            background: var(--teacher-gradient);
+        }
+        .slot-action-btn.primary:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+        .slot-filled {
+            padding: 1rem;
+            border-radius: 0.75rem;
+            border: 1px solid #c4b5fd;
+            background: #f3efff;
+        }
+        .slot-filled.booked {
+            background: #7c3aed;
+            border-color: #6d28d9;
+            color: #fff;
+        }
+        .slot-badge {
+            padding: 2px 8px;
+            border-radius: 999px;
+            font-size: 11px;
+            font-weight: 600;
+            background: #dbeafe;
+            color: #2563eb;
+        }
+        .slot-status {
+            padding: 2px 8px;
+            border-radius: 999px;
+            font-size: 11px;
+            font-weight: 600;
+            background: #ede9fe;
+            color: #7c3aed;
+        }
+        .slot-filled.booked .slot-status {
+            background: rgba(255,255,255,0.2);
+            color: #fff;
+        }
+        .slot-disabled {
+            padding: 1rem;
+            border-radius: 0.75rem;
+            border: 2px dashed #e5e7eb;
+            background: #f9fafb;
+            color: #9ca3af;
+            opacity: 0.7;
         }
     </style>
 </head>
-<body class="bg-gray-50">
-    <div class="flex h-screen overflow-hidden">
-        <aside class="sidebar-gradient w-64 flex-shrink-0">
-            <div class="p-6">
-                <div class="text-white mb-8">
-                    <h1 class="text-2xl font-bold">TalaqqiHub</h1>
-                    <p class="text-purple-200 text-sm mt-1">Teacher Portal</p>
-                </div>
-                
-                <nav class="space-y-2">
-                    <a href="<%= request.getContextPath() %>/teacher/teacherdashboard" 
-                       class="flex items-center space-x-3 px-4 py-3 text-purple-200 hover:bg-white hover:bg-opacity-10 rounded-lg transition">
-                        <i class="fas fa-home w-5"></i>
-                        <span>Dashboard</span>
-                    </a>
-                    
-                    <a href="<%= request.getContextPath() %>/teacher/classschedule" 
-                       class="flex items-center space-x-3 px-4 py-3 text-white bg-white bg-opacity-20 rounded-lg">
-                        <i class="far fa-calendar w-5"></i>
-                        <span>Class Schedule</span>
-                    </a>
-                    
-                    <a href="<%= request.getContextPath() %>/teacher/attendance" 
-                       class="flex items-center space-x-3 px-4 py-3 text-purple-200 hover:bg-white hover:bg-opacity-10 rounded-lg transition">
-                        <i class="far fa-clipboard w-5"></i>
-                        <span>Attendance</span>
-                    </a>
-                    
-                    <a href="<%= request.getContextPath() %>/teacher/evaluation" 
-                       class="flex items-center space-x-3 px-4 py-3 text-purple-200 hover:bg-white hover:bg-opacity-10 rounded-lg transition">
-                        <i class="far fa-file-alt w-5"></i>
-                        <span>Evaluation</span>
-                    </a>
-                    
-                    <a href="<%= request.getContextPath() %>/teacher/sessions" 
-                       class="flex items-center space-x-3 px-4 py-3 text-purple-200 hover:bg-white hover:bg-opacity-10 rounded-lg transition">
-                        <i class="fas fa-book-quran w-5"></i>
-                        <span>Talaqqi Sessions</span>
-                    </a>
-                    
-                    <a href="<%= request.getContextPath() %>/teacher/announcements" 
-                       class="flex items-center space-x-3 px-4 py-3 text-purple-200 hover:bg-white hover:bg-opacity-10 rounded-lg transition">
-                        <i class="far fa-bell w-5"></i>
-                        <span>Announcements</span>
-                    </a>
-                    
-                    <a href="<%= request.getContextPath() %>/teacher/ai-assistance" 
-                       class="flex items-center space-x-3 px-4 py-3 text-purple-200 hover:bg-white hover:bg-opacity-10 rounded-lg transition">
-                        <i class="fas fa-bolt w-5"></i>
-                        <span>AI Assistance</span>
-                    </a>
-                </nav>
-            </div>
-            
-            <div class="absolute bottom-0 w-64 p-6">
-                <a href="<%= request.getContextPath() %>/teacher/logout" 
-                   class="flex items-center space-x-3 px-4 py-3 text-purple-200 hover:bg-white hover:bg-opacity-10 rounded-lg transition">
-                    <i class="fas fa-sign-out-alt w-5"></i>
-                    <span>Logout</span>
-                </a>
-            </div>
-        </aside>
-        
-        <main class="flex-1 overflow-y-auto">
-            <header class="bg-white shadow-sm border-b border-gray-200">
-                <div class="px-8 py-4 flex items-center justify-between">
-                    <h2 class="text-2xl font-bold text-gray-900">Class Schedule</h2>
-                    
-                    <div class="flex items-center space-x-4">
-                        <button class="relative p-2 text-gray-400 hover:text-gray-600">
-                            <i class="far fa-bell text-xl"></i>
-                            <span class="absolute top-1 right-1 w-2 h-2 bg-purple-600 rounded-full"></span>
-                        </button>
-                        
-                        <div class="flex items-center space-x-3">
-                            <div class="w-10 h-10 bg-purple-600 rounded-full flex items-center justify-center text-white font-semibold">
-                                UI
-                            </div>
-                            <div>
-                                <p class="text-sm font-semibold text-gray-900"><%= teacherName %></p>
-                            </div>
-                            <i class="fas fa-chevron-down text-gray-400 text-sm"></i>
-                        </div>
-                    </div>
-                </div>
-            </header>
-            
-            <%
-                Boolean canAccess = (request.getAttribute("canAccessSchedule") != null) ? (Boolean) request.getAttribute("canAccessSchedule") : Boolean.TRUE;
-                String approvalStatus = (request.getAttribute("teacherApprovalStatus") != null) ? (String) request.getAttribute("teacherApprovalStatus") : "";
-            %>
-            <div class="p-8 relative">
+<body>
+    <jsp:include page="/WEB-INF/views/includes/teacherSidebar.jsp">
+        <jsp:param name="activePage" value="class-schedule"/>
+    </jsp:include>
+
+    <div class="main-content">
+        <jsp:include page="/WEB-INF/views/includes/teacherTopNavbar.jsp">
+            <jsp:param name="pageTitle" value="Class Schedule"/>
+            <jsp:param name="notifPrefix" value="scheduleNotif"/>
+        </jsp:include>
+
+        <%
+            Boolean canAccess = (request.getAttribute("canAccessSchedule") != null) ? (Boolean) request.getAttribute("canAccessSchedule") : Boolean.TRUE;
+            String approvalStatus = (request.getAttribute("teacherApprovalStatus") != null) ? (String) request.getAttribute("teacherApprovalStatus") : "";
+        %>
+        <div class="page-content relative">
                 <% if (!canAccess) { %>
                     <div class="absolute inset-0 bg-white bg-opacity-80 z-50 flex items-center justify-center">
                         <div class="text-center max-w-lg p-6">
@@ -166,7 +167,7 @@
                             <!-- View Filters -->
                             <div class="flex items-center justify-between mb-4">
                                 <div class="flex items-center space-x-2">
-                                    <button id="monthViewBtn" onclick="setViewMode('month')" class="px-3 py-1 text-sm font-medium text-purple-600 bg-purple-100 rounded-lg hover:bg-purple-200 transition">
+                                    <button id="monthViewBtn" onclick="setViewMode('month')" class="px-3 py-1 text-sm font-medium text-purple-600 bg-purple-100 rounded-lg hover:bg-purple-100 transition">
                                         Month View
                                     </button>
                                     <button id="weekViewBtn" onclick="setViewMode('week')" class="px-3 py-1 text-sm font-medium text-gray-600 bg-gray-100 rounded-lg hover:bg-gray-200 transition">
@@ -203,7 +204,7 @@
                             <!-- Legend -->
                             <div class="mt-4 pt-4 border-t border-gray-200 space-y-2 text-sm">
                                 <div class="flex items-center space-x-2">
-                                    <div class="w-4 h-4 bg-purple-200 rounded"></div>
+                                    <div class="w-4 h-4 bg-purple-100 rounded"></div>
                                     <span class="text-gray-600">Available (not booked)</span>
                                 </div>
                                 <div class="flex items-center space-x-2">
@@ -220,7 +221,17 @@
                         <!-- RIGHT: Time Slots -->
                         <div class="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
                             <h4 class="text-lg font-semibold text-gray-900 mb-2">Time Slots (15 min each)</h4>
-                            <p id="selectedDateDisplay" class="text-sm text-gray-500 mb-4">Please select a date</p>
+                            <p id="selectedDateDisplay" class="text-sm text-gray-500 mb-2">Please select a date</p>
+                            <p class="text-xs text-gray-400 mb-3">Click empty slots to select multiple, then add them together.</p>
+
+                            <div id="slotSelectionBar" class="slot-selection-bar">
+                                <span id="selectedSlotCount" class="text-sm font-semibold" style="color:#6d28d9;">0 slots selected</span>
+                                <div class="flex items-center gap-2 flex-wrap">
+                                    <button type="button" class="slot-action-btn" onclick="selectAllEmptySlots()">Select All</button>
+                                    <button type="button" class="slot-action-btn" onclick="clearSelectedSlots()">Clear</button>
+                                    <button type="button" id="addSelectedBtn" class="slot-action-btn primary" onclick="openSelectedConfirmationModal()" disabled>Add Selected</button>
+                                </div>
+                            </div>
                             
                             <!-- Time Slots Container -->
                             <div id="timeSlotsContainer" class="space-y-3 max-h-[500px] overflow-y-auto pr-2">
@@ -262,7 +273,7 @@
                                         <div class="flex items-center space-x-4">
                                             <c:choose>
                                                 <c:when test="${not empty classItem.studentName}">
-                                                    <div class="w-14 h-14 bg-pink-200 rounded-full flex items-center justify-center text-gray-700 font-bold text-lg">
+                                                    <div class="w-14 h-14 bg-purple-100 rounded-full flex items-center justify-center text-gray-700 font-bold text-lg">
                                                         <c:set var="initials" value="${fn:substring(classItem.studentName, 0, 1)}${fn:substring(fn:substringAfter(classItem.studentName, ' '), 0, 1)}" />
                                                         ${fn:toUpperCase(initials)}
                                                     </div>
@@ -320,11 +331,12 @@
                                                     <button onclick="showCancelClass(this)"
                                                             data-student-name="${classItem.studentName}"
                                                             data-schedule-date="<fmt:formatDate value='${classItem.scheduleDate}' pattern='EEEE, MMMM d, yyyy' />"
+                                                            data-schedule-iso="<fmt:formatDate value='${classItem.scheduleDate}' pattern='yyyy-MM-dd' />"
                                                             data-start-time="<fmt:formatDate value='${classItem.startTime}' pattern='HH:mm' />"
                                                             data-end-time="<fmt:formatDate value='${classItem.endTime}' pattern='HH:mm' />"
                                                             data-schedule-id="${classItem.scheduleId}"
                                                             data-booking-id="${classItem.bookingId}"
-                                                            class="px-6 py-2 bg-red-600 text-white rounded-lg font-semibold hover:bg-red-700 transition">
+                                                            class="cancel-class-btn px-6 py-2 bg-red-600 text-white rounded-lg font-semibold hover:bg-red-700 transition">
                                                         Cancel Class
                                                     </button>
                                                 </div>
@@ -455,7 +467,7 @@
                     </div>
                 </div>
             </div>
-        </main>
+        </div>
     </div>
     
     <div id="classDetailsModal" class="modal fixed inset-0 bg-black bg-opacity-50 items-center justify-center z-50">
@@ -469,7 +481,7 @@
             
             <div class="p-6 space-y-4">
                 <div class="flex items-center space-x-3">
-                    <div class="w-12 h-12 bg-pink-200 rounded-lg flex items-center justify-center text-gray-700 font-bold text-lg">
+                    <div class="w-12 h-12 bg-purple-100 rounded-lg flex items-center justify-center text-gray-700 font-bold text-lg">
                         <span id="modalStudentInitials">AH</span>
                     </div>
                     <div>
@@ -508,7 +520,7 @@
             </div>
             
             <div class="p-6 border-t border-gray-200">
-                <button onclick="closeClassDetails()" class="w-full px-6 py-2 bg-gradient-to-r from-purple-600 to-pink-600 text-white rounded-lg font-semibold hover:from-purple-700 hover:to-pink-700 transition">
+                <button onclick="closeClassDetails()" class="w-full px-6 py-2 bg-gradient-to-r from-purple-500 to-pink-400 text-white rounded-lg font-semibold hover:from-purple-600 hover:to-pink-500 transition">
                     Close
                 </button>
             </div>
@@ -538,7 +550,7 @@
                 
                 <div class="bg-red-50 border border-red-200 rounded-lg p-3">
                     <p class="text-sm text-red-700">
-                        <strong>Note:</strong> The student will be notified about this cancellation and their session will be refunded.
+                        <strong>Note:</strong> Classes cannot be cancelled less than 12 hours before the start time. The student will be notified if cancellation is allowed.
                     </p>
                 </div>
             </div>
@@ -586,8 +598,43 @@
                 <button onclick="closeModal()" class="px-6 py-2 border border-gray-300 text-gray-700 rounded-lg font-semibold hover:bg-gray-50 transition">
                     Cancel
                 </button>
-                <button onclick="submitAvailability()" class="px-6 py-2 bg-purple-600 text-white rounded-lg font-semibold hover:bg-purple-700 transition">
+                <button onclick="submitAvailability()" class="px-6 py-2 text-white rounded-lg font-semibold hover:opacity-90 transition" style="background:var(--teacher-gradient);">
                     Add Availability
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Bulk selection confirmation modal -->
+    <div id="bulkConfirmModal" class="modal fixed inset-0 bg-black bg-opacity-50 items-center justify-center z-50">
+        <div class="bg-white rounded-xl shadow-xl max-w-lg w-full mx-4 max-h-[90vh] flex flex-col">
+            <div class="p-6 border-b border-gray-200">
+                <h3 class="text-xl font-bold text-gray-900">Confirm Selected Availability</h3>
+                <p class="text-sm text-gray-500 mt-1">Review your selected time slots before adding.</p>
+            </div>
+            <div class="p-6 space-y-4 overflow-y-auto flex-1">
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-1">Date</label>
+                    <p id="bulkConfirmDate" class="font-semibold text-gray-900"></p>
+                </div>
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-1">Class Type</label>
+                    <p class="text-gray-900">Quran Recitation & Tajweed</p>
+                </div>
+                <div>
+                    <div class="flex items-center justify-between mb-2">
+                        <label class="block text-sm font-medium text-gray-700">Selected Time Slots</label>
+                        <span id="bulkConfirmCount" class="text-xs font-semibold px-2 py-1 rounded-full" style="background:#ede9fe;color:#6d28d9;">0 slots</span>
+                    </div>
+                    <ul id="bulkConfirmSlotList" class="space-y-2 max-h-56 overflow-y-auto border border-gray-200 rounded-lg p-3 bg-gray-50"></ul>
+                </div>
+            </div>
+            <div class="p-6 border-t border-gray-200 flex items-center justify-end space-x-3">
+                <button type="button" onclick="closeBulkConfirmModal()" class="px-6 py-2 border border-gray-300 text-gray-700 rounded-lg font-semibold hover:bg-gray-50 transition">
+                    Cancel
+                </button>
+                <button type="button" id="bulkConfirmBtn" onclick="confirmSelectedAvailability()" class="px-6 py-2 text-white rounded-lg font-semibold hover:opacity-90 transition" style="background:var(--teacher-gradient);">
+                    Confirm & Add
                 </button>
             </div>
         </div>
@@ -693,6 +740,8 @@
         let selectedStartTime = null;
         let selectedEndTime = null;
         let selectedClassData = null;
+        let pendingSlots = {};
+        let emptySlotRegistry = [];
         let currentViewMode = 'month'; // 'month' or 'week'
         let currentWeekStart = null;
         // When in week mode, confine navigation to this month/year
@@ -947,14 +996,14 @@
             const weekBtn = document.getElementById('weekViewBtn');
 
             if (mode === 'month') {
-                monthBtn.className = 'px-3 py-1 text-sm font-medium text-purple-600 bg-purple-100 rounded-lg hover:bg-purple-200 transition';
+                monthBtn.className = 'px-3 py-1 text-sm font-medium text-purple-600 bg-purple-100 rounded-lg hover:bg-purple-100 transition';
                 weekBtn.className = 'px-3 py-1 text-sm font-medium text-gray-600 bg-gray-100 rounded-lg hover:bg-gray-200 transition';
                 // Clear any week-mode lock when switching back to month view
                 weekModeMonth = null;
                 weekModeYear = null;
             } else {
                 monthBtn.className = 'px-3 py-1 text-sm font-medium text-gray-600 bg-gray-100 rounded-lg hover:bg-gray-200 transition';
-                weekBtn.className = 'px-3 py-1 text-sm font-medium text-purple-600 bg-purple-100 rounded-lg hover:bg-purple-200 transition';
+                weekBtn.className = 'px-3 py-1 text-sm font-medium text-purple-600 bg-purple-100 rounded-lg hover:bg-purple-100 transition';
                 // Reset week start to show current week when switching to week view
                 currentWeekStart = null;
                 // Lock week navigation to the server/current month/year (teachers restricted to current month)
@@ -1067,7 +1116,8 @@
             if (!availabilityMap[dateStr]) return false;
             for (let timeSlot in availabilityMap[dateStr]) {
                 const slotData = availabilityMap[dateStr][timeSlot];
-                if (slotData && slotData.bookingStatus) {
+                const status = slotData && slotData.bookingStatus;
+                if (status && status !== 'null' && status !== 'undefined') {
                     return true;
                 }
             }
@@ -1079,7 +1129,237 @@
             if (mapEntry && typeof mapEntry === 'object') {
                 return mapEntry.scheduleId;
             }
-            return mapEntry; // Fallback for old string format
+            return mapEntry;
+        }
+
+        function canAddAvailability(date) {
+            const todayStart = new Date();
+            todayStart.setHours(0, 0, 0, 0);
+            const d = new Date(date);
+            d.setHours(0, 0, 0, 0);
+            return d >= todayStart;
+        }
+
+        function getSelectedDateStr() {
+            if (!selectedDate) return null;
+            const year = selectedDate.getFullYear();
+            const month = String(selectedDate.getMonth() + 1).padStart(2, '0');
+            const day = String(selectedDate.getDate()).padStart(2, '0');
+            return year + '-' + month + '-' + day;
+        }
+
+        function to24(timeStr) {
+            if (!timeStr) return timeStr;
+            let t = String(timeStr).trim().toLowerCase();
+            const m = t.match(/^(\d{1,2}):(\d{2})(?:\s*(am|pm))?$/i);
+            if (m) {
+                let h = parseInt(m[1], 10);
+                const mm = m[2];
+                const ampm = m[3];
+                if (ampm) {
+                    if (ampm === 'pm' && h < 12) h += 12;
+                    if (ampm === 'am' && h === 12) h = 0;
+                }
+                return String(h).padStart(2, '0') + ':' + mm;
+            }
+            const m2 = t.match(/^(\d{2}):(\d{2})(?::\d{2})?$/);
+            if (m2) return m2[1] + ':' + m2[2];
+            return timeStr;
+        }
+
+        function updateSlotSelectionBar() {
+            const count = Object.keys(pendingSlots).length;
+            const bar = document.getElementById('slotSelectionBar');
+            const label = document.getElementById('selectedSlotCount');
+            const btn = document.getElementById('addSelectedBtn');
+            if (!bar || !label || !btn) return;
+            if (count > 0) {
+                bar.classList.add('visible');
+                label.textContent = count + ' slot' + (count === 1 ? '' : 's') + ' selected';
+                btn.disabled = false;
+                btn.textContent = 'Add Selected (' + count + ')';
+            } else {
+                bar.classList.remove('visible');
+                btn.disabled = true;
+                btn.textContent = 'Add Selected';
+            }
+        }
+
+        function toggleSlotSelection(startTime24, startTime, endTime, slotEl) {
+            if (pendingSlots[startTime24]) {
+                delete pendingSlots[startTime24];
+                slotEl.classList.remove('selected');
+            } else {
+                pendingSlots[startTime24] = { startTime: startTime, endTime: endTime, startTime24: startTime24 };
+                slotEl.classList.add('selected');
+            }
+            updateSlotSelectionBar();
+        }
+
+        function clearSelectedSlots() {
+            pendingSlots = {};
+            document.querySelectorAll('.slot-empty.selected').forEach(function(el) {
+                el.classList.remove('selected');
+            });
+            updateSlotSelectionBar();
+        }
+
+        function selectAllEmptySlots() {
+            emptySlotRegistry.forEach(function(slot) {
+                pendingSlots[slot.startTime24] = slot;
+                if (slot.element) slot.element.classList.add('selected');
+            });
+            updateSlotSelectionBar();
+        }
+
+        function postAvailabilitySlot(scheduleDate, startTimeFormatted, endTimeFormatted) {
+            let start = startTimeFormatted;
+            let end = endTimeFormatted;
+            if (start.split(':').length === 2) start += ':00';
+            if (end.split(':').length === 2) end += ':00';
+
+            return fetch("<%= request.getContextPath() %>/teacher/setAvailability?t=" + new Date().getTime(), {
+                method: "POST",
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Accept': 'application/json'
+                },
+                body: JSON.stringify({
+                    className: "Quran Recitation & Tajweed",
+                    scheduleDate: scheduleDate,
+                    startTime: start,
+                    endTime: end
+                })
+            }).then(function(res) {
+                const contentType = res.headers.get("content-type");
+                if (!contentType || !contentType.includes("application/json")) {
+                    return res.text().then(function(text) {
+                        throw new Error("Server returned an unexpected response.");
+                    });
+                }
+                return res.json();
+            });
+        }
+
+        function submitSelectedAvailability() {
+            const keys = Object.keys(pendingSlots);
+            if (!keys.length || !selectedDate) return;
+
+            const dateStr = getSelectedDateStr();
+            const btn = document.getElementById('addSelectedBtn');
+            const confirmBtn = document.getElementById('bulkConfirmBtn');
+            if (confirmBtn) {
+                confirmBtn.disabled = true;
+                confirmBtn.textContent = 'Adding...';
+            }
+            if (btn) {
+                btn.disabled = true;
+                btn.textContent = 'Adding...';
+            }
+
+            const sorted = keys.sort().map(function(k) { return pendingSlots[k]; });
+            let added = 0;
+            let failed = 0;
+            let lastError = '';
+
+            (function addNext(index) {
+                if (index >= sorted.length) {
+                    closeBulkConfirmModal();
+                    if (btn) {
+                        btn.disabled = false;
+                        updateSlotSelectionBar();
+                    }
+                    if (confirmBtn) {
+                        confirmBtn.disabled = false;
+                        confirmBtn.textContent = 'Confirm & Add';
+                    }
+                    pendingSlots = {};
+                    initCalendar();
+                    if (selectedDate) {
+                        selectDate(selectedDate.getFullYear(), selectedDate.getMonth(), selectedDate.getDate());
+                    }
+                    if (added > 0 && failed === 0) {
+                        alert('Successfully added ' + added + ' availability slot' + (added === 1 ? '' : 's') + '.');
+                    } else if (added > 0 && failed > 0) {
+                        alert('Added ' + added + ' slot(s). ' + failed + ' failed: ' + lastError);
+                    } else {
+                        alert(lastError || 'Failed to add availability.');
+                    }
+                    return;
+                }
+
+                const slot = sorted[index];
+                const start24 = to24(slot.startTime);
+                const end24 = to24(slot.endTime);
+
+                postAvailabilitySlot(dateStr, start24, end24)
+                    .then(function(data) {
+                        if (data.success) {
+                            added++;
+                            const startShort = start24.substring(0, 5);
+                            const endShort = end24.substring(0, 5);
+                            availabilitySlots.push({
+                                date: dateStr,
+                                startTime: startShort,
+                                endTime: endShort,
+                                bookingStatus: null
+                            });
+                            if (!availabilityMap[dateStr]) availabilityMap[dateStr] = {};
+                            availabilityMap[dateStr][startShort] = {
+                                scheduleId: data.scheduleId || 'C000',
+                                bookingStatus: null
+                            };
+                        } else {
+                            failed++;
+                            lastError = data.message || 'Unknown error';
+                        }
+                        addNext(index + 1);
+                    })
+                    .catch(function(err) {
+                        failed++;
+                        lastError = err.message || 'Request failed';
+                        addNext(index + 1);
+                    });
+            })(0);
+        }
+
+        function openSelectedConfirmationModal() {
+            const keys = Object.keys(pendingSlots);
+            if (!keys.length) {
+                alert('Please select at least one time slot.');
+                return;
+            }
+            if (!selectedDate) {
+                alert('Please select a date from the calendar first.');
+                return;
+            }
+
+            const dayName = dayNames[selectedDate.getDay()];
+            const dateLabel = dayName + ', ' + monthNames[selectedDate.getMonth()] + ' ' +
+                selectedDate.getDate() + ', ' + selectedDate.getFullYear();
+            document.getElementById('bulkConfirmDate').textContent = dateLabel;
+            document.getElementById('bulkConfirmCount').textContent = keys.length + ' slot' + (keys.length === 1 ? '' : 's');
+
+            const listEl = document.getElementById('bulkConfirmSlotList');
+            listEl.innerHTML = '';
+            keys.sort().forEach(function(k) {
+                const slot = pendingSlots[k];
+                const li = document.createElement('li');
+                li.className = 'flex items-center justify-between text-sm py-2 px-3 bg-white rounded-lg border border-gray-100';
+                li.innerHTML = '<span class="font-semibold text-gray-800">' + slot.startTime + ' - ' + slot.endTime + '</span>' +
+                    '<span class="slot-badge">15 min</span>';
+                listEl.appendChild(li);
+            });
+
+            document.getElementById('bulkConfirmModal').classList.add('active');
+        }
+
+        function closeBulkConfirmModal() {
+            document.getElementById('bulkConfirmModal').classList.remove('active');
+        }
+
+        function confirmSelectedAvailability() {
+            submitSelectedAvailability();
         }
         
         function initCalendar() {
@@ -1150,7 +1430,7 @@
                         if (hasBooked) {
                             button.className += ' bg-purple-600 text-white font-semibold hover:bg-purple-700';
                         } else {
-                            button.className += ' bg-purple-200 text-purple-800 font-semibold hover:bg-purple-300';
+                            button.className += ' bg-purple-100 text-purple-800 font-semibold hover:bg-purple-300';
                         }
                     } else {
                         button.className += ' border border-gray-200 text-gray-700 hover:bg-gray-50';
@@ -1213,7 +1493,7 @@
                         if (hasBooked) {
                             button.className += ' bg-purple-600 text-white font-semibold hover:bg-purple-700';
                         } else {
-                            button.className += ' bg-purple-200 text-purple-800 font-semibold hover:bg-purple-300';
+                            button.className += ' bg-purple-100 text-purple-800 font-semibold hover:bg-purple-300';
                         }
                     } else {
                         button.className += ' border border-gray-200 text-gray-700 hover:bg-gray-50';
@@ -1231,6 +1511,8 @@
         
         function selectDate(year, month, day) {
             selectedDate = new Date(year, month, day);
+            pendingSlots = {};
+            updateSlotSelectionBar();
 
             const buttons = document.querySelectorAll('#calendarGrid button');
             buttons.forEach(btn => {
@@ -1256,7 +1538,7 @@
                     if (hasBooked) {
                         btn.className += ' bg-purple-600 text-white font-semibold hover:bg-purple-700';
                     } else {
-                        btn.className += ' bg-purple-200 text-purple-800 font-semibold hover:bg-purple-300';
+                        btn.className += ' bg-purple-100 text-purple-800 font-semibold hover:bg-purple-300';
                     }
                 } else {
                     btn.className += ' border border-gray-200 text-gray-700 hover:bg-gray-50';
@@ -1266,15 +1548,6 @@
             const dayName = dayNames[selectedDate.getDay()];
             const dateStr = dayName + ', ' + monthNames[month] + ' ' + day + ', ' + year;
             document.getElementById('selectedDateDisplay').textContent = dateStr;
-
-            // Only allow creating availability for dates within the server current month/year
-            const inServerMonth = (selectedDate.getMonth() === serverMonth && selectedDate.getFullYear() === serverYear);
-            if (!inServerMonth) {
-                // Generate time slots as read-only (non-clickable) so teacher cannot add availability
-                generateTimeSlots();
-                // Remove any click handlers by ensuring slots are rendered disabled inside generateTimeSlots when outside server month
-                return;
-            }
 
             generateTimeSlots();
             updateCompletedCancelledDisplay();
@@ -1288,6 +1561,7 @@
             }
             
             container.innerHTML = '';
+            emptySlotRegistry = [];
             
             const startHour = 8;
             const endHour = 22; // extended to 22 => 10:00 pm
@@ -1328,53 +1602,59 @@
                     const slotDiv = document.createElement('div');
                     
                     if (isAvailable) {
-                        // Slot exists - purple card with edit/delete icons
-                        // Dark purple if booked, light purple if available
-                        const bgColor = bookingStatus ? 'bg-purple-600 border-purple-700' : 'bg-purple-100 border-purple-300';
-                        const textColor = bookingStatus ? 'text-white' : 'text-gray-900';
-                        const statusLabel = bookingStatus ? bookingStatus : 'Available';
-                        const statusBadgeBg = bookingStatus ? 'bg-purple-700 text-white' : 'bg-purple-200 text-purple-800';
-                        
-                        slotDiv.className = 'p-4 rounded-xl ' + bgColor + ' border';
+                        const isBooked = !!bookingStatus;
+                        slotDiv.className = 'slot-filled' + (isBooked ? ' booked' : '');
+                        const textColor = isBooked ? 'text-white' : 'text-gray-900';
+                        const statusLabel = isBooked ? bookingStatus : 'Available';
                         slotDiv.innerHTML = '<div class="flex items-start justify-between">' +
                             '<div class="flex-1">' +
-                                '<div class="flex items-center space-x-2 mb-1">' +
+                                '<div class="flex items-center flex-wrap gap-2 mb-1">' +
                                     '<span class="font-bold ' + textColor + '">' + startTime + ' - ' + endTime + '</span>' +
-                                    '<span class="px-2 py-0.5 bg-blue-100 text-blue-700 rounded text-xs font-semibold">15 min</span>' +
-                                    '<span class="px-2 py-0.5 ' + statusBadgeBg + ' rounded text-xs font-semibold">' + statusLabel + '</span>' +
+                                    '<span class="slot-badge">15 min</span>' +
+                                    '<span class="slot-status">' + statusLabel + '</span>' +
                                 '</div>' +
                                 '<p class="text-sm ' + textColor + '">Quran Recitation & Tajweed</p>' +
                             '</div>' +
                             '<div class="flex items-center space-x-2 ml-3">' +
-                                '<button onclick="viewAvailabilityDetails(\'' + scheduleId + '\', \'' + selectedDateStr + '\', \'' + startTime + '\', \'' + endTime + '\')" class="p-1.5 hover:bg-opacity-20 hover:bg-white rounded-lg transition-colors" title="View Details">' +
-                                    '<i class="fas fa-eye ' + (bookingStatus ? 'text-white' : 'text-blue-600') + '"></i>' +
+                                '<button type="button" onclick="viewAvailabilityDetails(\'' + scheduleId + '\', \'' + selectedDateStr + '\', \'' + startTime + '\', \'' + endTime + '\')" class="p-1.5 hover:bg-white/20 rounded-lg transition-colors" title="View Details">' +
+                                    '<i class="fas fa-eye ' + (isBooked ? 'text-white' : 'text-blue-600') + '"></i>' +
                                 '</button>' +
-                                '<button onclick="openDeleteAvailabilityModal(\'' + scheduleId + '\', \'' + selectedDateStr + '\', \'' + startTime + '\', \'' + endTime + '\')" class="p-1.5 hover:bg-opacity-20 hover:bg-white rounded-lg transition-colors" title="Delete">' +
-                                    '<i class="fas fa-trash ' + (bookingStatus ? 'text-white' : 'text-red-600') + '"></i>' +
+                                '<button type="button" onclick="openDeleteAvailabilityModal(\'' + scheduleId + '\', \'' + selectedDateStr + '\', \'' + startTime + '\', \'' + endTime + '\')" class="p-1.5 hover:bg-white/20 rounded-lg transition-colors" title="Delete">' +
+                                    '<i class="fas fa-trash ' + (isBooked ? 'text-white' : 'text-red-600') + '"></i>' +
                                 '</button>' +
                             '</div>' +
                         '</div>';
                     } else {
-                        // Empty slot - dashed border. If date is in server month allow click-to-add, otherwise render disabled
-                        const inServerMonth = (selectedDate.getMonth() === serverMonth && selectedDate.getFullYear() === serverYear);
-                        if (inServerMonth) {
-                            slotDiv.className = 'p-4 rounded-xl border-2 border-dashed border-gray-300 hover:border-purple-400 hover:bg-purple-50 transition-all cursor-pointer';
+                        const allowAdd = canAddAvailability(selectedDate);
+                        if (allowAdd) {
+                            const isSelected = !!pendingSlots[startTime24];
+                            slotDiv.className = 'slot-empty' + (isSelected ? ' selected' : '');
                             slotDiv.innerHTML = '<div class="flex items-center justify-between">' +
-                                '<div class="flex items-center space-x-2">' +
+                                '<div class="flex items-center flex-wrap gap-2">' +
                                     '<span class="font-bold text-gray-700">' + startTime + ' - ' + endTime + '</span>' +
-                                    '<span class="px-2 py-0.5 bg-blue-100 text-blue-700 rounded text-xs font-semibold">15 min</span>' +
+                                    '<span class="slot-badge">15 min</span>' +
                                 '</div>' +
-                                '<span class="text-sm text-gray-500 font-medium">Click to add</span>' +
+                                '<span class="text-sm font-medium ' + (isSelected ? 'text-purple-700' : 'text-gray-500') + '">' +
+                                    (isSelected ? 'Selected' : 'Click to select') +
+                                '</span>' +
                             '</div>';
-                            slotDiv.onclick = function() { teacherSetAvailability(selectedDate, startTime, endTime); };
+                            slotDiv.onclick = function() {
+                                toggleSlotSelection(startTime24, startTime, endTime, slotDiv);
+                            };
+                            emptySlotRegistry.push({
+                                startTime24: startTime24,
+                                startTime: startTime,
+                                endTime: endTime,
+                                element: slotDiv
+                            });
                         } else {
-                            slotDiv.className = 'p-4 rounded-xl border-2 border-dashed border-gray-200 bg-gray-50 text-gray-400 opacity-60';
+                            slotDiv.className = 'slot-disabled';
                             slotDiv.innerHTML = '<div class="flex items-center justify-between">' +
-                                '<div class="flex items-center space-x-2">' +
+                                '<div class="flex items-center flex-wrap gap-2">' +
                                     '<span class="font-bold">' + startTime + ' - ' + endTime + '</span>' +
-                                    '<span class="px-2 py-0.5 bg-gray-100 text-gray-500 rounded text-xs font-semibold">15 min</span>' +
+                                    '<span class="slot-badge">15 min</span>' +
                                 '</div>' +
-                                '<span class="text-sm text-gray-400 font-medium">Not allowed</span>' +
+                                '<span class="text-sm font-medium">Past slot</span>' +
                             '</div>';
                         }
                     }
@@ -1384,6 +1664,7 @@
             }
             
             console.log('Time slots generated successfully');
+            updateSlotSelectionBar();
         }
         
         function teacherSetAvailability(date, startTime, endTime) {
@@ -1610,11 +1891,42 @@
         
 
         
+        const CANCEL_MIN_HOURS = 12;
+        const CANCEL_TOO_LATE_MSG = 'Classes cannot be cancelled less than 12 hours before the start time.';
+
+        function canCancelByPolicy(isoDate, time24) {
+            if (!isoDate || !time24) return false;
+            const normalized = time24.length === 5 ? time24 + ':00' : time24;
+            const classStart = new Date(isoDate + 'T' + normalized);
+            if (isNaN(classStart.getTime())) return false;
+            const hoursUntil = (classStart.getTime() - Date.now()) / (1000 * 60 * 60);
+            return hoursUntil >= CANCEL_MIN_HOURS;
+        }
+
+        function updateTeacherCancelButtons() {
+            document.querySelectorAll('.cancel-class-btn').forEach(function(btn) {
+                const allowed = canCancelByPolicy(btn.dataset.scheduleIso, btn.dataset.startTime);
+                btn.disabled = !allowed;
+                if (!allowed) {
+                    btn.classList.add('opacity-50', 'cursor-not-allowed');
+                    btn.title = CANCEL_TOO_LATE_MSG;
+                } else {
+                    btn.classList.remove('opacity-50', 'cursor-not-allowed');
+                    btn.title = '';
+                }
+            });
+        }
+
         function showCancelClass(button) {
             const dataset = button.dataset;
+            if (!canCancelByPolicy(dataset.scheduleIso, dataset.startTime)) {
+                alert(CANCEL_TOO_LATE_MSG);
+                return;
+            }
             selectedClassData = {
                 studentName: dataset.studentName,
                 scheduleDate: dataset.scheduleDate,
+                scheduleIso: dataset.scheduleIso,
                 startTime: dataset.startTime,
                 endTime: dataset.endTime,
                 scheduleId: dataset.scheduleId,
@@ -1637,6 +1949,10 @@
             const reason = document.getElementById('cancellationReason').value.trim();
             if (!reason) {
                 alert('Please provide a cancellation reason.');
+                return;
+            }
+            if (selectedClassData && !canCancelByPolicy(selectedClassData.scheduleIso, selectedClassData.startTime)) {
+                alert(CANCEL_TOO_LATE_MSG);
                 return;
             }
             
@@ -1669,219 +1985,88 @@
         }
         
 function submitAvailability() {
-
-    // Try to get values from variables first, then fallback to data attributes
-    let dateStr = null;
-    let startTimeFormatted = null;
-    let endTimeFormatted = null;
-    
-    // Get from data attributes as primary source
     const modalDateInput = document.getElementById('modalDate');
     const modalTimeInput = document.getElementById('modalTimeSlot');
-    
-    dateStr = modalDateInput.getAttribute('data-raw-date');
-    startTimeFormatted = modalTimeInput.getAttribute('data-start-time');
-    endTimeFormatted = modalTimeInput.getAttribute('data-end-time');
-    
-    // Fallback to variables if data attributes are empty
+
+    let dateStr = modalDateInput.getAttribute('data-raw-date');
+    let startTimeFormatted = modalTimeInput.getAttribute('data-start-time');
+    let endTimeFormatted = modalTimeInput.getAttribute('data-end-time');
+
     if (!dateStr && selectedDate) {
-        const year = selectedDate.getFullYear();
-        const month = String(selectedDate.getMonth() + 1).padStart(2, '0');
-        const day = String(selectedDate.getDate()).padStart(2, '0');
-        dateStr = year + '-' + month + '-' + day;
+        dateStr = getSelectedDateStr();
     }
-    
-    // Last resort: try to parse the display text
+
     if (!dateStr || dateStr.includes('--') || dateStr === 'NaN-NaN-NaN') {
-        const displayText = modalDateInput.value; // e.g., "Wednesday, January 21, 2026"
-        console.log('Attempting to parse display text:', displayText);
-        
+        const displayText = modalDateInput.value;
         try {
-            // Try to create a Date object from the display string
             const dateObj = new Date(displayText);
-            
             if (!isNaN(dateObj.getTime())) {
-                const year = dateObj.getFullYear();
-                const month = String(dateObj.getMonth() + 1).padStart(2, '0');
-                const day = String(dateObj.getDate()).padStart(2, '0');
-                dateStr = year + '-' + month + '-' + day;
-                console.log('Successfully parsed date from display text:', dateStr);
+                dateStr = dateObj.getFullYear() + '-' +
+                    String(dateObj.getMonth() + 1).padStart(2, '0') + '-' +
+                    String(dateObj.getDate()).padStart(2, '0');
             } else {
                 throw new Error('Invalid date');
             }
         } catch (e) {
-            console.error('Failed to parse date from display text:', e);
             alert("Could not determine date. Please select a date from the calendar again.");
             return;
         }
     }
-    
-    // Helper to convert a variety of display times ("8:30 am", "08:30", "8:30pm") to 24-hour HH:mm
-    function to24(timeStr) {
-        if (!timeStr) return timeStr;
-        let t = String(timeStr).trim().toLowerCase();
-        // Match h:mm or hh:mm with optional am/pm
-        const m = t.match(/^(\d{1,2}):(\d{2})(?:\s*(am|pm))?$/i);
-        if (m) {
-            let h = parseInt(m[1], 10);
-            const mm = m[2];
-            const ampm = m[3];
-            if (ampm) {
-                if (ampm === 'pm' && h < 12) h += 12;
-                if (ampm === 'am' && h === 12) h = 0;
-            }
-            return String(h).padStart(2, '0') + ':' + mm;
-        }
-        // If it already looks like HH:MM(:SS), normalize to HH:MM
-        const m2 = t.match(/^(\d{2}):(\d{2})(?::\d{2})?$/);
-        if (m2) return m2[1] + ':' + m2[2];
-        return timeStr;
-    }
 
-    // Normalize values read from data attributes (they may be 12-hour strings like "8:30 am")
-    if (startTimeFormatted) {
-        startTimeFormatted = to24(startTimeFormatted);
-    }
-    if (endTimeFormatted) {
-        endTimeFormatted = to24(endTimeFormatted);
-    }
+    if (startTimeFormatted) startTimeFormatted = to24(startTimeFormatted);
+    if (endTimeFormatted) endTimeFormatted = to24(endTimeFormatted);
+    if (!startTimeFormatted && selectedStartTime) startTimeFormatted = to24(selectedStartTime);
+    if (!endTimeFormatted && selectedEndTime) endTimeFormatted = to24(selectedEndTime);
 
-    if (!startTimeFormatted && selectedStartTime) {
-        startTimeFormatted = to24(selectedStartTime);
-    }
-
-    if (!endTimeFormatted && selectedEndTime) {
-        endTimeFormatted = to24(selectedEndTime);
-    }
-
-    // Last resort: try to parse time from display text (accept 1-2 digit hours and optional am/pm)
     if (!startTimeFormatted || !endTimeFormatted) {
-        const timeDisplay = modalTimeInput.value; // e.g., "8:30 am - 8:45 am" or "08:30 - 08:45 (15 min)"
-        console.log('Attempting to parse time from display:', timeDisplay);
-
-        try {
-            const timeMatch = timeDisplay.match(/(\d{1,2}:\d{2}\s*(?:am|pm)?)\s*-\s*(\d{1,2}:\d{2}\s*(?:am|pm)?)/i);
-            if (timeMatch) {
-                startTimeFormatted = to24(timeMatch[1]);
-                endTimeFormatted = to24(timeMatch[2]);
-                console.log('Successfully parsed times:', { startTimeFormatted, endTimeFormatted });
-            } else {
-                throw new Error('Could not parse time format');
-            }
-        } catch (e) {
-            console.error('Failed to parse time from display:', e);
+        const timeDisplay = modalTimeInput.value;
+        const timeMatch = timeDisplay.match(/(\d{1,2}:\d{2}\s*(?:am|pm)?)\s*-\s*(\d{1,2}:\d{2}\s*(?:am|pm)?)/i);
+        if (timeMatch) {
+            startTimeFormatted = to24(timeMatch[1]);
+            endTimeFormatted = to24(timeMatch[2]);
+        } else {
             alert("Could not determine time slot. Please select a time slot again.");
             return;
         }
     }
-    
-    // Final validation
+
     if (!dateStr || !startTimeFormatted || !endTimeFormatted) {
         alert("Please select a date and time slot.");
-        console.error('Missing data:', { dateStr, startTimeFormatted, endTimeFormatted });
         return;
-    }
-    
-    // Validate date format
-    if (dateStr.includes('--') || dateStr === 'NaN-NaN-NaN' || !dateStr.match(/^\d{4}-\d{2}-\d{2}$/)) {
-        alert("Invalid date format: " + dateStr + ". Please select a valid date from the calendar.");
-        return;
-    }
-    
-    // Ensure times are in correct format (HH:mm:ss)
-    if (!startTimeFormatted.match(/^\d{2}:\d{2}(:\d{2})?$/)) {
-        alert("Invalid start time format: " + startTimeFormatted);
-        return;
-    }
-    if (!endTimeFormatted.match(/^\d{2}:\d{2}(:\d{2})?$/)) {
-        alert("Invalid end time format: " + endTimeFormatted);
-        return;
-    }
-    
-    // Add seconds if not present
-    if (startTimeFormatted.split(':').length === 2) {
-        startTimeFormatted += ':00';
-    }
-    if (endTimeFormatted.split(':').length === 2) {
-        endTimeFormatted += ':00';
     }
 
-    console.log("Sending data:", {
-        className: "Quran Recitation & Tajweed",
-        scheduleDate: dateStr,
-        startTime: startTimeFormatted,
-        endTime: endTimeFormatted
-    });
+    if (!dateStr.match(/^\d{4}-\d{2}-\d{2}$/)) {
+        alert("Invalid date format. Please select a valid date from the calendar.");
+        return;
+    }
 
-    fetch("<%= request.getContextPath() %>/teacher/setAvailability?t=" + new Date().getTime(), {
-        method: "POST",
-        headers: {
-            'Content-Type': 'application/json',
-            'Accept': 'application/json'
-        },
-        body: JSON.stringify({
-            className: "Quran Recitation & Tajweed",
-            scheduleDate: dateStr,
-            startTime: startTimeFormatted,
-            endTime: endTimeFormatted
-        })
-    })
-    .then(res => {
-        console.log("Response status:", res.status);
-        console.log("Response content-type:", res.headers.get("content-type"));
-        
-        // Check if response is JSON
-        const contentType = res.headers.get("content-type");
-        if (!contentType || !contentType.includes("application/json")) {
-            return res.text().then(text => {
-                console.error("Expected JSON, got:", text.substring(0, 500));
-                throw new Error("Server returned HTML instead of JSON. Check if you're logged in.");
-            });
-        }
-        
-        return res.json();
-    })
-    .then(data => {
-        console.log("Parsed JSON:", data);
-        
+    postAvailabilitySlot(dateStr, startTimeFormatted, endTimeFormatted)
+    .then(function(data) {
         if (data.success) {
             alert("Availability added successfully!");
-            
-            // Add to local availability array for immediate UI update
-            const startTimeShort = startTimeFormatted.substring(0, 5);
-            const endTimeShort = endTimeFormatted.substring(0, 5);
+            const startTimeShort = to24(startTimeFormatted).substring(0, 5);
+            const endTimeShort = to24(endTimeFormatted).substring(0, 5);
             availabilitySlots.push({
                 date: dateStr,
                 startTime: startTimeShort,
                 endTime: endTimeShort,
-                bookingStatus: null  // New slot is not booked yet
+                bookingStatus: null
             });
-            
-            // Also update availabilityMap for immediate display with the scheduleId and booking status from server
-            if (!availabilityMap[dateStr]) {
-                availabilityMap[dateStr] = {};
-            }
+            if (!availabilityMap[dateStr]) availabilityMap[dateStr] = {};
             availabilityMap[dateStr][startTimeShort] = {
                 scheduleId: data.scheduleId || 'C000',
-                bookingStatus: null  // New slot is not booked yet
+                bookingStatus: null
             };
-            
-            console.log('Updated availabilityMap:', availabilityMap);
-            console.log('Added scheduleId:', data.scheduleId);
-            
             closeModal();
-            
-            // Refresh calendar and time slots to show new availability
             initCalendar();
             if (selectedDate) {
-                const day = selectedDate.getDate();
-                selectDate(day);
+                selectDate(selectedDate.getFullYear(), selectedDate.getMonth(), selectedDate.getDate());
             }
         } else {
             alert(data.message || "Failed to add availability");
         }
     })
-    .catch(err => {
+    .catch(function(err) {
         console.error("Error:", err);
         alert(err.message || "Failed to add availability. Please try again.");
     });
@@ -1944,7 +2129,7 @@ function submitAvailability() {
 
             <!-- Close Button -->
             <div class="mt-8">
-                <button onclick="closeCompletedModal()" class="w-full py-3 bg-gradient-to-r from-purple-600 to-pink-500 text-white rounded-xl font-semibold hover:from-purple-700 hover:to-pink-600 transition">
+                <button onclick="closeCompletedModal()" class="w-full py-3 bg-gradient-to-r from-purple-500 to-pink-400 text-white rounded-xl font-semibold hover:from-purple-600 hover:to-pink-500 transition">
                     Close
                 </button>
             </div>
@@ -2020,7 +2205,7 @@ function submitAvailability() {
 
             <!-- Close Button -->
             <div class="mt-8">
-                <button onclick="closeCancelledModal()" class="w-full py-3 bg-gradient-to-r from-purple-600 to-pink-500 text-white rounded-xl font-semibold hover:from-purple-700 hover:to-pink-600 transition">
+                <button onclick="closeCancelledModal()" class="w-full py-3 bg-gradient-to-r from-purple-500 to-pink-400 text-white rounded-xl font-semibold hover:from-purple-600 hover:to-pink-500 transition">
                     Close
                 </button>
             </div>
@@ -2143,6 +2328,12 @@ function submitAvailability() {
                 closeModal();
             }
         });
+
+        document.getElementById('bulkConfirmModal').addEventListener('click', function(e) {
+            if (e.target === this) {
+                closeBulkConfirmModal();
+            }
+        });
         
         document.getElementById('viewAvailabilityModal').addEventListener('click', function(e) {
             if (e.target === this) {
@@ -2159,6 +2350,8 @@ function submitAvailability() {
         window.onload = function() {
             initCalendar();
             updateCompletedCancelledDisplay();
+            updateTeacherCancelButtons();
+            selectDate(currentYear, currentMonth, today);
         };
     </script>
 </body>

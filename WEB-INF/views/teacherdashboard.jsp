@@ -1,480 +1,349 @@
 <%@ page language="java" contentType="text/html; charset=UTF-8" pageEncoding="UTF-8"%>
 <%@ page import="java.util.List, java.util.Map, java.text.SimpleDateFormat, java.sql.Time, java.sql.Date" %>
 <%
-    // Authentication check
     if (session == null || session.getAttribute("teacherId") == null) {
         response.sendRedirect(request.getContextPath() + "/teacher/login");
         return;
     }
-    
+
     String teacherName = (String) request.getAttribute("teacherName");
     String teacherCode = (String) request.getAttribute("teacherCode");
     String specialization = (String) request.getAttribute("specialization");
     String joinedDate = (String) request.getAttribute("joinedDate");
     String nextClassCountdown = (String) request.getAttribute("nextClassCountdown");
-    
+
     int classesThisWeek = (Integer) request.getAttribute("classesThisWeek");
     int totalStudents = (Integer) request.getAttribute("totalStudents");
     int pendingEvaluations = (Integer) request.getAttribute("pendingEvaluations");
     String averageRating = (String) request.getAttribute("averageRating");
-    
+
     List<Map<String, Object>> upcomingClasses = (List<Map<String, Object>>) request.getAttribute("upcomingClasses");
     List<Map<String, Object>> recentFeedback = (List<Map<String, Object>>) request.getAttribute("recentFeedback");
-    
+
     SimpleDateFormat dateFormat = new SimpleDateFormat("MMM d");
     SimpleDateFormat timeFormat = new SimpleDateFormat("HH:mm");
+
+    double avgRating = 0.0;
+    try { avgRating = Double.parseDouble(averageRating); } catch (Exception ignored) {}
+    int ratingWidth = (int) Math.min(100, Math.max(0, (avgRating / 5.0) * 100));
+    int pendingWidth = Math.min(100, pendingEvaluations * 10);
 %>
 <!DOCTYPE html>
 <html lang="en">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Dashboard - TalaqqiHub Teacher Portal</title>
-    <script src="https://cdn.tailwindcss.com"></script>
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <title>Teacher Dashboard - TalaqqiHub</title>
+    <%@ include file="/WEB-INF/views/includes/teacherLayoutStyles.jsp" %>
     <style>
-        body {
-            font-family: 'Inter', system-ui, -apple-system, sans-serif;
-        }
-        
-        .sidebar-gradient {
-            background: linear-gradient(180deg, #7c3aed 0%, #5b21b6 100%);
-        }
-        
-        .card-hover {
-            transition: all 0.3s ease;
-        }
-        
-        .card-hover:hover {
-            transform: translateY(-2px);
-            box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.1);
-        }
-        
-        .status-badge {
-            display: inline-block;
-            padding: 0.25rem 0.75rem;
-            border-radius: 9999px;
-            font-size: 0.75rem;
-            font-weight: 600;
-        }
-        
-        .status-upcoming {
-            background-color: #dbeafe;
-            color: #1e40af;
-        }
-        
-        .status-scheduled {
-            background-color: #d1fae5;
-            color: #065f46;
-        }
-        
-        .status-completed {
-            background-color: #e0e7ff;
-            color: #4338ca;
+        .panel-icon-head { display: flex; align-items: center; gap: 12px; margin-bottom: 24px; }
+        .panel-icon { width: 40px; height: 40px; border-radius: 12px; background: var(--teacher-gradient); color: white; display: flex; align-items: center; justify-content: center; font-size: 18px; flex-shrink: 0; }
+        .panel-note { text-align: center; font-size: 13px; color: #64748B; margin-bottom: 16px; }
+        .rating-item { margin-bottom: 24px; }
+        .rating-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; }
+        .rating-label { font-size: 13px; font-weight: 600; color: #64748B; }
+        .rating-score { font-size: 24px; font-weight: 700; color: #1E293B; }
+        .rating-score span { font-size: 13px; color: #94A3B8; font-weight: 500; }
+        .rating-stars { color: #F59E0B; font-size: 16px; letter-spacing: 2px; margin-bottom: 8px; }
+        .rating-track { height: 8px; background: #F1F5F9; border-radius: 4px; overflow: hidden; }
+        .rating-fill { height: 100%; background: var(--teacher-gradient-h); border-radius: 4px; }
+        .info-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; margin-bottom: 40px; }
+        .info-card { background: white; border-radius: 16px; padding: 20px; box-shadow: 0 4px 20px rgba(139,92,246,0.08); display: flex; align-items: center; gap: 14px; }
+        .info-icon { width: 44px; height: 44px; border-radius: 12px; background: linear-gradient(135deg, #ede9fe, #fce7f3); color: var(--teacher-purple); display: flex; align-items: center; justify-content: center; font-size: 18px; flex-shrink: 0; }
+        .info-label { font-size: 12px; color: #94A3B8; font-weight: 600; }
+        .info-value { font-size: 14px; font-weight: 700; color: #1E293B; margin-top: 2px; }
+        .class-list { display: flex; flex-direction: column; gap: 16px; }
+        .class-item { display: flex; align-items: center; justify-content: space-between; gap: 16px; padding: 16px; background: #F8FAFC; border-radius: 14px; flex-wrap: wrap; }
+        .class-item-left { display: flex; align-items: center; gap: 14px; }
+        .class-avatar { width: 44px; height: 44px; border-radius: 50%; background: var(--teacher-gradient); color: white; display: flex; align-items: center; justify-content: center; font-weight: 700; font-size: 14px; flex-shrink: 0; }
+        .class-name { font-size: 14px; font-weight: 700; color: #1E293B; }
+        .class-student { font-size: 13px; color: #64748B; margin-top: 2px; }
+        .class-meta { display: flex; flex-wrap: wrap; gap: 14px; font-size: 12px; color: #94A3B8; margin-top: 6px; }
+        .class-meta span { display: inline-flex; align-items: center; gap: 5px; }
+        .feedback-list { display: flex; flex-direction: column; gap: 16px; }
+        .feedback-item { padding: 16px; background: #F8FAFC; border-radius: 14px; }
+        .feedback-head { display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; }
+        .feedback-student { font-size: 14px; font-weight: 700; color: #1E293B; }
+        .feedback-time { font-size: 12px; color: #94A3B8; }
+        .feedback-comment { font-size: 13px; color: #64748B; font-style: italic; margin-top: 8px; line-height: 1.5; }
+        .quick-actions-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 16px; }
+        .quick-action-card { border-radius: 20px; padding: 24px; box-shadow: 0 4px 20px rgba(0,0,0,0.08); cursor: pointer; transition: box-shadow .2s; text-decoration: none; display: block; }
+        .quick-action-card:hover { box-shadow: 0 8px 28px rgba(0,0,0,0.12); }
+        .quick-action-card.primary { background: var(--teacher-gradient); color: white; box-shadow: 0 8px 20px rgba(139,92,246,0.25); }
+        .quick-action-card.secondary { background: white; border: 1px solid #F1F5F9; }
+        .quick-action-icon { width: 48px; height: 48px; border-radius: 12px; display: flex; align-items: center; justify-content: center; font-size: 22px; margin-bottom: 16px; }
+        .quick-action-card.primary .quick-action-icon { background: rgba(255,255,255,0.25); color: white; }
+        .quick-action-card.secondary .quick-action-icon { background: linear-gradient(135deg, #ede9fe, #fce7f3); color: var(--teacher-purple); }
+        .quick-action-title { font-size: 16px; font-weight: 600; margin-bottom: 6px; }
+        .quick-action-card.secondary .quick-action-title { color: #1E293B; }
+        .quick-action-desc { font-size: 13px; }
+        .quick-action-card.primary .quick-action-desc { color: rgba(255,255,255,0.9); }
+        .quick-action-card.secondary .quick-action-desc { color: #64748B; }
+        @media (max-width: 1200px) {
+            .info-grid, .quick-actions-grid { grid-template-columns: 1fr; }
         }
     </style>
 </head>
-<body class="bg-gray-50">
-    <div class="flex h-screen overflow-hidden">
-        <!-- Sidebar -->
-        <aside class="sidebar-gradient w-64 flex-shrink-0 overflow-y-auto">
-            <div class="p-6">
-                <div class="text-white mb-8">
-                    <h1 class="text-2xl font-bold">TalaqqiHub</h1>
-                    <p class="text-purple-200 text-sm mt-1">Teacher Portal</p>
+<body>
+    <jsp:include page="/WEB-INF/views/includes/teacherSidebar.jsp">
+        <jsp:param name="activePage" value="dashboard"/>
+    </jsp:include>
+
+    <div class="main-content">
+        <jsp:include page="/WEB-INF/views/includes/teacherTopNavbar.jsp">
+            <jsp:param name="pageTitle" value="Teacher Dashboard"/>
+            <jsp:param name="notifPrefix" value="dashNotif"/>
+        </jsp:include>
+
+        <div class="page-content">
+            <h1 class="page-title">Welcome back, <%= teacherName %>!</h1>
+            <p class="page-subtitle">Here's an overview of your teaching activities and student progress.</p>
+
+            <div class="info-grid">
+                <div class="info-card">
+                    <div class="info-icon"><i class="fas fa-calendar"></i></div>
+                    <div>
+                        <div class="info-label">Joined</div>
+                        <div class="info-value"><%= joinedDate %></div>
+                    </div>
                 </div>
-                
-                <nav class="space-y-2">
-                    <a href="<%= request.getContextPath() %>/teacher/teacherdashboard" 
-                       class="flex items-center space-x-3 px-4 py-3 text-white bg-white bg-opacity-20 rounded-lg">
-                        <i class="fas fa-home w-5"></i>
-                        <span>Dashboard</span>
-                    </a>
-                    
-                    <a href="<%= request.getContextPath() %>/teacher/classschedule" 
-                       class="flex items-center space-x-3 px-4 py-3 text-purple-200 hover:bg-white hover:bg-opacity-10 rounded-lg transition">
-                        <i class="far fa-calendar w-5"></i>
-                        <span>Class Schedule</span>
-                    </a>
-                    
-                    <a href="<%= request.getContextPath() %>/teacher/attendance" 
-                       class="flex items-center space-x-3 px-4 py-3 text-purple-200 hover:bg-white hover:bg-opacity-10 rounded-lg transition">
-                        <i class="far fa-clipboard w-5"></i>
-                        <span>Attendance</span>
-                    </a>
-                    
-                    <a href="<%= request.getContextPath() %>/teacher/evaluation" 
-                       class="flex items-center space-x-3 px-4 py-3 text-purple-200 hover:bg-white hover:bg-opacity-10 rounded-lg transition">
-                        <i class="far fa-file-alt w-5"></i>
-                        <span>Evaluation</span>
-                    </a>
-                    
-                    <a href="<%= request.getContextPath() %>/teacher/sessions" 
-                       class="flex items-center space-x-3 px-4 py-3 text-purple-200 hover:bg-white hover:bg-opacity-10 rounded-lg transition">
-                        <i class="fas fa-book-quran w-5"></i>
-                        <span>Talaqqi Sessions</span>
-                    </a>
-                    
-                    <a href="<%= request.getContextPath() %>/teacher/announcements" 
-                       class="flex items-center space-x-3 px-4 py-3 text-purple-200 hover:bg-white hover:bg-opacity-10 rounded-lg transition">
-                        <i class="far fa-bell w-5"></i>
-                        <span>Announcements</span>
-                    </a>
-                    
-                    <a href="<%= request.getContextPath() %>/teacher/ai-assistance" 
-                       class="flex items-center space-x-3 px-4 py-3 text-purple-200 hover:bg-white hover:bg-opacity-10 rounded-lg transition">
-                        <i class="fas fa-bolt w-5"></i>
-                        <span>AI Assistance</span>
-                    </a>
-                </nav>
+                <div class="info-card">
+                    <div class="info-icon"><i class="fas fa-book-quran"></i></div>
+                    <div>
+                        <div class="info-label">Specialization</div>
+                        <div class="info-value"><%= specialization %></div>
+                    </div>
+                </div>
+                <div class="info-card">
+                    <div class="info-icon"><i class="fas fa-clock"></i></div>
+                    <div>
+                        <div class="info-label">Next Class In</div>
+                        <div class="info-value"><%= nextClassCountdown %></div>
+                    </div>
+                </div>
             </div>
-            
-            <div class="absolute bottom-0 w-64 p-6">
-                <a href="<%= request.getContextPath() %>/teacher/logout" 
-                   class="flex items-center space-x-3 px-4 py-3 text-purple-200 hover:bg-white hover:bg-opacity-10 rounded-lg transition">
-                    <i class="fas fa-sign-out-alt w-5"></i>
-                    <span>Logout</span>
+
+            <h2 class="section-title">Teaching Overview</h2>
+            <div class="stats-grid">
+                <div class="stat-card">
+                    <div class="stat-icon"><i class="fas fa-calendar-week"></i></div>
+                    <div>
+                        <div class="stat-value"><%= classesThisWeek %></div>
+                        <div class="stat-label">Classes This Week</div>
+                        <div class="stat-hint">Your scheduled sessions</div>
+                    </div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-icon pink"><i class="fas fa-users"></i></div>
+                    <div>
+                        <div class="stat-value"><%= totalStudents %></div>
+                        <div class="stat-label">Total Students</div>
+                        <div class="stat-hint">Students you teach</div>
+                    </div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-icon amber"><i class="fas fa-file-alt"></i></div>
+                    <div>
+                        <div class="stat-value" style="color:#F59E0B;"><%= pendingEvaluations %></div>
+                        <div class="stat-label">Pending Evaluations</div>
+                        <div class="stat-hint">Awaiting your review</div>
+                    </div>
+                </div>
+            </div>
+
+            <h2 class="section-title">Performance Overview</h2>
+            <div class="trends-grid">
+                <div class="panel">
+                    <div class="panel-icon-head">
+                        <div class="panel-icon"><i class="fas fa-star"></i></div>
+                        <div class="panel-title">Your Average Rating</div>
+                    </div>
+
+                    <div class="rating-item">
+                        <div class="rating-header">
+                            <span class="rating-label">Student Feedback Rating</span>
+                            <span class="rating-score"><%= averageRating %> <span>/ 5.0</span></span>
+                        </div>
+                        <div class="rating-stars">
+                            <% for (int i = 1; i <= 5; i++) { %>
+                                <i class="<%= i <= Math.round(avgRating) ? "fas" : "far" %> fa-star"></i>
+                            <% } %>
+                        </div>
+                        <div class="rating-track">
+                            <div class="rating-fill" style="width: <%= ratingWidth %>%"></div>
+                        </div>
+                    </div>
+
+                    <p class="panel-note">Based on student evaluations</p>
+                    <a href="<%= request.getContextPath() %>/teacher/evaluation" class="btn-primary btn-block">View Evaluations</a>
+                </div>
+
+                <div class="panel">
+                    <div class="panel-icon-head">
+                        <div class="panel-icon"><i class="fas fa-clipboard-check"></i></div>
+                        <div class="panel-title">Evaluation Progress</div>
+                    </div>
+
+                    <div class="rating-item">
+                        <div class="rating-header">
+                            <span class="rating-label">Pending Evaluations</span>
+                            <span class="rating-score"><%= pendingEvaluations %> <span>remaining</span></span>
+                        </div>
+                        <div class="rating-track">
+                            <div class="rating-fill" style="width: <%= pendingWidth %>%"></div>
+                        </div>
+                    </div>
+
+                    <div class="rating-item" style="margin-bottom: 0;">
+                        <div class="rating-header">
+                            <span class="rating-label">Students Taught</span>
+                            <span class="rating-score"><%= totalStudents %> <span>students</span></span>
+                        </div>
+                        <div class="rating-track">
+                            <div class="rating-fill" style="width: <%= Math.min(100, totalStudents * 5) %>%"></div>
+                        </div>
+                    </div>
+
+                    <p class="panel-note" style="margin-top: 24px;">Complete evaluations to track student progress</p>
+                    <a href="<%= request.getContextPath() %>/teacher/evaluation" class="btn-primary btn-block">Evaluate Students</a>
+                </div>
+            </div>
+
+            <div class="trends-grid">
+                <div class="panel">
+                    <div class="panel-head">
+                        <div>
+                            <div class="panel-title">Your Upcoming Classes</div>
+                            <div class="panel-subtitle">Classes assigned to you</div>
+                        </div>
+                        <a href="<%= request.getContextPath() %>/teacher/classschedule" class="btn-secondary">View All</a>
+                    </div>
+
+                    <div class="class-list">
+                        <%
+                        boolean hasUpcoming = false;
+                        if (upcomingClasses != null && !upcomingClasses.isEmpty()) {
+                            for (Map<String, Object> classInfo : upcomingClasses) {
+                                String className = (String) classInfo.get("className");
+                                String studentName = (String) classInfo.get("studentName");
+                                Date scheduleDate = (Date) classInfo.get("scheduleDate");
+                                Time startTime = (Time) classInfo.get("startTime");
+                                Time endTime = (Time) classInfo.get("endTime");
+                                String status = (String) classInfo.get("status");
+
+                                Object bookedObj = classInfo.get("booked");
+                                boolean booked = bookedObj instanceof Boolean && (Boolean) bookedObj;
+                                if (studentName == null || studentName.trim().isEmpty() || !booked) continue;
+                                hasUpcoming = true;
+
+                                String studentInitials = "S";
+                                if (studentName.length() > 0) {
+                                    String[] names = studentName.split(" ");
+                                    studentInitials = names.length > 1 ?
+                                        names[0].substring(0, 1) + names[1].substring(0, 1) :
+                                        names[0].substring(0, 1);
+                                }
+
+                                String pillClass = "upcoming";
+                                if (status != null && status.equalsIgnoreCase("Scheduled")) pillClass = "scheduled";
+                        %>
+                        <div class="class-item">
+                            <div class="class-item-left">
+                                <div class="class-avatar"><%= studentInitials.toUpperCase() %></div>
+                                <div>
+                                    <div class="class-name"><%= className != null ? className : "Class Session" %></div>
+                                    <div class="class-student"><%= studentName %></div>
+                                    <div class="class-meta">
+                                        <span><i class="fas fa-calendar"></i> <%= scheduleDate != null ? dateFormat.format(scheduleDate) : "N/A" %></span>
+                                        <span><i class="fas fa-clock"></i> <%= startTime != null ? timeFormat.format(startTime) : "N/A" %> - <%= endTime != null ? timeFormat.format(endTime) : "N/A" %></span>
+                                    </div>
+                                </div>
+                            </div>
+                            <span class="status-pill <%= pillClass %>"><%= status != null ? status : "Upcoming" %></span>
+                        </div>
+                        <%
+                            }
+                        }
+                        if (!hasUpcoming) {
+                        %>
+                        <p class="empty-state">No upcoming classes scheduled</p>
+                        <%
+                        }
+                        %>
+                    </div>
+                </div>
+
+                <div class="panel">
+                    <div class="panel-head">
+                        <div>
+                            <div class="panel-title">Recent Student Feedback</div>
+                            <div class="panel-subtitle">Evaluations you received</div>
+                        </div>
+                        <a href="<%= request.getContextPath() %>/teacher/evaluation" class="btn-secondary">View All</a>
+                    </div>
+
+                    <div class="feedback-list">
+                        <%
+                        if (recentFeedback != null && !recentFeedback.isEmpty()) {
+                            for (Map<String, Object> feedback : recentFeedback) {
+                                String fbStudentName = (String) feedback.get("studentName");
+                                int rating = (Integer) feedback.get("rating");
+                                String comment = (String) feedback.get("comment");
+                                java.sql.Timestamp feedbackDate = (java.sql.Timestamp) feedback.get("date");
+
+                                long diffInMillis = new java.util.Date().getTime() - feedbackDate.getTime();
+                                long hours = diffInMillis / (1000 * 60 * 60);
+                                long days = hours / 24;
+                                String timeAgo = days > 0 ? days + " days ago" : hours + " hours ago";
+                        %>
+                        <div class="feedback-item">
+                            <div class="feedback-head">
+                                <span class="feedback-student"><%= fbStudentName %></span>
+                                <span class="feedback-time"><%= timeAgo %></span>
+                            </div>
+                            <div class="rating-stars" style="font-size: 14px; margin-bottom: 0;">
+                                <% for (int i = 1; i <= 5; i++) { %>
+                                    <i class="<%= i <= rating ? "fas" : "far" %> fa-star"></i>
+                                <% } %>
+                            </div>
+                            <p class="feedback-comment">"<%= comment != null ? comment : "No comment provided" %>"</p>
+                        </div>
+                        <%
+                            }
+                        } else {
+                        %>
+                        <p class="empty-state">No feedback received yet</p>
+                        <%
+                        }
+                        %>
+                    </div>
+                </div>
+            </div>
+
+            <h2 class="section-title">Quick Actions</h2>
+            <div class="quick-actions-grid">
+                <a href="<%= request.getContextPath() %>/teacher/setAvailability" class="quick-action-card primary">
+                    <div class="quick-action-icon"><i class="fas fa-plus"></i></div>
+                    <div class="quick-action-title">Set Availability</div>
+                    <div class="quick-action-desc">Create your time slots</div>
+                </a>
+                <a href="<%= request.getContextPath() %>/teacher/classschedule" class="quick-action-card secondary">
+                    <div class="quick-action-icon"><i class="fas fa-calendar"></i></div>
+                    <div class="quick-action-title">View Class Schedule</div>
+                    <div class="quick-action-desc">Manage your sessions</div>
+                </a>
+                <a href="<%= request.getContextPath() %>/teacher/evaluation" class="quick-action-card secondary">
+                    <div class="quick-action-icon"><i class="fas fa-star"></i></div>
+                    <div class="quick-action-title">Evaluate Students</div>
+                    <div class="quick-action-desc"><%= pendingEvaluations %> pending</div>
+                </a>
+                <a href="<%= request.getContextPath() %>/teacher/sessions" class="quick-action-card secondary">
+                    <div class="quick-action-icon"><i class="fas fa-book-quran"></i></div>
+                    <div class="quick-action-title">Talaqqi Session</div>
+                    <div class="quick-action-desc">Start or join a session</div>
                 </a>
             </div>
-        </aside>
-        
-        <!-- Main Content -->
-        <main class="flex-1 overflow-y-auto">
-            <!-- Top Navigation Bar -->
-            <header class="bg-white shadow-sm border-b border-gray-200">
-                <div class="px-8 py-4 flex items-center justify-between">
-                    <h2 class="text-2xl font-bold text-gray-900">Dashboard</h2>
-                    
-                    <div class="flex items-center space-x-4">
-                        <button class="relative p-2 text-gray-400 hover:text-gray-600">
-                            <i class="far fa-bell text-xl"></i>
-                            <span class="absolute top-1 right-1 w-2 h-2 bg-red-500 rounded-full"></span>
-                        </button>
-                        
-                        <div class="flex items-center space-x-3">
-                            <div class="w-10 h-10 bg-purple-600 rounded-full flex items-center justify-center text-white font-semibold">
-                                UI
-                            </div>
-                            <div>
-                                <p class="text-sm font-semibold text-gray-900"><%= teacherName %></p>
-                                <p class="text-xs text-gray-500">Teacher ID: <%= teacherCode %></p>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-            </header>
-            
-            <!-- Dashboard Content -->
-            <div class="p-8">
-                <!-- Greeting Section -->
-                <div class="mb-8">
-                    <h1 class="text-3xl font-bold text-gray-900 mb-2">
-                        Assalamu'alaikum, <%= teacherName %>
-                    </h1>
-                    <p class="text-gray-600">Here is an overview of your teaching activities and student progress.</p>
-                </div>
-                
-                <!-- Teacher Info Cards -->
-                <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-8">
-                    <div class="bg-white rounded-lg p-4 shadow-sm border border-gray-200">
-                        <div class="flex items-center space-x-3">
-                            <div class="w-10 h-10 bg-purple-100 rounded-lg flex items-center justify-center">
-                                <i class="far fa-calendar text-purple-600"></i>
-                            </div>
-                            <div>
-                                <p class="text-xs text-gray-500">Joined</p>
-                                <p class="text-sm font-semibold text-gray-900"><%= joinedDate %></p>
-                            </div>
-                        </div>
-                    </div>
-                    
-                    <div class="bg-white rounded-lg p-4 shadow-sm border border-gray-200">
-                        <div class="flex items-center space-x-3">
-                            <div class="w-10 h-10 bg-blue-100 rounded-lg flex items-center justify-center">
-                                <i class="fas fa-book-quran text-blue-600"></i>
-                            </div>
-                            <div>
-                                <p class="text-xs text-gray-500">Specialization</p>
-                                <p class="text-sm font-semibold text-gray-900"><%= specialization %></p>
-                            </div>
-                        </div>
-                    </div>
-                    
-                    <div class="bg-white rounded-lg p-4 shadow-sm border border-gray-200">
-                        <div class="flex items-center space-x-3">
-                            <div class="w-10 h-10 bg-green-100 rounded-lg flex items-center justify-center">
-                                <i class="far fa-clock text-green-600"></i>
-                            </div>
-                            <div>
-                                <p class="text-xs text-gray-500">Next class in</p>
-                                <p class="text-sm font-semibold text-gray-900"><%= nextClassCountdown %></p>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-                
-                <!-- Statistics Cards -->
-                <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
-                    <!-- Classes This Week -->
-                    <div class="bg-white rounded-xl p-6 shadow-sm border border-gray-200 card-hover">
-                        <div class="flex items-start justify-between mb-4">
-                            <div class="w-12 h-12 bg-purple-100 rounded-lg flex items-center justify-center">
-                                <i class="far fa-calendar text-purple-600 text-xl"></i>
-                            </div>
-                        </div>
-                        <h3 class="text-3xl font-bold text-gray-900 mb-1"><%= classesThisWeek %></h3>
-                        <p class="text-sm text-gray-600 mb-2">Classes This Week</p>
-                        <p class="text-xs text-gray-500">Your scheduled sessions</p>
-                    </div>
-                    
-                    <!-- Total Students -->
-                    <div class="bg-white rounded-xl p-6 shadow-sm border border-gray-200 card-hover">
-                        <div class="flex items-start justify-between mb-4">
-                            <div class="w-12 h-12 bg-teal-100 rounded-lg flex items-center justify-center">
-                                <i class="fas fa-users text-teal-600 text-xl"></i>
-                            </div>
-                        </div>
-                        <h3 class="text-3xl font-bold text-gray-900 mb-1"><%= totalStudents %></h3>
-                        <p class="text-sm text-gray-600 mb-2">Total Students</p>
-                        <p class="text-xs text-gray-500">Students you teach</p>
-                    </div>
-                    
-                    <!-- Pending Evaluations -->
-                    <div class="bg-white rounded-xl p-6 shadow-sm border border-gray-200 card-hover">
-                        <div class="flex items-start justify-between mb-4">
-                            <div class="w-12 h-12 bg-yellow-100 rounded-lg flex items-center justify-center">
-                                <i class="far fa-file-alt text-yellow-600 text-xl"></i>
-                            </div>
-                        </div>
-                        <h3 class="text-3xl font-bold text-gray-900 mb-1"><%= pendingEvaluations %></h3>
-                        <p class="text-sm text-gray-600 mb-2">Pending Evaluations</p>
-                        <a href="#" class="text-xs text-yellow-600 hover:text-yellow-700 font-medium">Complete evaluations →</a>
-                    </div>
-                    
-                    <!-- Average Rating -->
-                    <div class="bg-white rounded-xl p-6 shadow-sm border border-gray-200 card-hover">
-                        <div class="flex items-start justify-between mb-4">
-                            <div class="w-12 h-12 bg-orange-100 rounded-lg flex items-center justify-center">
-                                <i class="fas fa-star text-orange-600 text-xl"></i>
-                            </div>
-                        </div>
-                        <h3 class="text-3xl font-bold text-gray-900 mb-1"><%= averageRating %> <span class="text-lg text-gray-500">/5.0</span></h3>
-                        <p class="text-sm text-gray-600 mb-2">Average Rating</p>
-                        <div class="flex items-center space-x-1">
-                            <% 
-                            double avgRating = Double.parseDouble(averageRating);
-                            for (int i = 1; i <= 5; i++) {
-                                if (i <= avgRating) {
-                            %>
-                                <i class="fas fa-star text-orange-400 text-xs"></i>
-                            <% } else { %>
-                                <i class="far fa-star text-gray-300 text-xs"></i>
-                            <% 
-                                }
-                            }
-                            %>
-                        </div>
-                    </div>
-                </div>
-                
-                <!-- Action Cards -->
-                <div class="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
-                    <a href="<%= request.getContextPath() %>/teacher/availability" 
-                       class="bg-white rounded-xl p-6 shadow-sm border border-gray-200 card-hover cursor-pointer">
-                        <div class="flex items-center justify-between">
-                            <div class="flex items-center space-x-4">
-                                <div class="w-12 h-12 bg-purple-100 rounded-lg flex items-center justify-center">
-                                    <i class="fas fa-plus text-purple-600 text-xl"></i>
-                                </div>
-                                <div>
-                                    <h3 class="font-semibold text-gray-900">Set Availability</h3>
-                                    <p class="text-sm text-gray-600">Create time slots</p>
-                                </div>
-                            </div>
-                            <i class="fas fa-chevron-right text-gray-400"></i>
-                        </div>
-                    </a>
-                    
-                    <a href="<%= request.getContextPath() %>/teacher/schedule" 
-                       class="bg-white rounded-xl p-6 shadow-sm border border-gray-200 card-hover cursor-pointer">
-                        <div class="flex items-center justify-between">
-                            <div class="flex items-center space-x-4">
-                                <div class="w-12 h-12 bg-teal-100 rounded-lg flex items-center justify-center">
-                                    <i class="far fa-calendar text-teal-600 text-xl"></i>
-                                </div>
-                                <div>
-                                    <h3 class="font-semibold text-gray-900">View Class Schedule</h3>
-                                    <p class="text-sm text-gray-600">Manage your sessions</p>
-                                </div>
-                            </div>
-                            <i class="fas fa-chevron-right text-gray-400"></i>
-                        </div>
-                    </a>
-                    
-                    <a href="<%= request.getContextPath() %>/teacher/evaluation" 
-                       class="bg-white rounded-xl p-6 shadow-sm border border-gray-200 card-hover cursor-pointer">
-                        <div class="flex items-center justify-between">
-                            <div class="flex items-center space-x-4">
-                                <div class="w-12 h-12 bg-yellow-100 rounded-lg flex items-center justify-center">
-                                    <i class="far fa-file-alt text-yellow-600 text-xl"></i>
-                                </div>
-                                <div>
-                                    <h3 class="font-semibold text-gray-900">Evaluate Student</h3>
-                                    <p class="text-sm text-gray-600"><%= pendingEvaluations %> pending</p>
-                                </div>
-                            </div>
-                            <i class="fas fa-chevron-right text-gray-400"></i>
-                        </div>
-                    </a>
-                </div>
-                
-                <!-- Two Column Layout -->
-                <div class="grid grid-cols-1 lg:grid-cols-2 gap-8">
-                    <!-- Upcoming Classes -->
-                    <div class="bg-white rounded-xl shadow-sm border border-gray-200">
-                        <div class="p-6 border-b border-gray-200">
-                            <div class="flex items-center justify-between">
-                                <h3 class="text-lg font-bold text-gray-900">Your Upcoming Classes</h3>
-                                <a href="<%= request.getContextPath() %>/teacher/schedule" 
-                                   class="text-sm text-purple-600 hover:text-purple-700 font-medium flex items-center space-x-1">
-                                    <span>View All</span>
-                                    <i class="fas fa-chevron-right text-xs"></i>
-                                </a>
-                            </div>
-                            <p class="text-sm text-gray-600 mt-1">Classes assigned to you</p>
-                        </div>
-                        
-                        <div class="p-6">
-                            <% if (upcomingClasses != null && !upcomingClasses.isEmpty()) { %>
-                                <div class="space-y-4">
-                                    <% for (Map<String, Object> classInfo : upcomingClasses) { 
-                                        String className = (String) classInfo.get("className");
-                                        String studentName = (String) classInfo.get("studentName");
-                                        Date scheduleDate = (Date) classInfo.get("scheduleDate");
-                                        Time startTime = (Time) classInfo.get("startTime");
-                                        Time endTime = (Time) classInfo.get("endTime");
-                                        String status = (String) classInfo.get("status");
-
-                                        // Skip unbooked / available slots: no student assigned or booked flag is false
-                                        Object bookedObj = classInfo.get("booked");
-                                        boolean booked = false;
-                                        if (bookedObj instanceof Boolean) booked = (Boolean) bookedObj;
-                                        if (studentName == null || studentName.trim().length() == 0 || !booked) {
-                                            continue;
-                                        }
-                                        
-                                        String studentInitials = "S";
-                                        if (studentName != null && studentName.length() > 0) {
-                                            String[] names = studentName.split(" ");
-                                            studentInitials = names.length > 1 ? 
-                                                names[0].substring(0, 1) + names[1].substring(0, 1) : 
-                                                names[0].substring(0, 1);
-                                        }
-                                    %>
-                                    <div class="flex items-center justify-between p-4 bg-gray-50 rounded-lg">
-                                        <div class="flex items-center space-x-4">
-                                            <div class="w-10 h-10 bg-teal-500 rounded-full flex items-center justify-center text-white font-semibold text-sm">
-                                                <%= studentInitials %>
-                                            </div>
-                                            <div>
-                                                <h4 class="font-semibold text-gray-900"><%= className != null ? className : "Class Session" %></h4>
-                                                <p class="text-sm text-gray-600"><%= studentName != null ? studentName : "No student assigned" %></p>
-                                                <div class="flex items-center space-x-4 mt-1 text-xs text-gray-500">
-                                                    <span><i class="far fa-calendar mr-1"></i><%= scheduleDate != null ? dateFormat.format(scheduleDate) : "N/A" %></span>
-                                                    <span><i class="far fa-clock mr-1"></i><%= startTime != null ? timeFormat.format(startTime) : "N/A" %> - <%= endTime != null ? timeFormat.format(endTime) : "N/A" %></span>
-                                                    <span><i class="far fa-hourglass mr-1"></i><%= classInfo.get("duration") %> hour</span>
-                                                </div>
-                                            </div>
-                                        </div>
-                                        <span class="status-badge <%= status != null && status.equalsIgnoreCase("Scheduled") ? "status-scheduled" : "status-upcoming" %>">
-                                            <%= status != null ? status : "Upcoming" %>
-                                        </span>
-                                    </div>
-                                    <% } %>
-                                </div>
-                            <% } else { %>
-                                <div class="text-center py-8">
-                                    <i class="far fa-calendar-times text-gray-300 text-4xl mb-3"></i>
-                                    <p class="text-gray-500">No upcoming classes scheduled</p>
-                                    <a href="<%= request.getContextPath() %>/teacher/availability" 
-                                       class="text-purple-600 hover:text-purple-700 text-sm font-medium mt-2 inline-block">
-                                        Set your availability
-                                    </a>
-                                </div>
-                            <% } %>
-                        </div>
-                    </div>
-                    
-                    <!-- Recent Student Feedback -->
-                    <div class="bg-white rounded-xl shadow-sm border border-gray-200">
-                        <div class="p-6 border-b border-gray-200">
-                            <div class="flex items-center justify-between">
-                                <h3 class="text-lg font-bold text-gray-900">Recent Student Feedback</h3>
-                                <a href="<%= request.getContextPath() %>/teacher/evaluations" 
-                                   class="text-sm text-purple-600 hover:text-purple-700 font-medium flex items-center space-x-1">
-                                    <span>View All</span>
-                                    <i class="fas fa-chevron-right text-xs"></i>
-                                </a>
-                            </div>
-                            <p class="text-sm text-gray-600 mt-1">Evaluations you received</p>
-                        </div>
-                        
-                        <div class="p-6">
-                            <% if (recentFeedback != null && !recentFeedback.isEmpty()) { %>
-                                <div class="space-y-4">
-                                    <% for (Map<String, Object> feedback : recentFeedback) { 
-                                        String studentName = (String) feedback.get("studentName");
-                                        int rating = (Integer) feedback.get("rating");
-                                        String comment = (String) feedback.get("comment");
-                                        java.sql.Timestamp feedbackDate = (java.sql.Timestamp) feedback.get("date");
-                                        
-                                        String studentInitials = "S";
-                                        if (studentName != null && studentName.length() > 0) {
-                                            String[] names = studentName.split(" ");
-                                            studentInitials = names.length > 1 ? 
-                                                names[0].substring(0, 1) + names[1].substring(0, 1) : 
-                                                names[0].substring(0, 1);
-                                        }
-                                        
-                                        // Calculate time ago
-                                        long diffInMillis = new java.util.Date().getTime() - feedbackDate.getTime();
-                                        long hours = diffInMillis / (1000 * 60 * 60);
-                                        long days = hours / 24;
-                                        String timeAgo = days > 0 ? days + " days ago" : hours + " hours ago";
-                                    %>
-                                    <div class="p-4 bg-gray-50 rounded-lg">
-                                        <div class="flex items-start space-x-3">
-                                            <div class="w-10 h-10 bg-green-500 rounded-full flex items-center justify-center text-white font-semibold text-sm flex-shrink-0">
-                                                <%= studentInitials %>
-                                            </div>
-                                            <div class="flex-1">
-                                                <div class="flex items-center justify-between mb-1">
-                                                    <h4 class="font-semibold text-gray-900"><%= studentName %></h4>
-                                                    <span class="text-xs text-gray-500"><%= timeAgo %></span>
-                                                </div>
-                                                <div class="flex items-center space-x-1 mb-2">
-                                                    <% for (int i = 1; i <= 5; i++) { %>
-                                                        <i class="<%= i <= rating ? "fas" : "far" %> fa-star text-orange-400 text-sm"></i>
-                                                    <% } %>
-                                                </div>
-                                                <p class="text-sm text-gray-700 italic">"<%= comment != null ? comment : "No comment provided" %>"</p>
-                                            </div>
-                                        </div>
-                                    </div>
-                                    <% } %>
-                                </div>
-                            <% } else { %>
-                                <div class="text-center py-8">
-                                    <i class="far fa-comments text-gray-300 text-4xl mb-3"></i>
-                                    <p class="text-gray-500">No feedback received yet</p>
-                                    <p class="text-sm text-gray-400 mt-1">Student evaluations will appear here</p>
-                                </div>
-                            <% } %>
-                        </div>
-                    </div>
-                </div>
-            </div>
-        </main>
+        </div>
     </div>
 </body>
 </html>

@@ -10,22 +10,23 @@ public class TeacherAttendanceDAO {
     public List<Attendance> getAllByTeacher(String teacherId) {
         List<Attendance> records = new ArrayList<>();
         String query = "SELECT " +
-                      "a.attendanceId, " +
+                      "MIN(a.attendanceId) AS attendanceId, " +
                       "s.studentName, " +
                       "s.studentId AS studentCode, " +
                       "cs.className, " +
                       "cs.className AS sessionName, " +
                       "t.teacherName, " +
                       "a.attendanceDate, " +
-                      "CONCAT(TIME_FORMAT(cs.startTime, '%h:%i %p'), ' - ', TIME_FORMAT(cs.endTime, '%h:%i %p')) as timeRange, " +
-                      "a.attendanceStatus, " +
-                      "TIME_FORMAT(a.joinTime, '%h:%i %p') as joinTime, " +
-                      "TIME_FORMAT(a.leaveTime, '%h:%i %p') as leaveTime " +
+                      "CONCAT(TIME_FORMAT(cs.startTime, '%h:%i %p'), ' - ', TIME_FORMAT(cs.endTime, '%h:%i %p')) AS timeRange, " +
+                      "MAX(a.attendanceStatus) AS attendanceStatus, " +
+                      "TIME_FORMAT(MIN(a.joinTime), '%h:%i %p') AS joinTime, " +
+                      "TIME_FORMAT(MAX(a.leaveTime), '%h:%i %p') AS leaveTime " +
                       "FROM attendance a " +
                       "INNER JOIN student s ON a.studentId = s.studentId " +
                       "INNER JOIN teacher t ON a.teacherId = t.teacherId " +
                       "INNER JOIN classschedule cs ON a.scheduleId = cs.scheduleId " +
                       "WHERE a.teacherId = ? " +
+                      "GROUP BY s.studentName, s.studentId, a.attendanceDate, cs.className, t.teacherName, cs.startTime, cs.endTime " +
                       "ORDER BY a.attendanceDate DESC " +
                       "LIMIT 500";
         
@@ -204,5 +205,40 @@ public class TeacherAttendanceDAO {
         }
         
         return weeklyData;
+    }
+
+    public List<String> getDistinctStudentNamesByTeacher(String teacherId) {
+        List<String> names = new ArrayList<>();
+        String query = "SELECT DISTINCT s.studentName " +
+                       "FROM classbooking cb " +
+                       "INNER JOIN classschedule cs ON cb.scheduleId = cs.scheduleId " +
+                       "INNER JOIN student s ON cb.studentId = s.studentId " +
+                       "WHERE cs.teacherId = ? " +
+                       "AND cb.bookingStatus NOT IN ('Cancelled', 'Rejected') " +
+                       "AND s.studentName IS NOT NULL " +
+                       "UNION " +
+                       "SELECT DISTINCT s2.studentName " +
+                       "FROM attendance a " +
+                       "INNER JOIN student s2 ON a.studentId = s2.studentId " +
+                       "WHERE a.teacherId = ? AND s2.studentName IS NOT NULL " +
+                       "ORDER BY studentName ASC";
+
+        try (Connection conn = DBConnection.getConnection();
+             PreparedStatement ps = conn.prepareStatement(query)) {
+
+            ps.setString(1, teacherId);
+            ps.setString(2, teacherId);
+            ResultSet rs = ps.executeQuery();
+            while (rs.next()) {
+                String name = rs.getString("studentName");
+                if (name != null && !name.trim().isEmpty()) {
+                    names.add(name.trim());
+                }
+            }
+        } catch (SQLException e) {
+            e.printStackTrace();
+        }
+
+        return names;
     }
 }

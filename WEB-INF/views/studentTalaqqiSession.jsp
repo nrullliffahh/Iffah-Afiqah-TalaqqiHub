@@ -1,4 +1,5 @@
 <%@ page language="java" contentType="text/html; charset=UTF-8" pageEncoding="UTF-8"%>
+<%@ page import="util.JitsiConfig" %>
 <%@ taglib prefix="c" uri="http://java.sun.com/jsp/jstl/core" %>
 <%@ taglib prefix="fn" uri="http://java.sun.com/jsp/jstl/functions" %>
 
@@ -8,31 +9,16 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Talaqqi Session – TalaqqiHub Student Portal</title>
-
-    <!-- Tailwind CSS CDN -->
+    <%@ include file="/WEB-INF/views/includes/studentLayoutStyles.jsp" %>
     <script src="https://cdn.tailwindcss.com"></script>
-
-    <!-- Font Awesome Icons -->
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
-
-    <!-- Jitsi Meet External API -->
-    <script src="https://meet.jit.si/external_api.js"></script>
-
-    <!-- Google Fonts: Amiri for Arabic, Inter for UI -->
+    <script src="<%= JitsiConfig.getScriptUrl() %>" async></script>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link href="https://fonts.googleapis.com/css2?family=Amiri:ital,wght@0,400;0,700;1,400&family=Inter:wght@300;400;500;600;700&display=swap"
           rel="stylesheet">
-
     <style>
-        /* ── Base ──────────────────────────────────────────────────────── */
         body { font-family: 'Inter', system-ui, sans-serif; }
-
-        /* ── Sidebar: deep green gradient matching student portal ──────── */
-        .sidebar-gradient { background: linear-gradient(180deg, #1a7a5c 0%, #0d4a38 100%); }
-
-        /* ── Green gradient button for Join Session ────────────────────── */
         .btn-green-gradient {
-            background: linear-gradient(90deg, #16a34a 0%, #22c55e 50%, #4ade80 100%);
+            background: var(--student-gradient-h);
             transition: filter .2s, transform .15s;
         }
         .btn-green-gradient:hover { filter: brightness(1.1); transform: translateY(-1px); }
@@ -47,9 +33,64 @@
         }
 
         /* ── Thin scrollbar for Quran panel ───────────────────────────── */
-        .verse-scroll { scrollbar-width: thin; scrollbar-color: #d1d5db transparent; }
-        .verse-scroll::-webkit-scrollbar { width: 5px; }
-        .verse-scroll::-webkit-scrollbar-thumb { background: #d1d5db; border-radius: 9999px; }
+        .verse-scroll {
+            flex: 1;
+            min-height: 0;
+            overflow-y: auto;
+            scrollbar-width: thin;
+            scrollbar-color: #d1d5db transparent;
+        }
+        .verse-scroll::-webkit-scrollbar { width: 6px; }
+        .verse-scroll::-webkit-scrollbar-thumb { background: #cfd5e3; border-radius: 9999px; }
+
+        .session-body { padding: 24px 30px 30px; }
+        .session-main-grid { align-items: start; }
+
+        .video-shell {
+            border: 2px solid #99f6e4;
+            border-radius: 20px;
+            background: #000;
+            overflow: hidden;
+            min-height: 400px;
+            height: 400px;
+            position: relative;
+        }
+        @media (min-width: 1280px) {
+            .video-shell { height: 480px; }
+        }
+
+        .quran-panel-card {
+            background: #fff;
+            border: 1px solid #e5e7eb;
+            border-radius: 18px;
+            display: flex;
+            flex-direction: column;
+            min-height: 400px;
+            max-height: min(600px, calc(100vh - 280px));
+            overflow: hidden;
+        }
+        @media (min-width: 1280px) {
+            .quran-panel-card {
+                height: 480px;
+                max-height: 480px;
+            }
+        }
+
+        .quran-panel-header {
+            flex-shrink: 0;
+            padding: 1.25rem 1.25rem 0;
+        }
+
+        .quran-panel-scroll {
+            flex: 1;
+            min-height: 0;
+            overflow-y: auto;
+            padding: 0 1.25rem 1.25rem;
+            scrollbar-width: thin;
+            scrollbar-color: #d1d5db transparent;
+        }
+        .quran-panel-scroll::-webkit-scrollbar { width: 6px; }
+        .quran-panel-scroll::-webkit-scrollbar-thumb { background: #cfd5e3; border-radius: 9999px; }
 
         /* ── Pulse dot for live indicator ────────────────────────────── */
         @keyframes pulse-dot { 0%,100% { opacity: 1; } 50% { opacity: 0.3; } }
@@ -76,7 +117,7 @@
             background: #fff; border-radius: 50%;
             transition: transform .25s; box-shadow: 0 1px 3px rgba(0,0,0,.2);
         }
-        input:checked + .toggle-track { background: #16a34a; }
+        input:checked + .toggle-track { background: var(--student-green); }
         input:checked + .toggle-track::before { transform: translateX(22px); }
 
         /* ── Session status badge ──────────────────────────────────── */
@@ -85,344 +126,223 @@
         .badge-ended { background: #fee2e2; color: #991b1b; }
     </style>
 </head>
-<body class="bg-gray-50 antialiased">
-<div class="flex h-screen overflow-hidden">
+<body class="antialiased">
+    <jsp:include page="/WEB-INF/views/includes/studentSidebar.jsp">
+        <jsp:param name="activePage" value="talaqqi-sessions"/>
+    </jsp:include>
 
-<!-- ══════════════════════════════════════════════════════════════════════ -->
-<!--  SIDEBAR – deep green, matches student portal                         -->
-<!-- ══════════════════════════════════════════════════════════════════════ -->
-<aside class="sidebar-gradient w-64 flex-shrink-0 flex flex-col overflow-y-auto">
-    <div class="p-6 flex-1">
-        <!-- Brand mark -->
-        <div class="text-white mb-8">
-            <h1 class="text-2xl font-bold tracking-tight">TalaqqiHub</h1>
-            <p class="text-green-200 text-sm mt-1">Student Portal</p>
-        </div>
+    <div class="main-content">
+        <jsp:include page="/WEB-INF/views/includes/studentTopNavbar.jsp">
+            <jsp:param name="pageTitle" value="Talaqqi Session"/>
+            <jsp:param name="notifPrefix" value="sessionNotif"/>
+        </jsp:include>
 
-        <!-- Navigation links -->
-        <nav class="space-y-2">
-            <a href="${contextPath}/student/dashboard"
-               class="flex items-center space-x-3 px-4 py-3 text-green-200 hover:bg-white hover:bg-opacity-10 rounded-lg transition">
-                <i class="fas fa-home w-5"></i>
-                <span>Dashboard</span>
-            </a>
-
-            <a href="${contextPath}/student/profile"
-               class="flex items-center space-x-3 px-4 py-3 text-green-200 hover:bg-white hover:bg-opacity-10 rounded-lg transition">
-                <i class="far fa-calendar w-5"></i>
-                <span>Class Booking</span>
-            </a>
-
-            <a href="${contextPath}/student/profile"
-               class="flex items-center space-x-3 px-4 py-3 text-green-200 hover:bg-white hover:bg-opacity-10 rounded-lg transition">
-                <i class="far fa-clipboard w-5"></i>
-                <span>Attendance</span>
-            </a>
-
-            <a href="${contextPath}/student/sessions"
-               class="flex items-center space-x-3 px-4 py-3 bg-white bg-opacity-15 text-white rounded-lg transition">
-                <i class="fas fa-book w-5"></i>
-                <span>Talaqqi Sessions</span>
-            </a>
-
-            <a href="${contextPath}/student/profile"
-               class="flex items-center space-x-3 px-4 py-3 text-green-200 hover:bg-white hover:bg-opacity-10 rounded-lg transition">
-                <i class="fas fa-star w-5"></i>
-                <span>Evaluation</span>
-            </a>
-
-            <a href="${contextPath}/student/profile"
-               class="flex items-center space-x-3 px-4 py-3 text-green-200 hover:bg-white hover:bg-opacity-10 rounded-lg transition">
-                <i class="fas fa-bullhorn w-5"></i>
-                <span>Announcements</span>
-            </a>
-
-            <a href="${contextPath}/student/profile"
-               class="flex items-center space-x-3 px-4 py-3 text-green-200 hover:bg-white hover:bg-opacity-10 rounded-lg transition">
-                <i class="fas fa-lightbulb w-5"></i>
-                <span>Al Assistance</span>
-            </a>
-        </nav>
+        <div class="page-content" style="padding-top:0;padding-bottom:0;">
+    <!-- Session Switcher -->
+    <c:if test="${not empty upcomingSessions}">
+    <div class="bg-white border-b border-gray-200 px-8 py-3 flex items-center gap-3 shadow-sm">
+        <i class="fas fa-calendar-check text-teal-600"></i>
+        <span class="text-sm font-semibold text-gray-700">Switch Session</span>
+        <select class="ml-auto border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-teal-400"
+                onchange="if(this.value){location.href='${contextPath}/student/sessions?sessionId='+this.value;}">
+            <c:forEach var="s" items="${upcomingSessions}">
+                <option value="${s.sessionId}" ${s.sessionId == session.sessionId ? 'selected' : ''}>
+                    ${s.className} | ${s.teacherName} | ${s.sessionDate}
+                </option>
+            </c:forEach>
+        </select>
     </div>
-
-    <!-- Logout button -->
-    <div class="border-t border-green-700 p-6">
-        <a href="${contextPath}/student/logout"
-           class="flex items-center space-x-3 w-full px-4 py-3 text-red-300 hover:bg-white hover:bg-opacity-10 rounded-lg transition">
-            <i class="fas fa-sign-out-alt w-5"></i>
-            <span>Logout</span>
-        </a>
-    </div>
-</aside>
-
-<!-- ══════════════════════════════════════════════════════════════════════ -->
-<!--  MAIN CONTENT                                                          -->
-<!-- ══════════════════════════════════════════════════════════════════════ -->
-<div class="flex-1 flex flex-col overflow-y-auto">
-
-    <!-- Header -->
-    <header class="bg-white border-b border-gray-200 shadow-sm sticky top-0 z-10">
-        <div class="px-8 py-6 flex items-center justify-between">
-            <div>
-                <h2 class="text-2xl font-bold text-gray-900">Talaqqi Session</h2>
-            </div>
-
-            <!-- Right side: Notification + Profile -->
-            <div class="flex items-center space-x-6">
-                <!-- Notification icon -->
-                <button class="relative p-2 text-gray-600 hover:text-gray-900 transition">
-                    <i class="far fa-bell text-xl"></i>
-                    <span class="absolute top-0 right-0 w-3 h-3 bg-red-500 rounded-full"></span>
-                </button>
-
-                <!-- User profile -->
-                <div class="flex items-center space-x-3">
-                    <div class="flex items-center justify-center w-10 h-10 rounded-full bg-gradient-to-br from-green-400 to-teal-500 text-white font-semibold text-sm">
-                        <c:choose>
-                            <c:when test="${not empty studentInitials}">
-                                ${studentInitials}
-                            </c:when>
-                            <c:otherwise>
-                                ST
-                            </c:otherwise>
-                        </c:choose>
-                    </div>
-                    <div>
-                        <p class="text-sm font-medium text-gray-900">
-                            <c:choose>
-                                <c:when test="${not empty studentName}">
-                                    ${studentName}
-                                </c:when>
-                                <c:otherwise>
-                                    Student
-                                </c:otherwise>
-                            </c:choose>
-                        </p>
-                        <p class="text-xs text-gray-500">Student</p>
-                    </div>
-                </div>
-            </div>
-        </div>
-    </header>
+    </c:if>
 
     <!-- Content area -->
-    <div class="flex-1 flex flex-col lg:flex-row gap-6 p-8 overflow-hidden">
+    <div class="session-body">
 
-        <!-- Main session view (left + center) -->
-        <div class="flex-1 flex flex-col gap-6 overflow-y-auto">
-
-            <!-- Session Card -->
-            <c:choose>
-                <c:when test="${not empty session}">
-                    <div class="bg-white rounded-lg p-8 shadow-md border border-gray-100">
-                        <!-- Session header -->
-                        <div class="flex items-start justify-between mb-4">
-                            <div class="flex-1">
-                                <h3 class="text-3xl font-bold text-gray-900 mb-2">${session.className}</h3>
-                                <div class="flex flex-wrap items-center gap-6 text-gray-600 text-sm">
-                                    <span class="inline-flex items-center gap-2">
-                                        <i class="far fa-calendar text-teal-600"></i>
-                                        ${session.sessionDate}
-                                    </span>
-                                    <span class="inline-flex items-center gap-2">
-                                        <i class="far fa-clock text-teal-600"></i>
-                                        ${session.sessionStartTime} - ${session.sessionEndTime}
-                                    </span>
-                                    <span class="inline-flex items-center gap-2">
-                                        <i class="fas fa-bolt text-teal-600"></i>
-                                        ${session.duration} minutes
-                                    </span>
+        <c:choose>
+            <c:when test="${not empty session}">
+                <!-- Session Card -->
+                <div class="bg-white rounded-lg p-6 md:p-8 shadow-md border border-gray-100 mb-6">
+                    <div class="flex items-start justify-between mb-4">
+                        <div class="flex-1">
+                            <h3 class="text-2xl md:text-3xl font-bold text-gray-900 mb-2">${session.className}</h3>
+                            <div class="flex flex-wrap items-center gap-4 md:gap-6 text-gray-600 text-sm">
+                                <span class="inline-flex items-center gap-2">
+                                    <i class="far fa-calendar text-teal-600"></i>
+                                    ${session.sessionDate}
+                                </span>
+                                <span class="inline-flex items-center gap-2">
+                                    <i class="far fa-clock text-teal-600"></i>
+                                    ${session.sessionStartTime} - ${session.sessionEndTime}
+                                </span>
+                                <span class="inline-flex items-center gap-2">
+                                    <i class="fas fa-bolt text-teal-600"></i>
+                                    ${session.duration} minutes
+                                </span>
+                            </div>
+                        </div>
+                        <div class="text-right">
+                            <p class="text-xs text-gray-500 uppercase tracking-wide mb-1">Teacher</p>
+                            <div class="flex items-center gap-3 justify-end">
+                                <p class="text-sm font-bold text-gray-900">${session.teacherName}</p>
+                                <div class="w-12 h-12 rounded-full bg-gradient-to-br from-teal-400 to-green-500 text-white grid place-items-center font-bold text-sm">
+                                    ${session.teacherInitials}
                                 </div>
                             </div>
-                            <div class="text-right">
-                                <p class="text-xs text-gray-500 uppercase tracking-wide mb-1">Teacher</p>
-                                <div class="flex items-center gap-3 justify-end">
-                                    <p class="text-sm font-bold text-gray-900">${session.teacherName}</p>
-                                    <div class="w-12 h-12 rounded-full bg-gradient-to-br from-teal-400 to-green-500 text-white grid place-items-center font-bold text-sm">
-                                        ${session.teacherInitials}
+                        </div>
+                    </div>
+
+                    <button id="joinButton"
+                            class="w-full btn-green-gradient text-white font-bold py-4 rounded-lg text-lg transition flex items-center justify-center gap-3">
+                        <i class="fas fa-video"></i>
+                        <span>Join Live Session</span>
+                    </button>
+                </div>
+
+                <!-- Video + Quran side by side (like teacher session) -->
+                <section class="grid grid-cols-1 xl:grid-cols-3 gap-6 session-main-grid">
+                    <div class="xl:col-span-2 space-y-3">
+                        <div class="video-shell relative">
+                            <div id="jitsiContainer" class="hidden absolute inset-0 w-full h-full"
+                                 data-room-name="${session.roomName}"
+                                 data-jitsi-domain="<%= JitsiConfig.getDomain() %>"
+                                 data-session-id="${session.sessionId}"
+                                 data-teacher-id="${session.teacherId}"></div>
+                            <div id="sessionNotStarted" class="absolute inset-0 z-10 bg-white w-full h-full grid place-items-center text-center p-8">
+                                <div>
+                                    <div class="w-20 h-20 rounded-3xl bg-gradient-to-br from-teal-400 to-green-500 text-white grid place-items-center text-4xl mx-auto">
+                                        <i class="fas fa-video"></i>
+                                    </div>
+                                    <h3 class="text-2xl md:text-3xl font-bold text-gray-900 mt-4 mb-2">Session Not Started</h3>
+                                    <p class="text-sm text-gray-600 max-w-md mx-auto">Click the "Join Live Session" button above to start your Talaqqi session with ${session.teacherName}.</p>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Quran Display Panel -->
+                    <div class="quran-panel-card">
+                        <div class="quran-panel-header">
+                            <div class="flex items-center justify-between mb-4 pb-4 border-b border-gray-200">
+                                <h4 class="text-base md:text-lg font-bold text-gray-900">Quran Display</h4>
+                                <span class="bg-gradient-to-r from-teal-400 to-green-400 text-white px-3 py-1 rounded-full text-xs md:text-sm font-bold">
+                                    Read-Only
+                                </span>
+                            </div>
+
+                            <div class="mb-4 text-center">
+                                <div class="grid grid-cols-3 gap-3">
+                                    <div>
+                                        <p class="text-xs text-gray-600 font-medium mb-1">Juz</p>
+                                        <p id="currentJuzDisplay" class="text-lg font-bold text-teal-600">1</p>
+                                    </div>
+                                    <div>
+                                        <p class="text-xs text-gray-600 font-medium mb-1">Surah</p>
+                                        <p id="currentSurahDisplay" class="text-lg font-bold text-teal-600">2</p>
+                                    </div>
+                                    <div>
+                                        <p class="text-xs text-gray-600 font-medium mb-1">Ayah</p>
+                                        <p id="currentAyahDisplay" class="text-lg font-bold text-teal-600">1</p>
                                     </div>
                                 </div>
                             </div>
+
+                            <div class="text-center mb-3 pb-3 border-b border-gray-200">
+                                <h5 id="surahNameDisplay" class="text-base font-bold text-gray-900">Al-Baqarah</h5>
+                                <p id="surahTranslationDisplay" class="text-xs text-gray-500 mt-1">The Cow</p>
+                            </div>
                         </div>
 
-                        <!-- Join Button -->
-                        <button id="joinButton"
-                                class="w-full btn-green-gradient text-white font-bold py-4 rounded-lg text-lg transition flex items-center justify-center gap-3 mt-6">
-                            <i class="fas fa-video"></i>
-                            <span>Join Live Session</span>
-                        </button>
-                    </div>
+                        <div class="quran-panel-scroll verse-scroll" id="quranVersesScroll">
+                            <div class="text-center mb-4 pb-4 border-b border-gray-200">
+                                <p id="bismillahArabic" class="arabic-verse text-center mb-2">بِسْمِ اللَّهِ الرَّحْمَٰنِ الرَّحِيمِ</p>
+                                <p class="text-xs text-gray-600 italic mb-2">Bismillahi r-rahmani r-rahim</p>
+                                <p class="text-xs text-gray-600">In the name of Allah, the Entirely Merciful, the Especially Merciful.</p>
+                            </div>
 
-                    <!-- Jitsi Container (hidden by default) -->
-                    <div id="jitsiContainer" class="hidden rounded-2xl overflow-hidden shadow-lg bg-black" style="min-height: 500px;" data-room-name="${session.roomName}" data-session-id="${session.sessionId}" data-teacher-id="${session.teacherId}">
-                        <!-- Jitsi Meet API will inject content here -->
-                    </div>
-
-                    <!-- Post-Session Message (shown after session ends) -->
-                    <div id="sessionNotStarted" class="flex flex-col items-center justify-center h-96 text-center border-2 border-teal-400 rounded-lg p-8">
-                        <div class="w-24 h-24 rounded-full bg-gradient-to-br from-teal-400 to-green-500 text-white grid place-items-center text-5xl mb-6">
-                            <i class="fas fa-video"></i>
-                        </div>
-                        <h3 class="text-3xl font-bold text-gray-900 mb-3">Session Not Started</h3>
-                        <p class="text-gray-600 max-w-sm">Click the "Join Live Session" button above to start your Talaqqi session with ${session.teacherName}.</p>
-                    </div>
-
-                </c:when>
-                <c:otherwise>
-                    <!-- No session scheduled -->
-                    <div class="bg-gradient-to-br from-blue-50 to-teal-50 rounded-lg border-2 border-teal-200 p-12 text-center min-h-96 flex flex-col items-center justify-center">
-                        <div class="w-20 h-20 mx-auto rounded-3xl bg-gradient-to-br from-teal-400 to-green-500 text-white grid place-items-center text-4xl mb-4">
-                            <i class="fas fa-calendar-times"></i>
-                        </div>
-                        <h3 class="text-3xl font-bold text-gray-900 mb-3">No Sessions Scheduled</h3>
-                        <p class="text-gray-600 mb-6 max-w-sm mx-auto">
-                            You don't have any upcoming Talaqqi sessions scheduled.
-                        </p>
-                        <a href="${contextPath}/student/profile" class="inline-block bg-gradient-to-r from-teal-400 to-green-500 text-white px-6 py-2 rounded-lg font-semibold hover:opacity-90 transition">
-                            Book a Class
-                        </a>
-                    </div>
-                </c:otherwise>
-            </c:choose>
-        </div>
-
-        <!-- Quran Display Panel (right sidebar) -->
-        <div class="w-full lg:w-96 flex flex-col min-h-0">
-
-            <!-- Quran Panel Card -->
-            <div class="bg-white rounded-xl border border-gray-200 p-5 flex flex-col h-full min-h-0">
-                <div class="flex items-center justify-between mb-4 pb-4 border-b border-gray-200">
-                    <h4 class="text-base md:text-lg font-bold text-gray-900">Quran Display</h4>
-                    <span class="bg-gradient-to-r from-teal-400 to-green-400 text-white px-3 py-1 rounded-full text-xs md:text-sm font-bold">
-                        Read-Only
-                    </span>
-                </div>
-
-                <!-- Juz, Surah, Ayah Display -->
-                <div class="mb-4 text-center">
-                    <div class="grid grid-cols-3 gap-3">
-                        <div>
-                            <p class="text-xs text-gray-600 font-medium mb-1">Juz</p>
-                            <p id="currentJuzDisplay" class="text-lg font-bold text-teal-600">1</p>
-                        </div>
-                        <div>
-                            <p class="text-xs text-gray-600 font-medium mb-1">Surah</p>
-                            <p id="currentSurahDisplay" class="text-lg font-bold text-teal-600">2</p>
-                        </div>
-                        <div>
-                            <p class="text-xs text-gray-600 font-medium mb-1">Ayah</p>
-                            <p id="currentAyahDisplay" class="text-lg font-bold text-teal-600">1</p>
-                        </div>
-                    </div>
-                </div>
-
-                <hr class="my-3 border-gray-200">
-
-                <!-- Surah Info -->
-                <div class="text-center mb-4 pb-3 border-b border-gray-200">
-                    <h5 id="surahNameDisplay" class="text-base font-bold text-gray-900">Al-Baqarah</h5>
-                    <p id="surahTranslationDisplay" class="text-xs text-gray-500 mt-1">The Cow</p>
-                </div>
-
-                <!-- Bismillah Section -->
-                <div class="text-center mb-4 pb-4 border-b border-gray-200">
-                    <p id="bismillahArabic" class="arabic-verse text-center mb-2">بِسْمِ اللَّهِ الرَّحْمَٰنِ الرَّحِيمِ</p>
-                    <p class="text-xs text-gray-600 italic mb-2">Bismillahi r-rahmani r-rahim</p>
-                    <p class="text-xs text-gray-600">In the name of Allah, the Entirely Merciful, the Especially Merciful.</p>
-                </div>
-
-                <!-- Verses Container (scrollable) -->
-                <div class="flex-1 overflow-y-auto verse-scroll">
-                    <c:choose>
-                        <c:when test="${not empty verses}">
-                            <c:forEach var="verse" items="${verses}" varStatus="status">
-                                <div class="mb-5 pb-4 border-b border-gray-100 last:border-b-0">
-                                    <!-- Ayah badge and number -->
-                                    <div class="flex items-start gap-3 mb-3">
-                                        <div class="w-7 h-7 bg-gradient-to-br from-teal-400 to-green-500 text-white rounded-full grid place-items-center flex-shrink-0 text-xs font-bold">
-                                            ${verse.ayahNumber}
+                            <div id="quranVersesInner">
+                            <c:choose>
+                                <c:when test="${not empty verses}">
+                                    <c:forEach var="verse" items="${verses}" varStatus="status">
+                                        <div class="mb-5 pb-4 border-b border-gray-100 last:border-b-0">
+                                            <div class="flex items-start gap-3 mb-3">
+                                                <div class="w-7 h-7 bg-gradient-to-br from-teal-400 to-green-500 text-white rounded-full grid place-items-center flex-shrink-0 text-xs font-bold">
+                                                    ${verse.ayahNumber}
+                                                </div>
+                                            </div>
+                                            <p class="arabic-verse text-center mb-3 py-3 leading-relaxed">${verse.arabicText}</p>
+                                            <p class="text-xs text-gray-600 italic mb-2">Transliteration</p>
+                                            <div class="flex items-center justify-between mb-3 text-sm">
+                                                <label class="font-medium text-gray-700">Show Translation</label>
+                                                <label class="toggle-wrap">
+                                                    <input type="checkbox" class="translation-toggle" data-verse-id="${status.index}" checked>
+                                                    <div class="toggle-track"></div>
+                                                </label>
+                                            </div>
+                                            <div class="translation-content bg-green-50 rounded-lg p-3 text-xs text-gray-700 leading-relaxed">
+                                                <p>${verse.translation}</p>
+                                            </div>
+                                        </div>
+                                    </c:forEach>
+                                </c:when>
+                                <c:otherwise>
+                                    <div class="mb-5 pb-4 border-b border-gray-100">
+                                        <div class="flex items-start gap-3 mb-3">
+                                            <div class="w-7 h-7 bg-gradient-to-br from-teal-400 to-green-500 text-white rounded-full grid place-items-center flex-shrink-0 text-xs font-bold">1</div>
+                                        </div>
+                                        <p class="arabic-verse text-center mb-3 py-3 leading-relaxed">الم</p>
+                                        <p class="text-xs text-gray-600 italic mb-2">Alif-Lam-Mim</p>
+                                        <div class="flex items-center justify-between mb-3 text-sm">
+                                            <label class="font-medium text-gray-700">Show Translation</label>
+                                            <label class="toggle-wrap">
+                                                <input type="checkbox" class="translation-toggle" checked>
+                                                <div class="toggle-track"></div>
+                                            </label>
+                                        </div>
+                                        <div class="translation-content bg-green-50 rounded-lg p-3 text-xs text-gray-700 leading-relaxed">
+                                            <p>Alif, Laam, Meem.</p>
                                         </div>
                                     </div>
-
-                                    <!-- Arabic text -->
-                                    <p class="arabic-verse text-center mb-3 py-3 leading-relaxed">
-                                        ${verse.arabicText}
-                                    </p>
-
-                                    <!-- Transliteration -->
-                                    <p class="text-xs text-gray-600 italic mb-2">
-                                        Transliteration
-                                    </p>
-
-                                    <!-- Translation toggle -->
-                                    <div class="flex items-center justify-between mb-3 text-sm">
-                                        <label class="font-medium text-gray-700">Show Translation</label>
-                                        <label class="toggle-wrap">
-                                            <input type="checkbox" class="translation-toggle" data-verse-id="${status.index}" checked>
-                                            <div class="toggle-track"></div>
-                                        </label>
+                                    <div class="mb-5 pb-4 border-b border-gray-100">
+                                        <div class="flex items-start gap-3 mb-3">
+                                            <div class="w-7 h-7 bg-gradient-to-br from-teal-400 to-green-500 text-white rounded-full grid place-items-center flex-shrink-0 text-xs font-bold">2</div>
+                                        </div>
+                                        <p class="arabic-verse text-center mb-3 py-3 leading-relaxed">ذَٰلِكَ الْكِتَابُ لَا رَيْبَ ۛ فِيهِ ۛ هُدًى لِّلْمُتَّقِينَ</p>
+                                        <p class="text-xs text-gray-600 italic mb-2">Dhalika al-kitabu la rayba fihi</p>
+                                        <div class="flex items-center justify-between mb-3 text-sm">
+                                            <label class="font-medium text-gray-700">Show Translation</label>
+                                            <label class="toggle-wrap">
+                                                <input type="checkbox" class="translation-toggle" checked>
+                                                <div class="toggle-track"></div>
+                                            </label>
+                                        </div>
+                                        <div class="translation-content bg-green-50 rounded-lg p-3 text-xs text-gray-700 leading-relaxed">
+                                            <p>This is the Book about which there is no doubt, a guidance for those conscious of Allah.</p>
+                                        </div>
                                     </div>
-
-                                    <!-- Translation -->
-                                    <div class="translation-content bg-green-50 rounded-lg p-3 text-xs text-gray-700 leading-relaxed">
-                                        <p>${verse.translation}</p>
-                                    </div>
-                                </div>
-                            </c:forEach>
-                        </c:when>
-                        <c:otherwise>
-                            <!-- Sample/Default Verses Display -->
-                            <div class="mb-5 pb-4 border-b border-gray-100">
-                                <div class="flex items-start gap-3 mb-3">
-                                    <div class="w-7 h-7 bg-gradient-to-br from-teal-400 to-green-500 text-white rounded-full grid place-items-center flex-shrink-0 text-xs font-bold">
-                                        1
-                                    </div>
-                                </div>
-                                <p class="arabic-verse text-center mb-3 py-3 leading-relaxed">
-                                    الم
-                                </p>
-                                <p class="text-xs text-gray-600 italic mb-2">
-                                    Alif-Lam-Mim
-                                </p>
-                                <div class="flex items-center justify-between mb-3 text-sm">
-                                    <label class="font-medium text-gray-700">Show Translation</label>
-                                    <label class="toggle-wrap">
-                                        <input type="checkbox" class="translation-toggle" checked>
-                                        <div class="toggle-track"></div>
-                                    </label>
-                                </div>
-                                <div class="translation-content bg-green-50 rounded-lg p-3 text-xs text-gray-700 leading-relaxed">
-                                    <p>Alif, Laam, Meem.</p>
-                                </div>
+                                </c:otherwise>
+                            </c:choose>
                             </div>
+                        </div>
+                    </div>
+                </section>
 
-                            <div class="mb-5 pb-4 border-b border-gray-100">
-                                <div class="flex items-start gap-3 mb-3">
-                                    <div class="w-7 h-7 bg-gradient-to-br from-teal-400 to-green-500 text-white rounded-full grid place-items-center flex-shrink-0 text-xs font-bold">
-                                        2
-                                    </div>
-                                </div>
-                                <p class="arabic-verse text-center mb-3 py-3 leading-relaxed">
-                                    ذَٰلِكَ الْكِتَابُ لَا رَيْبَ ۛ فِيهِ ۛ هُدًى لِّلْمُتَّقِينَ
-                                </p>
-                                <p class="text-xs text-gray-600 italic mb-2">
-                                    Dhalika al-kitabu la rayba fihi
-                                </p>
-                                <div class="flex items-center justify-between mb-3 text-sm">
-                                    <label class="font-medium text-gray-700">Show Translation</label>
-                                    <label class="toggle-wrap">
-                                        <input type="checkbox" class="translation-toggle" checked>
-                                        <div class="toggle-track"></div>
-                                    </label>
-                                </div>
-                                <div class="translation-content bg-green-50 rounded-lg p-3 text-xs text-gray-700 leading-relaxed">
-                                    <p>This is the Book about which there is no doubt, a guidance for those conscious of Allah.</p>
-                                </div>
-                            </div>
-                        </c:otherwise>
-                    </c:choose>
+            </c:when>
+            <c:otherwise>
+                <!-- No session scheduled -->
+                <div class="bg-gradient-to-br from-blue-50 to-teal-50 rounded-lg border-2 border-teal-200 p-12 text-center min-h-96 flex flex-col items-center justify-center">
+                    <div class="w-20 h-20 mx-auto rounded-3xl bg-gradient-to-br from-teal-400 to-green-500 text-white grid place-items-center text-4xl mb-4">
+                        <i class="fas fa-calendar-times"></i>
+                    </div>
+                    <h3 class="text-3xl font-bold text-gray-900 mb-3">No Sessions Scheduled</h3>
+                    <p class="text-gray-600 mb-6 max-w-sm mx-auto">
+                        You don't have any upcoming Talaqqi sessions scheduled.
+                    </p>
+                    <a href="${contextPath}/student/class-booking" class="inline-block bg-gradient-to-r from-teal-400 to-green-500 text-white px-6 py-2 rounded-lg font-semibold hover:opacity-90 transition">
+                        Book a Class
+                    </a>
                 </div>
-            </div>
+            </c:otherwise>
+        </c:choose>
+    </div>
         </div>
     </div>
 
@@ -434,6 +354,8 @@
     const API_BASE = 'https://api.alquran.cloud/v1';
     let jitsiApi = null;
     let isSessionActive = false;
+    let attendanceRecorded = false;
+    let leaveRecorded = false;
 
     // DOM Elements
     const joinButton = document.getElementById('joinButton');
@@ -447,7 +369,8 @@
         
         // Load initial surah info and update display
         loadSurahInfo(currentQuranState.surah);
-        updateQuranLocationDisplay(currentQuranState.surah, currentQuranState.ayah);
+        updateQuranLocationDisplay(currentQuranState.surah, currentQuranState.ayah, currentQuranState.ayahEnd);
+        updateVersesDisplay(currentQuranState.surah, currentQuranState.ayah, currentQuranState.ayahEnd);
         
         startPollingQuranUpdates();
     });
@@ -480,64 +403,77 @@
     // ── Join Live Session ──────────────────────────────────────────────
 
     function handleJoinSession() {
-        // Hide the session-not-started message
-        if (sessionNotStarted) {
-            sessionNotStarted.style.display = 'none';
+        if (joinButton && joinButton.disabled) return;
+
+        if (joinButton) {
+            joinButton.disabled = true;
+            joinButton.classList.add('opacity-50', 'cursor-not-allowed');
         }
 
-        // Show the Jitsi container
+        if (sessionNotStarted) {
+            sessionNotStarted.classList.add('hidden');
+        }
+
         jitsiContainer.classList.remove('hidden');
 
-        // Get room name from data attribute (set by server)
+        if (!attendanceRecorded) {
+            attendanceRecorded = true;
+            recordSessionEvent('joinSession');
+        }
+
         const roomName = jitsiContainer.getAttribute('data-room-name') || 'TalaqqiHub-' + Date.now();
+        const jitsiDomain = jitsiContainer.getAttribute('data-jitsi-domain') || '8x8.vc';
         const sessionId = jitsiContainer.getAttribute('data-session-id');
         const teacherId = jitsiContainer.getAttribute('data-teacher-id');
 
-        // Initialize Jitsi Meet
+        // Initialize Jitsi / 8x8 JaaS
         const options = {
             roomName: roomName,
             width: '100%',
-            height: 500,
+            height: '100%',
             parentNode: jitsiContainer,
             userInfo: {
                 displayName: '<c:out value="${studentName}" />'
             },
             configOverwrite: {
-                 startAudioOnly: true
+                prejoinPageEnabled: false,
+                startWithAudioMuted: false,
+                disableDeepLinking: true
             },
             interfaceConfigOverwrite: {
-                TOOLBAR_BUTTONS: ['microphone', 'camera', 'settings', 'hangup'],
-                SHOW_CHROME_EXTENSION_BANNER: false
+                TOOLBAR_BUTTONS: ['microphone', 'camera', 'settings', 'hangup', 'tileview'],
+                SHOW_CHROME_EXTENSION_BANNER: false,
+                SHOW_JITSI_WATERMARK: false
             }
         };
 
         try {
-            jitsiApi = new JitsiMeetExternalAPI('meet.jit.si', options);
+            jitsiApi = new JitsiMeetExternalAPI(jitsiDomain, options);
 
             // Listen for join event
             jitsiApi.addEventListener('videoConferenceJoined', () => {
                 isSessionActive = true;
                 console.log('Student joined Jitsi session');
-                recordSessionEvent('joinSession');
+                // Backup: record if button click didn't fire the API
+                if (!attendanceRecorded) {
+                    recordSessionEvent('joinSession');
+                    attendanceRecorded = true;
+                }
             });
 
             // Listen for leave/hangup event
             jitsiApi.addEventListener('videoConferenceLeft', () => {
                 isSessionActive = false;
                 console.log('Student left Jitsi session');
-                recordSessionEvent('leaveSession');
+                recordLeaveSession();
             });
-
-            // Disable join button during session
-            joinButton.disabled = true;
-            joinButton.classList.add('opacity-50', 'cursor-not-allowed');
 
         } catch (error) {
             console.error('Failed to initialize Jitsi Meet:', error);
             alert('Failed to start video session. Please try again.');
             jitsiContainer.classList.add('hidden');
             if (sessionNotStarted) {
-                sessionNotStarted.style.display = '';
+                sessionNotStarted.classList.remove('hidden');
             }
         }
     }
@@ -545,21 +481,52 @@
     // ── Record session events ───────────────────────────────────────────
 
     function recordSessionEvent(action) {
-        const formData = new FormData();
-        formData.append('action', action);
+        const sessionId = jitsiContainer ? jitsiContainer.getAttribute('data-session-id') : '';
+        const body = new URLSearchParams();
+        body.append('action', action);
+        body.append('sessionId', sessionId || '');
 
         fetch('<c:out value="${contextPath}" />/student/sessions', {
             method: 'POST',
-            body: formData
+            credentials: 'same-origin',
+            headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+            body: body.toString()
         })
         .then(response => response.json())
         .then(data => {
             console.log('Event recorded:', data);
+            if (action === 'joinSession' && data && data.status === 'Late') {
+                alert('You joined more than 5 minutes after the teacher started. Attendance marked as Late.');
+            }
         })
         .catch(error => {
             console.error('Error recording event:', error);
         });
     }
+
+    function recordLeaveSession() {
+        if (leaveRecorded) return;
+        leaveRecorded = true;
+
+        const sessionId = jitsiContainer ? jitsiContainer.getAttribute('data-session-id') : '';
+        const body = new URLSearchParams();
+        body.append('action', 'leaveSession');
+        body.append('sessionId', sessionId || '');
+        const url = '<c:out value="${contextPath}" />/student/sessions';
+
+        if (navigator.sendBeacon) {
+            navigator.sendBeacon(url, new Blob([body.toString()], { type: 'application/x-www-form-urlencoded' }));
+        } else {
+            recordSessionEvent('leaveSession');
+        }
+    }
+
+    // Record leave time when student closes tab or navigates away during session
+    window.addEventListener('pagehide', () => {
+        if (isSessionActive || attendanceRecorded) {
+            recordLeaveSession();
+        }
+    });
 
     // ── Responsive adjustments ──────────────────────────────────────────
 
@@ -637,14 +604,17 @@
     /**
      * Update the Juz, Surah, Ayah display numbers
      */
-    function updateQuranLocationDisplay(surah, ayah) {
+    function updateQuranLocationDisplay(surah, ayah, ayahEnd) {
         const juzDisplay = document.getElementById('currentJuzDisplay');
         const surahDisplay = document.getElementById('currentSurahDisplay');
         const ayahDisplay = document.getElementById('currentAyahDisplay');
         
-        if (juzDisplay) juzDisplay.textContent = '1'; // Simplified: always show Juz 1
+        if (juzDisplay) juzDisplay.textContent = '1';
         if (surahDisplay) surahDisplay.textContent = surah;
-        if (ayahDisplay) ayahDisplay.textContent = ayah;
+        if (ayahDisplay) {
+            const end = parseInt(ayahEnd, 10);
+            ayahDisplay.textContent = (end > ayah) ? (ayah + '-' + end) : ayah;
+        }
     }
 
     /**
@@ -687,7 +657,7 @@
                     }
                     
                     // Update location display
-                    updateQuranLocationDisplay(newSurah, newAyah);
+                    updateQuranLocationDisplay(newSurah, newAyah, newAyahEnd);
 
                     // Fetch and display new verses
                     await updateVersesDisplay(newSurah, newAyah, newAyahEnd);
@@ -705,16 +675,16 @@
      */
     async function updateVersesDisplay(surah, startAyah, endAyah) {
         try {
-            // Determine how many verses to load
-            let count = 5; // Default: next 5 verses
-            if (endAyah > 0 && endAyah > startAyah) {
-                count = (endAyah - startAyah) + 1;
+            const start = parseInt(startAyah, 10);
+            let end = parseInt(endAyah, 10);
+            if (!start || start < 1) return;
+            if (!end || end < start) {
+                end = start;
             }
-
-            // Fetch verses from Al-Quran Cloud API
+            const count = Math.min(end - start + 1, 50);
             const verses = [];
             let currentSurah = surah;
-            let currentAyah = startAyah;
+            let currentAyah = start;
 
             for (let i = 0; i < count && currentSurah <= 114; i++) {
                 try {
@@ -774,7 +744,7 @@
      * Replace the verses container with newly fetched verses.
      */
     function renderVersesInDOM(verses) {
-        const versesContainer = document.querySelector('.flex-1.overflow-y-auto');
+        const versesContainer = document.getElementById('quranVersesInner');
         if (!versesContainer) return;
 
         let html = '';

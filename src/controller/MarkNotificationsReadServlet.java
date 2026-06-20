@@ -1,6 +1,7 @@
 package controller;
 
 import util.DBConnection;
+import util.NotificationAuthUtil;
 
 import javax.servlet.ServletException;
 import javax.servlet.annotation.WebServlet;
@@ -18,32 +19,35 @@ public class MarkNotificationsReadServlet extends HttpServlet {
     protected void doPost(HttpServletRequest req, HttpServletResponse resp) throws ServletException, IOException {
         HttpSession session = req.getSession(false);
         if (session == null) { resp.setStatus(401); return; }
-        String studentId = (String) session.getAttribute("studentId");
-        String teacherId = (String) session.getAttribute("teacherId");
 
+        String role = req.getParameter("role");
         String notifId = req.getParameter("id");
+
+        NotificationAuthUtil.NotificationUser user = NotificationAuthUtil.resolve(session, role);
+        if (user == null) {
+            resp.setStatus(401);
+            return;
+        }
+        String uid = user.userId;
+        String userType = user.userType;
 
         try (Connection conn = DBConnection.getConnection()) {
             if (conn == null) { resp.setStatus(500); return; }
 
             if (notifId != null && !notifId.trim().isEmpty()) {
-                // mark single id, but ensure it belongs to this user
-                String sql = "UPDATE notifications SET isRead = 1 WHERE id = ? AND userId = ?";
+                String sql = "UPDATE notifications SET isRead = 1 WHERE id = ? AND userId = ? AND userType = ?";
                 try (PreparedStatement ps = conn.prepareStatement(sql)) {
                     ps.setString(1, notifId);
-                    String uid = studentId != null ? studentId : teacherId;
                     ps.setString(2, uid);
+                    ps.setString(3, userType);
                     ps.executeUpdate();
                 }
             } else {
-                // mark all for this user
-                String uid = studentId != null ? studentId : teacherId;
-                if (uid != null) {
-                    String sql = "UPDATE notifications SET isRead = 1 WHERE userId = ?";
-                    try (PreparedStatement ps = conn.prepareStatement(sql)) {
-                        ps.setString(1, uid);
-                        ps.executeUpdate();
-                    }
+                String sql = "UPDATE notifications SET isRead = 1 WHERE userId = ? AND userType = ?";
+                try (PreparedStatement ps = conn.prepareStatement(sql)) {
+                    ps.setString(1, uid);
+                    ps.setString(2, userType);
+                    ps.executeUpdate();
                 }
             }
         } catch (Exception e) {

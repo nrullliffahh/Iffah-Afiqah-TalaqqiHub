@@ -1,5 +1,6 @@
 package controller;
 
+import dao.ClassScheduleDAO;
 import dao.StudentBookingDAO;
 import javax.servlet.ServletException;
 import javax.servlet.http.HttpServlet;
@@ -29,12 +30,16 @@ public class CancelBookingServlet extends HttpServlet {
             reason = "No reason provided";
         }
 
-        boolean success = bookingDAO.cancelBooking(bookingId, reason);
-        
-        if (success) {
-            session.setAttribute("successMessage", "Booking cancelled successfully!");
+        ClassScheduleDAO scheduleDAO = new ClassScheduleDAO();
+        if (!scheduleDAO.isCancellationAllowedByBookingId(bookingId)) {
+            session.setAttribute("errorMessage", ClassScheduleDAO.CANCEL_TOO_LATE_MSG);
         } else {
-            session.setAttribute("errorMessage", "Failed to cancel booking. Please try again.");
+            boolean success = bookingDAO.cancelBooking(bookingId, reason);
+            if (success) {
+                session.setAttribute("successMessage", "Booking cancelled successfully!");
+            } else {
+                session.setAttribute("errorMessage", "Failed to cancel booking. Please try again.");
+            }
         }
 
         response.sendRedirect(request.getContextPath() + "/student/class-booking");

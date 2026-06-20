@@ -3,10 +3,18 @@ package dao;
 import model.ClassSchedule;
 import util.DBConnection;
 import java.sql.*;
+import java.time.Duration;
+import java.time.LocalDate;
+import java.time.LocalDateTime;
+import java.time.LocalTime;
 import java.util.ArrayList;
 import java.util.List;
 
 public class ClassScheduleDAO {
+
+    public static final int MIN_HOURS_BEFORE_CANCEL = 12;
+    public static final String CANCEL_TOO_LATE_MSG =
+        "Classes cannot be cancelled less than 12 hours before the start time.";
     
     /**
      * Generate the next sequential schedule ID in format C001, C002, C003, etc.
@@ -46,6 +54,10 @@ public class ClassScheduleDAO {
     }
     
     public boolean insertAvailability(ClassSchedule schedule) {
+        if (availabilitySlotExists(schedule.getTeacherId(), schedule.getScheduleDate(), schedule.getStartTime())) {
+            System.out.println("Duplicate availability slot rejected: " + schedule.getScheduleDate() + " " + schedule.getStartTime());
+            return false;
+        }
         String sql = "INSERT INTO classschedule " +
             "(scheduleId, className, scheduleDate, startTime, endTime, duration, classStatus, teacherId) " +
             "VALUES (?, ?, ?, ?, ?, ?, 'Scheduled', ?)";
@@ -78,6 +90,30 @@ public class ClassScheduleDAO {
             e.printStackTrace();
             throw new RuntimeException("Database error: " + e.getMessage(), e);
         }
+    }
+
+    public boolean availabilitySlotExists(String teacherId, String scheduleDate, String startTime) {
+        String normalizedStart = startTime;
+        if (normalizedStart != null && normalizedStart.length() == 5) {
+            normalizedStart = normalizedStart + ":00";
+        }
+        String sql = "SELECT COUNT(*) AS cnt FROM classschedule " +
+                     "WHERE teacherId = ? AND scheduleDate = ? AND startTime = ? " +
+                     "AND classStatus NOT IN ('Cancelled')";
+        try (Connection conn = DBConnection.getConnection();
+             PreparedStatement stmt = conn.prepareStatement(sql)) {
+            stmt.setString(1, teacherId);
+            stmt.setDate(2, Date.valueOf(scheduleDate));
+            stmt.setTime(3, Time.valueOf(normalizedStart));
+            try (ResultSet rs = stmt.executeQuery()) {
+                if (rs.next()) {
+                    return rs.getInt("cnt") > 0;
+                }
+            }
+        } catch (SQLException e) {
+            System.err.println("Error checking duplicate availability: " + e.getMessage());
+        }
+        return false;
     }
     
     public List<ClassSchedule> getSchedulesByTeacherId(String teacherId) {
@@ -231,14 +267,14 @@ public class ClassScheduleDAO {
         // Checks for any booking that is NOT rejected (Pending or Approved are shown as booked)
         // No date restriction - shows past, present, and future so teacher can see their full history
         String sql = "SELECT cs.*, CASE " +
-                     "WHEN cb.bookingId IS NOT NULL AND cb.bookingStatus != 'Rejected' THEN cb.bookingStatus " +
+                     "WHEN cb.bookingId IS NOT NULL AND cb.bookingStatus NOT IN ('Rejected', 'Cancelled') THEN cb.bookingStatus " +
                      "ELSE NULL " +
                      "END AS isBooked " +
                      "FROM classschedule cs " +
                      "LEFT JOIN classbooking cb ON cs.scheduleId = cb.scheduleId " +
-                     "AND cb.bookingStatus != 'Rejected' " +
+                     "AND cb.bookingStatus NOT IN ('Rejected', 'Cancelled') " +
                      "WHERE cs.teacherId = ? " +
-                     "AND cs.classStatus = 'Scheduled' " +
+                     "AND cs.classStatus IN ('Scheduled', 'Booked', 'Available') " +
                      "ORDER BY cs.scheduleDate, cs.startTime";
         
         try (Connection conn = DBConnection.getConnection();
@@ -457,6 +493,63 @@ public class ClassScheduleDAO {
                     e.printStackTrace();
                 }
             }
+        }
+    }
+
+    public boolean isCancellationAllowed(String scheduleId) {
+        LocalDateTime classStart = getClassStartDateTime(scheduleId, null);
+        return isAtLeastHoursBefore(classStart, MIN_HOURS_BEFORE_CANCEL);
+    }
+
+    public boolean isCancellationAllowedByBookingId(String bookingId) {
+        LocalDateTime classStart = getClassStartDateTime(null, bookingId);
+        return isAtLeastHoursBefore(classStart, MIN_HOURS_BEFORE_CANCEL);
+    }
+
+    public static boolean isAtLeastHoursBefore(LocalDateTime classStart, int minimumHours) {
+        if (classStart == null) return false;
+        LocalDateTime now = LocalDateTime.now();
+        if (!classStart.isAfter(now)) return false;
+        return Duration.between(now, classStart).toMinutes() >= (long) minimumHours * 60L;
+    }
+
+    private LocalDateTime getClassStartDateTime(String scheduleId, String bookingId) {
+        Connection conn = null;
+        PreparedStatement ps = null;
+        ResultSet rs = null;
+        try {
+            conn = DBConnection.getConnection();
+            if (conn == null) return null;
+
+            String sql;
+            if (bookingId != null && !bookingId.trim().isEmpty()) {
+                sql = "SELECT cs.scheduleDate, cs.startTime FROM classbooking cb " +
+                      "INNER JOIN classschedule cs ON cb.scheduleId = cs.scheduleId " +
+                      "WHERE cb.bookingId = ? LIMIT 1";
+                ps = conn.prepareStatement(sql);
+                ps.setString(1, bookingId);
+            } else if (scheduleId != null && !scheduleId.trim().isEmpty()) {
+                sql = "SELECT scheduleDate, startTime FROM classschedule WHERE scheduleId = ? LIMIT 1";
+                ps = conn.prepareStatement(sql);
+                ps.setString(1, scheduleId);
+            } else {
+                return null;
+            }
+
+            rs = ps.executeQuery();
+            if (!rs.next()) return null;
+
+            LocalDate date = rs.getDate("scheduleDate").toLocalDate();
+            Time time = rs.getTime("startTime");
+            if (time == null) return null;
+            return LocalDateTime.of(date, time.toLocalTime());
+        } catch (SQLException e) {
+            System.err.println("Error resolving class start time: " + e.getMessage());
+            return null;
+        } finally {
+            try { if (rs != null) rs.close(); } catch (SQLException ignored) {}
+            try { if (ps != null) ps.close(); } catch (SQLException ignored) {}
+            try { if (conn != null) conn.close(); } catch (SQLException ignored) {}
         }
     }
 }

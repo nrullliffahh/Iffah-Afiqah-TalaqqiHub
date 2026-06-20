@@ -8,76 +8,39 @@ let currentTableData = [];
 document.addEventListener('DOMContentLoaded', function() {
     initializeEventListeners();
     initializeTableData();
+    applyFilters();
 });
 
 function initializeEventListeners() {
-    // Search input
-    const searchInput = document.querySelector('input[placeholder="Search student or teacher..."]');
-    if (searchInput) {
-        searchInput.addEventListener('input', applyFilters);
-    }
+    const searchInput = document.getElementById('filterSearch');
+    if (searchInput) searchInput.addEventListener('input', applyFilters);
 
-    // Teacher dropdown
-    const teacherSelect = document.querySelector('select');
-    if (teacherSelect) {
-        teacherSelect.addEventListener('change', applyFilters);
-    }
+    const teacherSelect = document.getElementById('filterTeacher');
+    if (teacherSelect) teacherSelect.addEventListener('change', applyFilters);
 
-    // Date inputs
-    const dateInputs = document.querySelectorAll('input[type="date"]');
-    if (dateInputs.length >= 2) {
-        dateInputs[0].addEventListener('change', applyFilters);
-        dateInputs[1].addEventListener('change', applyFilters);
-    }
+    const dateFrom = document.getElementById('filterDateFrom');
+    const dateTo = document.getElementById('filterDateTo');
+    if (dateFrom) dateFrom.addEventListener('change', applyFilters);
+    if (dateTo) dateTo.addEventListener('change', applyFilters);
 
-    // Export buttons - find them by their text and button containers
-    const allButtons = document.querySelectorAll('button, input[type="button"]');
-    allButtons.forEach(btn => {
-        const text = btn.textContent || btn.value;
-        if (text.includes('Export PDF') || text.includes('PDF')) {
-            btn.addEventListener('click', (e) => {
-                e.preventDefault();
-                exportToPDF();
-            });
-        }
-    });
+    const pdfBtn = document.getElementById('exportPdfBtn');
+    const csvBtn = document.getElementById('exportCsvBtn');
+    const excelBtn = document.getElementById('exportExcelBtn');
+    const printBtn = document.getElementById('printBtn');
 
-    // Find export buttons in second row
-    const exportSection = document.querySelector('.flex.justify-end');
-    if (exportSection) {
-        const exportButtons = exportSection.querySelectorAll('button');
-        if (exportButtons[0]) {
-            exportButtons[0].addEventListener('click', (e) => {
-                e.preventDefault();
-                exportToCSV();
-            });
-        }
-        if (exportButtons[1]) {
-            exportButtons[1].addEventListener('click', (e) => {
-                e.preventDefault();
-                exportToExcel();
-            });
-        }
-        if (exportButtons[2]) {
-            exportButtons[2].addEventListener('click', (e) => {
-                e.preventDefault();
-                printTable();
-            });
-        }
-    }
+    if (pdfBtn) pdfBtn.addEventListener('click', function(e) { e.preventDefault(); exportToPDF(); });
+    if (csvBtn) csvBtn.addEventListener('click', function(e) { e.preventDefault(); exportToCSV(); });
+    if (excelBtn) excelBtn.addEventListener('click', function(e) { e.preventDefault(); exportToExcel(); });
+    if (printBtn) printBtn.addEventListener('click', function(e) { e.preventDefault(); printTable(); });
 
-    // Modal close buttons
     setupModalCloseHandlers();
 }
 
 function initializeTableData() {
-    // Capture current table data into an array for filtering
-    const tableRows = document.querySelectorAll('tbody tr');
     currentTableData = [];
-    
-    tableRows.forEach(row => {
-        if (row.textContent.includes('No sessions found')) return;
-        
+    const tableRows = document.querySelectorAll('#sessionsTable tbody tr[data-student]');
+
+    tableRows.forEach(function(row) {
         const cells = row.querySelectorAll('td');
         if (cells.length > 0) {
             currentTableData.push({
@@ -97,27 +60,31 @@ function initializeTableData() {
 }
 
 function applyFilters() {
-    const searchInput = document.querySelector('input[placeholder="Search student or teacher..."]').value.toLowerCase();
-    const teacherFilter = document.querySelector('select').value;
-    const dateFromValue = document.querySelectorAll('input[type="date"]')[0].value;
-    const dateToValue = document.querySelectorAll('input[type="date"]')[1].value;
+    const searchInput = document.getElementById('filterSearch');
+    const teacherSelect = document.getElementById('filterTeacher');
+    const dateFromEl = document.getElementById('filterDateFrom');
+    const dateToEl = document.getElementById('filterDateTo');
 
-    currentTableData.forEach(data => {
+    const search = searchInput ? searchInput.value.toLowerCase().trim() : '';
+    const teacherFilter = teacherSelect ? teacherSelect.value : '';
+    const dateFromValue = dateFromEl ? dateFromEl.value : '';
+    const dateToValue = dateToEl ? dateToEl.value : '';
+
+    let visibleCount = 0;
+
+    currentTableData.forEach(function(data) {
         let show = true;
 
-        // Search filter
-        if (searchInput) {
-            const matchesSearch = data.studentName.toLowerCase().includes(searchInput) ||
-                                data.teacherName.toLowerCase().includes(searchInput);
+        if (search) {
+            const matchesSearch = data.studentName.toLowerCase().includes(search) ||
+                                data.teacherName.toLowerCase().includes(search);
             show = show && matchesSearch;
         }
 
-        // Teacher filter
-        if (teacherFilter && teacherFilter !== 'All Teachers') {
+        if (teacherFilter) {
             show = show && data.teacherName === teacherFilter;
         }
 
-        // Date range filter
         if (dateFromValue) {
             const sessionDate = new Date(parseDate(data.sessionDate));
             const dateFrom = new Date(dateFromValue);
@@ -131,155 +98,109 @@ function applyFilters() {
             show = show && sessionDate <= dateTo;
         }
 
-        // Show or hide the row
         data.element.style.display = show ? '' : 'none';
+        if (show) visibleCount++;
     });
 
-    updatePaginationInfo();
+    updatePaginationInfo(visibleCount);
 }
 
 function parseDate(dateString) {
-    // Parse "MMM dd, yyyy" format to "yyyy-MM-dd"
     const months = {
         'Jan': '01', 'Feb': '02', 'Mar': '03', 'Apr': '04',
         'May': '05', 'Jun': '06', 'Jul': '07', 'Aug': '08',
         'Sep': '09', 'Oct': '10', 'Nov': '11', 'Dec': '12'
     };
-    
+
     const parts = dateString.split(' ');
     const month = months[parts[0]];
     const day = parts[1].replace(',', '').padStart(2, '0');
     const year = parts[2];
-    
-    return `${year}-${month}-${day}`;
+
+    return year + '-' + month + '-' + day;
 }
 
-function updatePaginationInfo() {
-    const visibleRows = document.querySelectorAll('tbody tr:not([style="display: none;"])');
+function updatePaginationInfo(visibleCount) {
+    const countEl = document.getElementById('recordCount');
     const totalRows = currentTableData.length;
-    const visibleCount = visibleRows.length;
+    if (!countEl) return;
 
-    const paginationText = document.querySelector('.px-6.py-4.border-t');
-    if (paginationText) {
-        if (visibleCount === 0 && totalRows > 0) {
-            paginationText.textContent = 'No sessions match the applied filters';
-        } else if (visibleCount > 0) {
-            paginationText.textContent = `Showing 1-${visibleCount} of ${totalRows} sessions`;
-        }
+    if (totalRows === 0) {
+        countEl.textContent = 'No sessions available';
+    } else if (visibleCount === 0) {
+        countEl.textContent = 'No sessions match the applied filters';
+    } else {
+        countEl.textContent = 'Showing 1-' + visibleCount + ' of ' + totalRows + ' session' + (totalRows !== 1 ? 's' : '');
     }
 }
 
 function setupModalCloseHandlers() {
-    // Close modal by clicking outside the modal box
-    const modal = document.querySelector('.fixed.inset-0');
+    const modal = document.getElementById('sessionModal');
     if (modal) {
         modal.addEventListener('click', function(e) {
-            if (e.target === modal) {
-                closeModal();
-            }
+            if (e.target === modal) closeModal();
         });
     }
 }
 
 function closeModal() {
-    const modal = document.querySelector('.fixed.inset-0');
+    const modal = document.getElementById('sessionModal');
     if (modal) {
+        modal.classList.remove('show');
         modal.style.display = 'none';
     }
-    // Also clear the viewId parameter from URL
     window.history.replaceState({}, document.title, window.location.pathname);
 }
 
 function exportToPDF() {
     const sessions = getFilteredSessionData();
-    
+
     if (sessions.length === 0) {
         alert('No sessions to export');
         return;
     }
 
-    // Create a new window for printing
     const printWindow = window.open('', '', 'height=600,width=800');
-    
-    let htmlContent = `
-        <html>
-        <head>
-            <title>Talaqqi Sessions Report</title>
-            <style>
-                body { font-family: Arial, sans-serif; margin: 20px; }
-                h1 { text-align: center; color: #333; }
-                table { width: 100%; border-collapse: collapse; margin-top: 20px; }
-                th { background-color: #7C3AED; color: white; padding: 10px; text-align: left; border: 1px solid #ddd; }
-                td { padding: 8px; border: 1px solid #ddd; }
-                tr:nth-child(even) { background-color: #f9f9f9; }
-                .summary { margin: 20px 0; padding: 10px; background-color: #f0f0f0; }
-                .footer { margin-top: 30px; font-size: 12px; color: #666; }
-            </style>
-        </head>
-        <body>
-            <h1>Talaqqi Sessions Report</h1>
-            <div class="summary">
-                <p><strong>Total Sessions:</strong> ${sessions.length}</p>
-                <p><strong>Report Generated:</strong> ${new Date().toLocaleString()}</p>
-            </div>
-            <table>
-                <thead>
-                    <tr>
-                        <th>Session ID</th>
-                        <th>Student</th>
-                        <th>Teacher</th>
-                        <th>Date</th>
-                        <th>Duration</th>
-                        <th>Status</th>
-                    </tr>
-                </thead>
-                <tbody>
-    `;
 
-    sessions.forEach(session => {
-        htmlContent += `
-            <tr>
-                <td>${escapeHtml(session.sessionId)}</td>
-                <td>${escapeHtml(session.studentName)}</td>
-                <td>${escapeHtml(session.teacherName)}</td>
-                <td>${escapeHtml(session.sessionDate)}</td>
-                <td>${escapeHtml(session.duration)}</td>
-                <td>${escapeHtml(session.status)}</td>
-            </tr>
-        `;
+    let htmlContent = '<html><head><title>Talaqqi Sessions Report</title><style>' +
+        'body { font-family: Poppins, Arial, sans-serif; margin: 20px; }' +
+        'h1 { text-align: center; color: #1E293B; }' +
+        'table { width: 100%; border-collapse: collapse; margin-top: 20px; }' +
+        'th { background: linear-gradient(135deg, #7C3AED, #6C3BFF); color: white; padding: 10px; text-align: left; border: 1px solid #ddd; }' +
+        'td { padding: 8px; border: 1px solid #ddd; font-size: 13px; }' +
+        'tr:nth-child(even) { background-color: #F8FAFC; }' +
+        '.summary { margin: 20px 0; padding: 12px; background-color: #F1F5F9; border-radius: 10px; }' +
+        '</style></head><body>' +
+        '<h1>Talaqqi Sessions Report</h1>' +
+        '<div class="summary"><p><strong>Total Sessions:</strong> ' + sessions.length + '</p>' +
+        '<p><strong>Report Generated:</strong> ' + new Date().toLocaleString() + '</p></div>' +
+        '<table><thead><tr><th>Session ID</th><th>Student</th><th>Teacher</th><th>Date</th><th>Duration</th><th>Status</th></tr></thead><tbody>';
+
+    sessions.forEach(function(session) {
+        htmlContent += '<tr><td>' + escapeHtml(session.sessionId) + '</td><td>' + escapeHtml(session.studentName) + '</td><td>' +
+            escapeHtml(session.teacherName) + '</td><td>' + escapeHtml(session.sessionDate) + '</td><td>' +
+            escapeHtml(session.duration) + '</td><td>' + escapeHtml(session.status) + '</td></tr>';
     });
 
-    htmlContent += `
-                </tbody>
-            </table>
-            <div class="footer">
-                <p>This is an auto-generated report from TalaqqiHub Admin Portal</p>
-            </div>
-        </body>
-        </html>
-    `;
+    htmlContent += '</tbody></table></body></html>';
 
     printWindow.document.write(htmlContent);
     printWindow.document.close();
-    
-    // Trigger print dialog
-    setTimeout(() => {
-        printWindow.print();
-    }, 250);
+    setTimeout(function() { printWindow.print(); }, 250);
 }
 
 function exportToCSV() {
     const sessions = getFilteredSessionData();
-    
     if (sessions.length === 0) {
         alert('No sessions to export');
         return;
     }
 
     let csv = 'Session ID,Student Name,Teacher Name,Class Type,Session Date,Time,Duration,Status,Completed At\n';
-    
-    sessions.forEach(session => {
-        csv += `"${session.sessionId}","${session.studentName}","${session.teacherName}","${session.classType}","${session.sessionDate}","${session.time}","${session.duration}","${session.status}","${session.completedAt}"\n`;
+    sessions.forEach(function(session) {
+        csv += '"' + session.sessionId + '","' + session.studentName + '","' + session.teacherName + '","' +
+            session.classType + '","' + session.sessionDate + '","' + session.time + '","' +
+            session.duration + '","' + session.status + '","' + session.completedAt + '"\n';
     });
 
     downloadFile(csv, 'talaqqi-sessions.csv', 'text/csv');
@@ -287,114 +208,43 @@ function exportToCSV() {
 
 function exportToExcel() {
     const sessions = getFilteredSessionData();
-    
     if (sessions.length === 0) {
         alert('No sessions to export');
         return;
     }
 
     let html = '<table><tr><th>Session ID</th><th>Student Name</th><th>Teacher Name</th><th>Class Type</th><th>Session Date</th><th>Time</th><th>Duration</th><th>Status</th><th>Completed At</th></tr>';
-    
-    sessions.forEach(session => {
-        html += `<tr><td>${session.sessionId}</td><td>${session.studentName}</td><td>${session.teacherName}</td><td>${session.classType}</td><td>${session.sessionDate}</td><td>${session.time}</td><td>${session.duration}</td><td>${session.status}</td><td>${session.completedAt}</td></tr>`;
-    });
-    
-    html += '</table>';
 
-    const data = new Blob([html], { type: 'application/vnd.ms-excel' });
-    const link = document.createElement('a');
-    link.href = URL.createObjectURL(data);
-    link.download = 'talaqqi-sessions.xls';
-    link.click();
+    sessions.forEach(function(session) {
+        html += '<tr><td>' + session.sessionId + '</td><td>' + session.studentName + '</td><td>' + session.teacherName + '</td><td>' +
+            session.classType + '</td><td>' + session.sessionDate + '</td><td>' + session.time + '</td><td>' +
+            session.duration + '</td><td>' + session.status + '</td><td>' + session.completedAt + '</td></tr>';
+    });
+
+    html += '</table>';
+    downloadFile(html, 'talaqqi-sessions.xls', 'application/vnd.ms-excel');
 }
 
 function printTable() {
-    const sessions = getFilteredSessionData();
-    
-    if (sessions.length === 0) {
-        alert('No sessions to print');
-        return;
-    }
-
-    const printWindow = window.open('', '', 'height=600,width=800');
-    
-    let htmlContent = `
-        <html>
-        <head>
-            <title>Talaqqi Sessions</title>
-            <style>
-                body { font-family: Arial, sans-serif; margin: 10px; }
-                h1 { text-align: center; color: #333; font-size: 24px; }
-                table { width: 100%; border-collapse: collapse; margin-top: 15px; }
-                th { background-color: #7C3AED; color: white; padding: 10px; text-align: left; border: 1px solid #ddd; }
-                td { padding: 8px; border: 1px solid #ddd; font-size: 13px; }
-                tr:nth-child(even) { background-color: #f9f9f9; }
-                @media print {
-                    body { margin: 0; }
-                }
-            </style>
-        </head>
-        <body>
-            <h1>Talaqqi Sessions Report</h1>
-            <p style="text-align: center; color: #666;">Generated on ${new Date().toLocaleString()}</p>
-            <table>
-                <thead>
-                    <tr>
-                        <th>Session ID</th>
-                        <th>Student</th>
-                        <th>Teacher</th>
-                        <th>Date</th>
-                        <th>Time</th>
-                        <th>Duration</th>
-                        <th>Status</th>
-                    </tr>
-                </thead>
-                <tbody>
-    `;
-
-    sessions.forEach(session => {
-        htmlContent += `
-            <tr>
-                <td>${escapeHtml(session.sessionId)}</td>
-                <td>${escapeHtml(session.studentName)}</td>
-                <td>${escapeHtml(session.teacherName)}</td>
-                <td>${escapeHtml(session.sessionDate)}</td>
-                <td>${escapeHtml(session.time)}</td>
-                <td>${escapeHtml(session.duration)}</td>
-                <td>${escapeHtml(session.status)}</td>
-            </tr>
-        `;
-    });
-
-    htmlContent += `
-                </tbody>
-            </table>
-        </body>
-        </html>
-    `;
-
-    printWindow.document.write(htmlContent);
-    printWindow.document.close();
-    
-    setTimeout(() => {
-        printWindow.print();
-    }, 250);
+    window.print();
 }
 
 function getFilteredSessionData() {
     return currentTableData
-        .filter(session => session.element.style.display !== 'none')
-        .map(session => ({
-            sessionId: session.sessionId,
-            studentName: session.studentName,
-            teacherName: session.teacherName,
-            classType: session.classType,
-            sessionDate: session.sessionDate,
-            time: session.time,
-            duration: session.duration,
-            status: session.status,
-            completedAt: session.completedAt
-        }));
+        .filter(function(session) { return session.element.style.display !== 'none'; })
+        .map(function(session) {
+            return {
+                sessionId: session.sessionId,
+                studentName: session.studentName,
+                teacherName: session.teacherName,
+                classType: session.classType,
+                sessionDate: session.sessionDate,
+                time: session.time,
+                duration: session.duration,
+                status: session.status,
+                completedAt: session.completedAt
+            };
+        });
 }
 
 function downloadFile(content, filename, type) {
@@ -413,5 +263,5 @@ function escapeHtml(text) {
         '"': '&quot;',
         "'": '&#039;'
     };
-    return text.replace(/[&<>"']/g, m => map[m]);
+    return text.replace(/[&<>"']/g, function(m) { return map[m]; });
 }

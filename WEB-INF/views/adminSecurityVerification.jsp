@@ -8,12 +8,12 @@
     <title>Security Verification - Admin - TalaqqiHub</title>
     <script src="https://cdn.tailwindcss.com"></script>
 </head>
-<body class="min-h-screen bg-gradient-to-br from-blue-50 via-purple-50 to-pink-50">
+<body class="min-h-screen bg-slate-100">
     <nav class="bg-white shadow-sm">
         <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
             <div class="flex justify-between h-16">
                 <div class="flex items-center">
-                    <a href="<%= request.getContextPath() %>/home" class="text-2xl font-bold bg-gradient-to-r from-blue-600 to-purple-600 bg-clip-text text-transparent">TalaqqiHub</a>
+                    <a href="<%= request.getContextPath() %>/home" class="text-2xl font-bold bg-gradient-to-r from-teal-700 to-purple-700 bg-clip-text text-transparent">TalaqqiHub</a>
                 </div>
                 <div class="flex items-center space-x-8">
                     <a href="<%= request.getContextPath() %>/home" class="text-gray-600 hover:text-purple-600 font-medium transition">Home</a>
@@ -28,7 +28,7 @@
     <div class="flex items-center justify-center px-4 py-16">
         <div class="max-w-md w-full bg-white rounded-xl shadow-xl p-8">
             <div class="flex justify-center mb-6">
-                <div class="w-16 h-16 bg-gradient-to-br from-teal-500 to-purple-600 rounded-2xl flex items-center justify-center">
+                <div class="w-16 h-16 bg-gradient-to-br from-teal-700 to-purple-700 rounded-2xl flex items-center justify-center">
                     <svg class="w-8 h-8 text-white" fill="currentColor" viewBox="0 0 20 20">
                         <path fill-rule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clip-rule="evenodd"/>
                     </svg>
@@ -65,7 +65,7 @@
                 </div>
 
                 <button type="submit" 
-                        class="w-full py-3 px-4 bg-gradient-to-r from-teal-500 to-purple-600 text-white font-semibold rounded-full hover:from-teal-600 hover:to-purple-700 focus:outline-none focus:ring-2 focus:ring-purple-500 focus:ring-offset-2 transition duration-200">
+                        class="w-full py-3 px-4 bg-gradient-to-r from-teal-700 to-purple-700 text-white font-semibold rounded-full hover:from-teal-800 hover:to-purple-800 focus:outline-none focus:ring-2 focus:ring-purple-500 focus:ring-offset-2 transition duration-200">
                     Verify Answer
                 </button>
             </form>

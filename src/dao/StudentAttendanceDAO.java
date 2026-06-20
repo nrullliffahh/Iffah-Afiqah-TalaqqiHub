@@ -14,13 +14,16 @@ public class StudentAttendanceDAO {
     
     public List<StudentAttendance> getAttendanceByStudent(String studentId) {
         List<StudentAttendance> records = new ArrayList<>();
-        String query = "SELECT a.attendanceId, a.studentId, cs.className as session_name, t.teacherName as teacher_name, a.attendanceDate as session_date, " +
-                      "CONCAT(TIME_FORMAT(cs.startTime, '%h:%i %p'), ' - ', TIME_FORMAT(cs.endTime, '%h:%i %p')) as time_range, " +
-                      "a.attendanceStatus as status, a.joinTime, a.leaveTime " +
+        String query = "SELECT MIN(a.attendanceId) AS attendanceId, a.studentId, " +
+                      "cs.className AS session_name, t.teacherName AS teacher_name, a.attendanceDate AS session_date, " +
+                      "CONCAT(TIME_FORMAT(cs.startTime, '%h:%i %p'), ' - ', TIME_FORMAT(cs.endTime, '%h:%i %p')) AS time_range, " +
+                      "MAX(a.attendanceStatus) AS status, MIN(a.joinTime) AS joinTime, MAX(a.leaveTime) AS leaveTime " +
                       "FROM attendance a " +
                       "LEFT JOIN classschedule cs ON a.scheduleId = cs.scheduleId " +
                       "LEFT JOIN teacher t ON a.teacherId = t.teacherId " +
-                      "WHERE a.studentId = ? ORDER BY a.attendanceDate DESC";
+                      "WHERE a.studentId = ? " +
+                      "GROUP BY a.studentId, a.attendanceDate, cs.className, t.teacherName, cs.startTime, cs.endTime " +
+                      "ORDER BY a.attendanceDate DESC";
         
 
         
@@ -310,15 +313,17 @@ public class StudentAttendanceDAO {
      */
     public List<StudentAttendance> getAttendanceByStudentByMonth(String studentId) {
         List<StudentAttendance> records = new ArrayList<>();
-        String query = "SELECT a.attendanceId, a.studentId, cs.className as session_name, t.teacherName as teacher_name, a.attendanceDate as session_date, " +
-                      "CONCAT(TIME_FORMAT(cs.startTime, '%h:%i %p'), ' - ', TIME_FORMAT(cs.endTime, '%h:%i %p')) as time_range, " +
-                      "a.attendanceStatus as status, a.joinTime, a.leaveTime " +
+        String query = "SELECT MIN(a.attendanceId) AS attendanceId, a.studentId, " +
+                      "cs.className AS session_name, t.teacherName AS teacher_name, a.attendanceDate AS session_date, " +
+                      "CONCAT(TIME_FORMAT(cs.startTime, '%h:%i %p'), ' - ', TIME_FORMAT(cs.endTime, '%h:%i %p')) AS time_range, " +
+                      "MAX(a.attendanceStatus) AS status, MIN(a.joinTime) AS joinTime, MAX(a.leaveTime) AS leaveTime " +
                       "FROM attendance a " +
                       "LEFT JOIN classschedule cs ON a.scheduleId = cs.scheduleId " +
                       "LEFT JOIN teacher t ON a.teacherId = t.teacherId " +
                       "WHERE a.studentId = ? " +
                       "AND MONTH(a.attendanceDate) = MONTH(CURDATE()) " +
                       "AND YEAR(a.attendanceDate) = YEAR(CURDATE()) " +
+                      "GROUP BY a.studentId, a.attendanceDate, cs.className, t.teacherName, cs.startTime, cs.endTime " +
                       "ORDER BY a.attendanceDate DESC";
 
         Connection conn = null;

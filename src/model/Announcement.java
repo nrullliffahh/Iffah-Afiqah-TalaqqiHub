@@ -9,6 +9,8 @@ public class Announcement {
     private String status;
     private String author;
     private String targetAudience;
+    private boolean recent;
+    private String teacherId;
     
     public Announcement() {
     }
@@ -75,5 +77,25 @@ public class Announcement {
     
     public void setTargetAudience(String targetAudience) {
         this.targetAudience = targetAudience;
+    }
+
+    public boolean isRecent() {
+        return recent;
+    }
+
+    public void setRecent(boolean recent) {
+        this.recent = recent;
+    }
+
+    public String getTeacherId() {
+        return teacherId;
+    }
+
+    public void setTeacherId(String teacherId) {
+        this.teacherId = teacherId;
+    }
+
+    public boolean isAdminOwned() {
+        return teacherId == null || teacherId.trim().isEmpty();
     }
 }

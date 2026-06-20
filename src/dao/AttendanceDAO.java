@@ -70,6 +70,7 @@ public class AttendanceDAO {
             String sql = "SELECT " +
                         "SUM(CASE WHEN attendanceStatus = 'Present' THEN 1 ELSE 0 END) as present, " +
                         "SUM(CASE WHEN attendanceStatus = 'Absent' THEN 1 ELSE 0 END) as absent, " +
+                        "SUM(CASE WHEN attendanceStatus = 'Late' THEN 1 ELSE 0 END) as late, " +
                         "COUNT(*) as total " +
                         "FROM attendance";
             pstmt = conn.prepareStatement(sql);
@@ -78,11 +79,13 @@ public class AttendanceDAO {
             if (rs.next()) {
                 int present = rs.getInt("present");
                 int absent = rs.getInt("absent");
+                int late = rs.getInt("late");
                 int total = rs.getInt("total");
                 double rate = total > 0 ? ((double) present / total) * 100 : 0.0;
                 
                 stats.put("present", present);
                 stats.put("absent", absent);
+                stats.put("late", late);
                 stats.put("total", total);
                 stats.put("rate", rate);
             }

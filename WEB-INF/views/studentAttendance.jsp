@@ -7,10 +7,10 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Attendance - TalaqqiHub</title>
+    <%@ include file="/WEB-INF/views/includes/studentLayoutStyles.jsp" %>
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <style>
-        body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; }
         .glass-effect { backdrop-filter: blur(10px); }
         .card-hover { transition: all 0.3s ease; }
         .card-hover:hover { transform: translateY(-4px); box-shadow: 0 20px 40px rgba(0,0,0,0.1); }
@@ -21,103 +21,20 @@
         @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.5; } }
     </style>
 </head>
-<body class="bg-gradient-to-br from-gray-50 via-blue-50 to-green-50">
-    <div class="flex h-screen">
-        <!-- SIDEBAR -->
-        <div class="w-64 bg-gradient-to-b from-green-700 to-green-800 text-white flex flex-col">
-            <!-- Logo -->
-            <div class="p-6 border-b border-green-600">
-                <h1 class="text-2xl font-bold">TalaqqiHub</h1>
-                <p class="text-sm text-green-200">Student Portal</p>
-            </div>
-            
-            <!-- Navigation Menu -->
-            <nav class="flex-1 px-4 py-6 space-y-2">
-                <a href="${pageContext.request.contextPath}/student/dashboard" class="flex items-center px-4 py-3 text-green-100 hover:bg-green-600 rounded-lg transition">
-                    <svg class="w-5 h-5 mr-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 12l2-3m0 0l7-4 7 4M5 9v10a1 1 0 001 1h12a1 1 0 001-1V9m-9 4v4m0-11l7-4"></path>
-                    </svg>
-                    Dashboard
-                </a>
-                <a href="${pageContext.request.contextPath}/student/class-booking" class="flex items-center px-4 py-3 text-green-100 hover:bg-green-600 rounded-lg transition">
-                    <svg class="w-5 h-5 mr-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"></path>
-                    </svg>
-                    Class Booking
-                </a>
-                <a href="${pageContext.request.contextPath}/student/attendance" class="flex items-center px-4 py-3 bg-green-600 text-white rounded-lg transition font-medium">
-                    <svg class="w-5 h-5 mr-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"></path>
-                    </svg>
-                    Attendance
-                </a>
-                <a href="${pageContext.request.contextPath}/student/sessions" class="flex items-center px-4 py-3 text-green-100 hover:bg-green-600 rounded-lg transition">
-                    <svg class="w-5 h-5 mr-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6.253v13m0-13C6.5 6.253 2 10.998 2 17s4.5 10.747 10 10.747c5.5 0 10-4.998 10-10.747 0-6.002-4.5-10.747-10-10.747z"></path>
-                    </svg>
-                    Talaqqi Sessions
-                </a>
-                <a href="${pageContext.request.contextPath}/student/evaluation" class="flex items-center px-4 py-3 text-green-100 hover:bg-green-600 rounded-lg transition">
-                    <svg class="w-5 h-5 mr-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"></path>
-                    </svg>
-                    Evaluation
-                </a>
-                <a href="${pageContext.request.contextPath}/student/announcements" class="flex items-center px-4 py-3 text-green-100 hover:bg-green-600 rounded-lg transition">
-                    <svg class="w-5 h-5 mr-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9"></path>
-                    </svg>
-                    Announcements
-                </a>
-                <a href="${pageContext.request.contextPath}/student/ai-assistance" class="flex items-center px-4 py-3 text-green-100 hover:bg-green-600 rounded-lg transition">
-                    <svg class="w-5 h-5 mr-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"></path>
-                    </svg>
-                    AI Assistance
-                </a>
-            </nav>
-            
-            <!-- Logout -->
-            <div class="border-t border-green-600">
-                <a href="${pageContext.request.contextPath}/student/logout" class="flex items-center px-4 py-3 text-green-100 hover:bg-green-600 rounded-lg transition m-4">
-                    <svg class="w-5 h-5 mr-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1"></path>
-                    </svg>
-                    Logout
-                </a>
-            </div>
-        </div>
-        
-        <!-- MAIN CONTENT -->
-        <div class="flex-1 flex flex-col overflow-hidden">
-            <!-- TOP HEADER -->
-            <div class="bg-gradient-to-r from-blue-50 to-indigo-50 border-b border-gray-200 px-8 py-6 flex justify-between items-center shadow-sm">
-                <div>
-                    <h1 class="text-4xl font-bold text-gray-800">Attendance</h1>
-                    <p class="text-gray-600 text-sm mt-2 flex items-center"><span class="w-2 h-2 bg-green-500 rounded-full mr-2"></span>Track your session history</p>
-                </div>
-                <div class="flex items-center space-x-6">
-                    <!-- Notification Bell -->
-                    <button class="relative p-3 text-gray-600 hover:bg-white hover:text-blue-600 rounded-full transition duration-200">
-                        <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9"></path>
-                        </svg>
-                        <span class="absolute top-1 right-1 inline-flex items-center justify-center w-5 h-5 text-xs font-bold leading-none text-white bg-gradient-to-r from-red-500 to-pink-500 rounded-full pulse-dot">3</span>
-                    </button>
-                    <!-- User Avatar -->
-                    <div class="flex items-center space-x-3 pl-6 border-l border-gray-300">
-                        <div class="w-12 h-12 bg-gradient-to-br from-teal-400 to-blue-500 rounded-full flex items-center justify-center text-white font-bold text-lg shadow-lg">AH</div>
-                        <div>
-                            <p class="text-gray-800 font-semibold">Ahmad</p>
-                            <p class="text-gray-500 text-xs">Student</p>
-                        </div>
-                    </div>
-                </div>
-            </div>
-            
-            <!-- SCROLLABLE CONTENT -->
-            <div class="flex-1 overflow-auto">
-                <div class="px-8 py-6">
+<body>
+    <jsp:include page="/WEB-INF/views/includes/studentSidebar.jsp">
+        <jsp:param name="activePage" value="attendance"/>
+    </jsp:include>
+
+    <div class="main-content">
+        <jsp:include page="/WEB-INF/views/includes/studentTopNavbar.jsp">
+            <jsp:param name="pageTitle" value="Attendance"/>
+            <jsp:param name="notifPrefix" value="attendanceNotif"/>
+        </jsp:include>
+
+        <div class="page-content">
+            <p class="page-subtitle" style="margin-top:-24px;margin-bottom:32px;"><span class="w-2 h-2 bg-green-500 rounded-full mr-2 inline-block"></span>Track your session history</p>
+
                     <!-- TOP ACTIONS -->
                     <div class="flex justify-between items-center mb-8">
                         <div></div>
@@ -202,8 +119,8 @@
                                     <p class="text-gray-500 text-sm font-medium">Attendance Rate <span class="text-gray-400">ⓘ</span></p>
                                     <p class="text-4xl font-bold text-teal-700 mt-2">${rate}%</p>
                                 </div>
-                                <div class="w-14 h-14 bg-purple-100 rounded-2xl flex items-center justify-center flex-shrink-0">
-                                    <svg class="w-7 h-7 text-purple-600" fill="currentColor" viewBox="0 0 24 24">
+                                <div class="w-14 h-14 bg-emerald-100 rounded-2xl flex items-center justify-center flex-shrink-0">
+                                    <svg class="w-7 h-7 text-emerald-600" fill="currentColor" viewBox="0 0 24 24">
                                         <path d="M19 3H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zM9 17H7v-7h2V17zm4 0h-2V7h2V17zm4 0h-2v-4h2V17z"></path>
                                     </svg>
                                 </div>
@@ -306,8 +223,6 @@
                             </table>
                         </div>
                     </div>
-                </div>
-            </div>
         </div>
     </div>
     

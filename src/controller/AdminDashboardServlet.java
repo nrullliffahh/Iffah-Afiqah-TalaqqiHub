@@ -44,9 +44,10 @@ public class AdminDashboardServlet extends HttpServlet {
             int cancelledSessions = sessionDAO.getCancelledSessionsCount();
             
             Map<String, Object> attendanceStats = attendanceDAO.getOverallAttendanceStats();
-            int presentCount = (int) attendanceStats.get("present");
-            int absentCount = (int) attendanceStats.get("absent");
-            double attendanceRate = (double) attendanceStats.get("rate");
+            int presentCount = attendanceStats.get("present") != null ? (int) attendanceStats.get("present") : 0;
+            int absentCount = attendanceStats.get("absent") != null ? (int) attendanceStats.get("absent") : 0;
+            int lateCount = attendanceStats.get("late") != null ? (int) attendanceStats.get("late") : 0;
+            double attendanceRate = attendanceStats.get("rate") != null ? (double) attendanceStats.get("rate") : 0.0;
             
             Map<String, Object> evaluationStats = evaluationDAO.getAverageRatings();
             double avgTeacherRating = (double) evaluationStats.get("teacherRating");
@@ -64,6 +65,7 @@ public class AdminDashboardServlet extends HttpServlet {
             
             request.setAttribute("presentCount", presentCount);
             request.setAttribute("absentCount", absentCount);
+            request.setAttribute("lateCount", lateCount);
             request.setAttribute("attendanceRate", attendanceRate);
             
             request.setAttribute("avgTeacherRating", avgTeacherRating);

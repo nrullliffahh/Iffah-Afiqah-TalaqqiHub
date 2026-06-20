@@ -10,62 +10,31 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Manage Packages - Admin</title>
+    <%@ include file="/WEB-INF/views/includes/adminLayoutStyles.jsp" %>
     <script src="https://cdn.tailwindcss.com"></script>
     <link rel="stylesheet" href="<%= request.getContextPath() %>/css/theme.css">
     <link rel="stylesheet" href="<%= request.getContextPath() %>/css/colors.css">
     <link rel="stylesheet" href="<%= request.getContextPath() %>/css/styles.css">
     <link rel="stylesheet" href="<%= request.getContextPath() %>/css/admin-packages.css">
 </head>
-<body class="bg-gray-50 font-sans">
-    <div class="flex min-h-screen">
-        <!-- Sidebar (copied from adminDashboard) -->
-        <aside class="w-56 bg-gradient-to-b from-purple-600 via-purple-500 to-purple-700 text-white flex flex-col fixed h-full shadow-xl">
-            <div class="p-6 border-b border-white border-opacity-20">
-                <h1 class="text-2xl font-bold">TalaqqiHub</h1>
-                <p class="text-sm text-purple-100 opacity-90">Admin Portal</p>
-            </div>
-            <nav class="flex-1 py-4 overflow-y-auto">
-                <a href="<%= request.getContextPath() %>/admin/dashboard" class="flex items-center px-6 py-3 hover:bg-white hover:bg-opacity-10 transition">
-                    <span class="text-sm font-medium">Dashboard</span>
-                </a>
-                <a href="<%= request.getContextPath() %>/admin/class-schedule" class="flex items-center px-6 py-3 hover:bg-white hover:bg-opacity-5 transition">
-                    <span class="text-sm font-medium">Class Schedule</span>
-                </a>
-                <a href="<%= request.getContextPath() %>/admin/manage-students" class="flex items-center px-6 py-3 hover:bg-white hover:bg-opacity-5 transition">
-                    <span class="text-sm font-medium">Manage Students</span>
-                </a>
-                <a href="<%= request.getContextPath() %>/admin/manage-teachers" class="flex items-center px-6 py-3 hover:bg-white hover:bg-opacity-5 transition">
-                    <span class="text-sm font-medium">Manage Teachers</span>
-                </a>
-                <a href="<%= request.getContextPath() %>/admin/packages" class="flex items-center px-6 py-3 bg-white bg-opacity-10 border-l-4 border-white">
-                    <span class="text-sm font-medium">Packages</span>
-                </a>
-            </nav>
-            <div class="p-6 border-t border-white border-opacity-20">
-                <a href="<%= request.getContextPath() %>/admin/logout" class="flex items-center hover:bg-white hover:bg-opacity-10 px-3 py-2 rounded transition">
-                    <span class="text-sm font-medium">Logout</span>
-                </a>
-            </div>
-        </aside>
+<body>
+    <jsp:include page="/WEB-INF/views/includes/adminSidebar.jsp">
+        <jsp:param name="activePage" value="packages"/>
+    </jsp:include>
 
-        <main class="flex-1 ml-56 overflow-y-auto">
-            <header class="bg-white shadow-sm sticky top-0 z-10">
-                <div class="flex items-center justify-between px-8 py-4">
-                    <h2 class="text-2xl font-bold text-gray-800">Manage Packages</h2>
-                    <div class="flex items-center space-x-4">
-                        <a href="#" class="bg-white px-4 py-2 rounded-full shadow text-sm">Export PDF</a>
-                        <a href="#" class="bg-white px-4 py-2 rounded-full shadow text-sm">CSV</a>
-                        <a href="#" class="bg-white px-4 py-2 rounded-full shadow text-sm">Print</a>
-                        <a href="<%= request.getContextPath() %>/admin/packages/add" class="bg-gradient-to-r from-purple-400 to-pink-400 text-white px-4 py-2 rounded-full shadow text-sm">+ Add Package</a>
-                    </div>
-                </div>
-            </header>
+    <div class="main-content">
+        <jsp:include page="/WEB-INF/views/includes/adminTopNavbar.jsp">
+            <jsp:param name="pageTitle" value="Manage Packages"/>
+        </jsp:include>
 
-            <div class="p-8">
-                <div class="mb-8">
-                    <h1 class="text-3xl font-bold text-gray-800 mb-2">Manage Packages</h1>
-                    <p class="text-gray-600">Create, edit, and manage all TalaqqiHub learning packages</p>
+        <div class="page-content">
+            <div class="panel-head no-print" style="margin-bottom: 24px;">
+                <div>
+                    <h1 class="page-title" style="margin-bottom: 4px;">Manage Packages</h1>
+                    <p class="page-subtitle" style="margin-bottom: 0;">Create, edit, and manage all TalaqqiHub learning packages</p>
                 </div>
+                <a href="<%= request.getContextPath() %>/admin/packages/add" class="btn-primary">+ Add Package</a>
+            </div>
 
                 <!-- Kids Packages -->
                 <div class="mb-12">
@@ -118,8 +87,7 @@
                         </c:forEach>
                     </div>
                 </div>
-            </div>
-        </main>
+        </div>
     </div>
     
             <!-- Delete confirmation modal -->

@@ -10,16 +10,25 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Add Package - Admin</title>
+    <%@ include file="/WEB-INF/views/includes/adminLayoutStyles.jsp" %>
     <script src="https://cdn.tailwindcss.com"></script>
     <link rel="stylesheet" href="<%= request.getContextPath() %>/css/theme.css">
     <link rel="stylesheet" href="<%= request.getContextPath() %>/css/styles.css">
 </head>
-<body class="bg-gray-50 font-sans">
-    <div class="flex min-h-screen">
-        <%@ include file="includes/adminSidebar.jsp" %>
-        <main class="flex-1 ml-56 p-8">
-            <h1 class="text-2xl font-bold mb-4">Add New Package</h1>
-            <form method="post" action="<%= request.getContextPath() %>/admin/packages/add" class="bg-white p-6 rounded shadow-md max-w-2xl">
+<body>
+    <jsp:include page="/WEB-INF/views/includes/adminSidebar.jsp">
+        <jsp:param name="activePage" value="packages"/>
+    </jsp:include>
+
+    <div class="main-content">
+        <jsp:include page="/WEB-INF/views/includes/adminTopNavbar.jsp">
+            <jsp:param name="pageTitle" value="Add Package"/>
+        </jsp:include>
+
+        <div class="page-content">
+            <h1 class="page-title">Add New Package</h1>
+            <p class="page-subtitle">Create a new TalaqqiHub learning package</p>
+            <form method="post" action="<%= request.getContextPath() %>/admin/packages/add" class="panel max-w-2xl">
                 <div class="mb-4">
                     <label class="block text-sm font-medium text-gray-700">Package Name *</label>
                     <input name="packageName" placeholder="e.g., TalaqqiSpark" required class="mt-1 block w-full rounded border border-gray-200 p-2" />
@@ -82,11 +91,11 @@
                 </div>
 
                 <div class="flex space-x-3">
-                    <button type="submit" class="bg-purple-600 text-white px-4 py-2 rounded">Create Package</button>
-                    <a href="<%= request.getContextPath() %>/admin/packages" class="bg-gray-200 px-4 py-2 rounded">Cancel</a>
+                    <button type="submit" class="btn-primary">Create Package</button>
+                    <a href="<%= request.getContextPath() %>/admin/packages" class="btn-secondary">Cancel</a>
                 </div>
             </form>
-        </main>
+        </div>
     </div>
 </body>
 </html>

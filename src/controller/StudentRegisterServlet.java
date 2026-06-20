@@ -71,9 +71,8 @@ public class StudentRegisterServlet extends HttpServlet {
             // Load the newly created student and set session so choosePackages can read studentId
             Student created = studentDAO.getStudentByEmail(email);
             if (created != null) {
-                request.getSession().setAttribute("student", created);
-                request.getSession().setAttribute("studentId", created.getStudentId());
-                request.getSession().setAttribute("studentName", created.getStudentName());
+                util.SessionRoleUtil.bindStudent(
+                        request.getSession(), created, created.getStudentId(), created.getStudentName());
             }
             // After successful registration, redirect to the choose packages page
             response.sendRedirect(request.getContextPath() + "/choosePackages");

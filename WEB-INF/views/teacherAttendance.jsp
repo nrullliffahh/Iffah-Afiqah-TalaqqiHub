@@ -14,102 +14,37 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Teacher Attendance - TalaqqiHub</title>
+    <%@ include file="/WEB-INF/views/includes/teacherLayoutStyles.jsp" %>
     <script src="https://cdn.tailwindcss.com"></script>
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <script src="https://cdn.jsdelivr.net/npm/chart.js@3.9.1/dist/chart.min.js"></script>
-    <style>
-        body {
-            font-family: 'Inter', system-ui, -apple-system, sans-serif;
-        }
-        .sidebar-gradient {
-            background: linear-gradient(180deg, #7c3aed 0%, #5b21b6 100%);
-        }
-    </style>
 </head>
-<body class="bg-gray-50">
-    <div class="flex h-screen overflow-hidden">
-        <!-- SIDEBAR -->
-        <aside class="sidebar-gradient w-64 flex-shrink-0 overflow-y-auto">
-            <div class="p-6">
-                <div class="text-white mb-8">
-                    <h1 class="text-2xl font-bold">TalaqqiHub</h1>
-                    <p class="text-purple-200 text-sm mt-1">Teacher Portal</p>
-                </div>
-                
-                <nav class="space-y-2">
-                    <a href="<%= request.getContextPath() %>/teacher/teacherdashboard" class="flex items-center space-x-3 px-4 py-3 text-purple-100 rounded-lg hover:bg-purple-600 transition">
-                        <i class="fas fa-home"></i>
-                        <span>Dashboard</span>
-                    </a>
-                    <a href="<%= request.getContextPath() %>/teacher/classschedule" class="flex items-center space-x-3 px-4 py-3 text-purple-100 rounded-lg hover:bg-purple-600 transition">
-                        <i class="fas fa-calendar"></i>
-                        <span>Class Schedule</span>
-                    </a>
-                    <a href="<%= request.getContextPath() %>/teacher/attendance" class="flex items-center space-x-3 px-4 py-3 text-white bg-purple-600 rounded-lg">
-                        <i class="fas fa-clipboard-check"></i>
-                        <span>Attendance</span>
-                    </a>
-                    <a href="<%= request.getContextPath() %>/teacher/evaluation" class="flex items-center space-x-3 px-4 py-3 text-purple-100 rounded-lg hover:bg-purple-600 transition">
-                        <i class="fas fa-chart-bar"></i>
-                        <span>Evaluation</span>
-                    </a>
-                    <a href="<%= request.getContextPath() %>/teacher/talaqqisessions" class="flex items-center space-x-3 px-4 py-3 text-purple-100 rounded-lg hover:bg-purple-600 transition">
-                        <i class="fas fa-tv"></i>
-                        <span>Talaqqi Sessions</span>
-                    </a>
-                    <a href="<%= request.getContextPath() %>/teacher/announcements" class="flex items-center space-x-3 px-4 py-3 text-purple-100 rounded-lg hover:bg-purple-600 transition">
-                        <i class="fas fa-bullhorn"></i>
-                        <span>Announcements</span>
-                    </a>
-                    <a href="<%= request.getContextPath() %>/teacher/ai" class="flex items-center space-x-3 px-4 py-3 text-purple-100 rounded-lg hover:bg-purple-600 transition">
-                        <i class="fas fa-magic"></i>
-                        <span>AI Assistance</span>
-                    </a>
-                </nav>
-                
-                <div class="mt-auto pt-6 border-t border-purple-500">
-                    <a href="<%= request.getContextPath() %>/logout" class="flex items-center space-x-3 px-4 py-3 text-purple-100 rounded-lg hover:bg-purple-600 transition">
-                        <i class="fas fa-sign-out-alt"></i>
-                        <span>Logout</span>
-                    </a>
-                </div>
-            </div>
-        </aside>
+<body>
+    <jsp:include page="/WEB-INF/views/includes/teacherSidebar.jsp">
+        <jsp:param name="activePage" value="attendance"/>
+    </jsp:include>
 
-        <!-- MAIN CONTENT -->
-        <main class="flex-1 overflow-y-auto">
-            <!-- HEADER -->
-            <header class="bg-white border-b border-gray-200 sticky top-0 z-40">
-                <div class="px-8 py-4 flex items-center justify-between">
-                    <div>
-                        <h1 class="text-3xl font-bold text-gray-900">Attendance</h1>
-                        <p class="text-gray-500 text-sm mt-1">Monitor and track attendance records for the current month</p>
-                    </div>
-                    <div class="flex items-center space-x-4">
-                        <button class="relative text-gray-600 hover:text-gray-900">
-                            <i class="fas fa-bell text-xl"></i>
-                            <span class="absolute top-0 right-0 w-5 h-5 bg-red-500 text-white text-xs rounded-full flex items-center justify-center">2</span>
-                        </button>
-                        <div class="w-10 h-10 bg-gradient-to-br from-purple-400 to-purple-600 rounded-full flex items-center justify-center text-white font-bold">UI</div>
-                        <div class="text-sm">
-                            <p class="font-semibold text-gray-900">${teacherName}</p>
-                        </div>
-                    </div>
-                </div>
-            </header>
+    <div class="main-content">
+        <jsp:include page="/WEB-INF/views/includes/teacherTopNavbar.jsp">
+            <jsp:param name="pageTitle" value="Attendance"/>
+            <jsp:param name="notifPrefix" value="attendNotif"/>
+        </jsp:include>
 
-            <div class="p-8">
+        <div class="page-content">
+            <h1 class="page-title">Attendance</h1>
+            <p class="page-subtitle">Monitor and track attendance records for the current month</p>
+
+            <div>
                 <!-- TOP CARDS -->
                 <div class="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
                     <!-- Total Students -->
-                    <div class="bg-white rounded-xl shadow-sm p-6 border-l-4 border-pink-500">
+                    <div class="bg-white rounded-xl shadow-sm p-6 border-l-4 border-pink-400">
                         <div class="flex items-center justify-between">
                             <div>
                                 <p class="text-gray-600 text-sm font-medium">Total Students</p>
                                 <p class="text-3xl font-bold text-gray-900 mt-2">${totalStudents}</p>
                             </div>
-                            <div class="w-14 h-14 bg-pink-100 rounded-full flex items-center justify-center">
-                                <i class="fas fa-users text-pink-500 text-2xl"></i>
+                            <div class="w-14 h-14 bg-pink-50 rounded-full flex items-center justify-center">
+                                <i class="fas fa-users text-pink-400 text-2xl"></i>
                             </div>
                         </div>
                     </div>
@@ -283,10 +218,23 @@
                 </div>
 
                 <!-- CHARTS -->
+                <div class="mb-4 flex flex-col md:flex-row md:items-center md:justify-between gap-4">
+                    <div>
+                        <h2 class="text-xl font-bold text-gray-900">Attendance Analytics</h2>
+                        <p id="chartStudentSubtitle" class="text-sm text-gray-500 mt-1">Showing data for all students (current month)</p>
+                    </div>
+                    <div class="flex items-center space-x-3">
+                        <label for="studentChartFilter" class="text-sm font-medium text-gray-700 whitespace-nowrap">View by Student:</label>
+                        <select id="studentChartFilter" class="min-w-[220px] px-4 py-2 border border-gray-300 rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-purple-500">
+                            <option value="">All Students</option>
+                        </select>
+                    </div>
+                </div>
+
                 <div class="grid grid-cols-1 lg:grid-cols-2 gap-8">
                     <!-- Attendance Distribution -->
                     <div class="bg-white rounded-xl shadow-sm p-6">
-                        <h3 class="text-lg font-bold text-gray-900 mb-6">Attendance Distribution</h3>
+                        <h3 id="distributionTitle" class="text-lg font-bold text-gray-900 mb-6">Attendance Distribution</h3>
                         <div style="position: relative; height: 300px;">
                             <canvas id="distributionChart"></canvas>
                         </div>
@@ -308,7 +256,7 @@
 
                     <!-- Attendance Trend -->
                     <div class="bg-white rounded-xl shadow-sm p-6">
-                        <h3 class="text-lg font-bold text-gray-900 mb-6">Attendance Trend</h3>
+                        <h3 id="trendTitle" class="text-lg font-bold text-gray-900 mb-6">Attendance Trend</h3>
                         <div style="position: relative; height: 300px;">
                             <canvas id="trendChart"></canvas>
                         </div>
@@ -329,10 +277,168 @@
                     </div>
                 </div>
             </div>
-        </main>
+        </div>
     </div>
 
     <script>
+        const allRecords = ${empty recordsJson ? '[]' : recordsJson};
+        const weekLabelsDefault = ${weekLabelsJson};
+        const defaultChartData = {
+            present: ${present},
+            absent: ${absent},
+            late: ${late},
+            presentData: ${presentDataJson},
+            absentData: ${absentDataJson},
+            lateData: ${lateDataJson}
+        };
+
+        function getCurrentMonthRange() {
+            const today = new Date();
+            const year = today.getFullYear();
+            const month = today.getMonth();
+            const monthStart = new Date(year, month, 1);
+            const monthEnd = new Date(year, month + 1, 0);
+            return { monthStart, monthEnd };
+        }
+
+        function generateWeekRanges(monthStart, monthEnd) {
+            const weeks = [];
+            const weekStart = new Date(monthStart);
+
+            while (weekStart <= monthEnd) {
+                const weekEnd = new Date(weekStart);
+                weekEnd.setDate(weekEnd.getDate() + 6);
+
+                if (weekEnd > monthEnd) {
+                    weekEnd.setTime(monthEnd.getTime());
+                }
+
+                const label =
+                    String(weekStart.getMonth() + 1).padStart(2, '0') + '/' +
+                    String(weekStart.getDate()).padStart(2, '0') + ' - ' +
+                    String(weekEnd.getMonth() + 1).padStart(2, '0') + '/' +
+                    String(weekEnd.getDate()).padStart(2, '0');
+
+                weeks.push({
+                    label: label,
+                    start: new Date(weekStart),
+                    end: new Date(weekEnd)
+                });
+
+                weekStart.setDate(weekStart.getDate() + 7);
+            }
+
+            return weeks;
+        }
+
+        function computeStudentChartData(studentId) {
+            const range = getCurrentMonthRange();
+            const weeks = generateWeekRanges(range.monthStart, range.monthEnd);
+
+            let present = 0;
+            let absent = 0;
+            let late = 0;
+            const presentData = weeks.map(() => 0);
+            const absentData = weeks.map(() => 0);
+            const lateData = weeks.map(() => 0);
+
+            allRecords.forEach(function(record) {
+                if (!record.date) {
+                    return;
+                }
+
+                const recordDate = new Date(record.date + 'T00:00:00');
+                if (recordDate < range.monthStart || recordDate > range.monthEnd) {
+                    return;
+                }
+
+                if (studentId && record.studentId !== studentId) {
+                    return;
+                }
+
+                const status = record.status;
+                if (status === 'Present') {
+                    present++;
+                } else if (status === 'Absent') {
+                    absent++;
+                } else if (status === 'Late') {
+                    late++;
+                }
+
+                for (let i = 0; i < weeks.length; i++) {
+                    if (recordDate >= weeks[i].start && recordDate <= weeks[i].end) {
+                        if (status === 'Present') {
+                            presentData[i]++;
+                        } else if (status === 'Absent') {
+                            absentData[i]++;
+                        } else if (status === 'Late') {
+                            lateData[i]++;
+                        }
+                        break;
+                    }
+                }
+            });
+
+            const maxValue = Math.max(
+                12,
+                ...presentData,
+                ...absentData,
+                ...lateData,
+                1
+            );
+
+            return {
+                present: present,
+                absent: absent,
+                late: late,
+                weekLabels: weeks.map(function(week) { return week.label; }),
+                presentData: presentData,
+                absentData: absentData,
+                lateData: lateData,
+                yMax: maxValue
+            };
+        }
+
+        function populateStudentChartFilter() {
+            const studentFilter = document.getElementById('studentChartFilter');
+            if (!studentFilter) {
+                return;
+            }
+
+            const students = new Map();
+            allRecords.forEach(function(record) {
+                if (record.studentId && record.studentName) {
+                    students.set(record.studentId, record.studentName);
+                }
+            });
+
+            Array.from(students.entries())
+                .sort(function(a, b) { return a[1].localeCompare(b[1]); })
+                .forEach(function(entry) {
+                    const option = document.createElement('option');
+                    option.value = entry[0];
+                    option.textContent = entry[1];
+                    studentFilter.appendChild(option);
+                });
+        }
+
+        function updateChartTitles(studentId, studentName) {
+            const distributionTitle = document.getElementById('distributionTitle');
+            const trendTitle = document.getElementById('trendTitle');
+            const subtitle = document.getElementById('chartStudentSubtitle');
+
+            if (!studentId) {
+                distributionTitle.textContent = 'Attendance Distribution';
+                trendTitle.textContent = 'Attendance Trend';
+                subtitle.textContent = 'Showing data for all students (current month)';
+                return;
+            }
+
+            distributionTitle.textContent = 'Attendance Distribution - ' + studentName;
+            trendTitle.textContent = 'Attendance Trend - ' + studentName;
+            subtitle.textContent = 'Showing individual attendance for ' + studentName + ' (current month)';
+        }
+
         // Attendance Distribution Chart (Donut)
         const distributionCtx = document.getElementById('distributionChart').getContext('2d');
         const distributionChart = new Chart(distributionCtx, {
@@ -397,6 +503,53 @@
                 }
             }
         });
+
+        function updateCharts(studentId) {
+            const studentFilter = document.getElementById('studentChartFilter');
+            const selectedOption = studentFilter ? studentFilter.options[studentFilter.selectedIndex] : null;
+            const studentName = selectedOption ? selectedOption.textContent : 'All Students';
+
+            let chartData;
+            if (!studentId) {
+                chartData = {
+                    present: defaultChartData.present,
+                    absent: defaultChartData.absent,
+                    late: defaultChartData.late,
+                    weekLabels: weekLabelsDefault,
+                    presentData: defaultChartData.presentData,
+                    absentData: defaultChartData.absentData,
+                    lateData: defaultChartData.lateData,
+                    yMax: 12
+                };
+            } else {
+                chartData = computeStudentChartData(studentId);
+            }
+
+            updateChartTitles(studentId, studentName);
+
+            distributionChart.data.datasets[0].data = [
+                chartData.present,
+                chartData.absent,
+                chartData.late
+            ];
+            distributionChart.update();
+
+            trendChart.data.labels = chartData.weekLabels;
+            trendChart.data.datasets[0].data = chartData.presentData;
+            trendChart.data.datasets[1].data = chartData.absentData;
+            trendChart.data.datasets[2].data = chartData.lateData;
+            trendChart.options.scales.y.max = chartData.yMax;
+            trendChart.update();
+        }
+
+        populateStudentChartFilter();
+
+        const studentChartFilter = document.getElementById('studentChartFilter');
+        if (studentChartFilter) {
+            studentChartFilter.addEventListener('change', function() {
+                updateCharts(this.value);
+            });
+        }
 
         // ===== SEARCH & FILTER FUNCTIONALITY =====
         const searchInput = document.getElementById('searchInput');

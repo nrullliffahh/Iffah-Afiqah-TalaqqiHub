@@ -243,6 +243,17 @@
         <servlet-class>controller.AdminTalaqqiSessionServlet</servlet-class>
     </servlet>
 
+    <!-- Admin Attendance Analytics -->
+    <servlet>
+        <servlet-name>AdminAttendanceServlet</servlet-name>
+        <servlet-class>controller.AdminAttendanceServlet</servlet-class>
+    </servlet>
+
+    <servlet>
+        <servlet-name>AdminEvaluationAnalyticsServlet</servlet-name>
+        <servlet-class>controller.AdminEvaluationAnalyticsServlet</servlet-class>
+    </servlet>
+
     <!-- Student Attendance -->
     <servlet>
         <servlet-name>StudentAttendanceServlet</servlet-name>
@@ -253,6 +264,60 @@
     <servlet>
         <servlet-name>TeacherAttendanceServlet</servlet-name>
         <servlet-class>controller.TeacherAttendanceServlet</servlet-class>
+    </servlet>
+
+    <!-- Teacher Evaluation -->
+    <servlet>
+        <servlet-name>TeacherEvaluationServlet</servlet-name>
+        <servlet-class>com.talaqqihub.servlet.TeacherEvaluationServlet</servlet-class>
+    </servlet>
+
+    <!-- Student Evaluation -->
+    <servlet>
+        <servlet-name>StudentEvaluationServlet</servlet-name>
+        <servlet-class>controller.StudentEvaluationServlet</servlet-class>
+    </servlet>
+
+    <!-- Student AI Assistance (OpenAI GPT-3.5) -->
+    <servlet>
+        <servlet-name>StudentAiAssistanceServlet</servlet-name>
+        <servlet-class>controller.StudentAiAssistanceServlet</servlet-class>
+    </servlet>
+
+    <!-- Student Announcements -->
+    <servlet>
+        <servlet-name>StudentAnnouncementsServlet</servlet-name>
+        <servlet-class>controller.StudentAnnouncementsServlet</servlet-class>
+    </servlet>
+
+    <!-- Teacher AI Assistance (Google Gemini) -->
+    <servlet>
+        <servlet-name>TeacherAiAssistanceServlet</servlet-name>
+        <servlet-class>controller.TeacherAiAssistanceServlet</servlet-class>
+    </servlet>
+
+    <!-- Teacher Announcements -->
+    <servlet>
+        <servlet-name>TeacherAnnouncementsServlet</servlet-name>
+        <servlet-class>controller.TeacherAnnouncementsServlet</servlet-class>
+    </servlet>
+
+    <!-- Admin AI Assistance Analytics -->
+    <servlet>
+        <servlet-name>AdminAiAssistanceServlet</servlet-name>
+        <servlet-class>controller.AdminAiAssistanceServlet</servlet-class>
+    </servlet>
+
+    <!-- Admin Announcements -->
+    <servlet>
+        <servlet-name>AdminAnnouncementsServlet</servlet-name>
+        <servlet-class>controller.AdminAnnouncementsServlet</servlet-class>
+    </servlet>
+
+    <!-- Post-Session Evaluation (student rates teacher after a completed session) -->
+    <servlet>
+        <servlet-name>PostSessionEvaluationServlet</servlet-name>
+        <servlet-class>controller.PostSessionEvaluationServlet</servlet-class>
     </servlet>
 
     <servlet-mapping>
@@ -432,6 +497,11 @@
     </servlet-mapping>
 
     <servlet-mapping>
+        <servlet-name>TeacherEvaluationServlet</servlet-name>
+        <url-pattern>/teacher/evaluation</url-pattern>
+    </servlet-mapping>
+
+    <servlet-mapping>
         <servlet-name>AdminLoginServlet</servlet-name>
         <url-pattern>/admin/login</url-pattern>
     </servlet-mapping>
@@ -522,13 +592,72 @@
     </servlet-mapping>
 
     <servlet-mapping>
+        <servlet-name>AdminAttendanceServlet</servlet-name>
+        <url-pattern>/admin/attendance</url-pattern>
+    </servlet-mapping>
+
+    <servlet-mapping>
+        <servlet-name>AdminEvaluationAnalyticsServlet</servlet-name>
+        <url-pattern>/admin/evaluation-analytics</url-pattern>
+    </servlet-mapping>
+
+    <servlet-mapping>
         <servlet-name>StudentAttendanceServlet</servlet-name>
         <url-pattern>/student/attendance</url-pattern>
     </servlet-mapping>
+
+    <servlet-mapping>
+        <servlet-name>StudentEvaluationServlet</servlet-name>
+        <url-pattern>/student/evaluation</url-pattern>
+    </servlet-mapping>
+
+    <servlet-mapping>
+        <servlet-name>StudentAiAssistanceServlet</servlet-name>
+        <url-pattern>/student/ai-assistance</url-pattern>
+    </servlet-mapping>
+
+    <servlet-mapping>
+        <servlet-name>StudentAnnouncementsServlet</servlet-name>
+        <url-pattern>/student/announcements</url-pattern>
+    </servlet-mapping>
+
+    <servlet-mapping>
+        <servlet-name>TeacherAiAssistanceServlet</servlet-name>
+        <url-pattern>/teacher/ai-assistance</url-pattern>
+    </servlet-mapping>
+
+    <servlet-mapping>
+        <servlet-name>TeacherAnnouncementsServlet</servlet-name>
+        <url-pattern>/teacher/announcements</url-pattern>
+    </servlet-mapping>
+
+    <servlet-mapping>
+        <servlet-name>AdminAiAssistanceServlet</servlet-name>
+        <url-pattern>/admin/ai-assistance</url-pattern>
+    </servlet-mapping>
+
+    <servlet-mapping>
+        <servlet-name>AdminAnnouncementsServlet</servlet-name>
+        <url-pattern>/admin/announcements</url-pattern>
+    </servlet-mapping>
+
+    <servlet-mapping>
+        <servlet-name>PostSessionEvaluationServlet</servlet-name>
+        <url-pattern>/api/evaluation/session-feedback</url-pattern>
+    </servlet-mapping>
+
+    <resource-ref>
+        <description>TalaqqiHub MySQL DataSource (talaqqihub_db)</description>
+        <res-ref-name>jdbc/TalaqqiHubDB</res-ref-name>
+        <res-type>javax.sql.DataSource</res-type>
+        <res-auth>Container</res-auth>
+    </resource-ref>
 
     <welcome-file-list>
         <welcome-file>index.jsp</welcome-file>
     </welcome-file-list>
 
 </web-app>
+
+
 

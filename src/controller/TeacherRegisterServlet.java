@@ -121,11 +121,8 @@ public class TeacherRegisterServlet extends HttpServlet {
         boolean success = teacherDAO.registerTeacher(teacher);
 
         if (success) {
-            // Auto-login: Create session with teacher information
             HttpSession session = request.getSession();
-            session.setAttribute("teacherId", teacher.getTeacherId());
-            session.setAttribute("teacherName", teacher.getFullName());
-            session.setAttribute("teacherEmail", teacher.getEmail());
+            util.SessionRoleUtil.bindTeacher(session, teacher.getTeacherId(), teacher.getFullName(), teacher.getEmail());
             
             // Redirect to teacher dashboard
             response.sendRedirect(request.getContextPath() + "/teacher/teacherdashboard");

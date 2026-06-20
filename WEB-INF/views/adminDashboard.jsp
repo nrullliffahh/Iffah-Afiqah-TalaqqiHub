@@ -15,6 +15,7 @@
     
     int presentCount = request.getAttribute("presentCount") != null ? (int) request.getAttribute("presentCount") : 0;
     int absentCount = request.getAttribute("absentCount") != null ? (int) request.getAttribute("absentCount") : 0;
+    int lateCount = request.getAttribute("lateCount") != null ? (int) request.getAttribute("lateCount") : 0;
     double attendanceRate = request.getAttribute("attendanceRate") != null ? (double) request.getAttribute("attendanceRate") : 0.0;
     
     double avgTeacherRating = request.getAttribute("avgTeacherRating") != null ? (double) request.getAttribute("avgTeacherRating") : 0.0;
@@ -22,6 +23,10 @@
     
     List<Map<String, Object>> recentActivities = (List<Map<String, Object>>) request.getAttribute("recentActivities");
     List<Announcement> recentAnnouncements = (List<Announcement>) request.getAttribute("recentAnnouncements");
+
+    double attendanceOffset = 502.4 - (502.4 * attendanceRate / 100.0);
+    int teacherRatingWidth = (int) Math.min(100, Math.max(0, (avgTeacherRating / 5.0) * 100));
+    int studentPerfWidth = (int) Math.min(100, Math.max(0, (avgStudentPerformance / 5.0) * 100));
 %>
 <!DOCTYPE html>
 <html lang="en">
@@ -29,444 +34,322 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Admin Dashboard - TalaqqiHub</title>
-    <script src="https://cdn.tailwindcss.com"></script>
+    <%@ include file="/WEB-INF/views/includes/adminLayoutStyles.jsp" %>
     <style>
-        .scrollbar-hide::-webkit-scrollbar {
-            display: none;
-        }
-        .scrollbar-hide {
-            -ms-overflow-style: none;
-            scrollbar-width: none;
+        .attendance-ring-wrap { display: flex; justify-content: center; margin-bottom: 24px; }
+        .attendance-ring { position: relative; width: 192px; height: 192px; }
+        .attendance-ring svg { width: 192px; height: 192px; transform: rotate(-90deg); }
+        .attendance-ring-center { position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; }
+        .attendance-rate-value { font-size: 36px; font-weight: 700; color: #1E293B; }
+        .attendance-rate-label { font-size: 13px; color: #64748B; }
+        .attendance-mini-stats { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; margin-bottom: 24px; }
+        .attendance-mini-stat { border-radius: 12px; padding: 16px; text-align: center; }
+        .attendance-mini-stat.present { background: #ECFDF5; border: 1px solid #A7F3D0; }
+        .attendance-mini-stat.late { background: #FFFBEB; border: 1px solid #FDE68A; }
+        .attendance-mini-stat.absent { background: #FEF2F2; border: 1px solid #FECACA; }
+        .attendance-mini-stat .label { font-size: 13px; font-weight: 600; margin-bottom: 4px; }
+        .attendance-mini-stat.present .label, .attendance-mini-stat.present .value { color: #059669; }
+        .attendance-mini-stat.late .label, .attendance-mini-stat.late .value { color: #D97706; }
+        .attendance-mini-stat.absent .label, .attendance-mini-stat.absent .value { color: #DC2626; }
+        .attendance-mini-stat .value { font-size: 28px; font-weight: 700; }
+        .panel-note { text-align: center; font-size: 13px; color: #64748B; margin-bottom: 16px; }
+        .panel-icon-head { display: flex; align-items: center; gap: 12px; margin-bottom: 24px; }
+        .panel-icon { width: 40px; height: 40px; border-radius: 12px; background: var(--admin-gradient); color: white; display: flex; align-items: center; justify-content: center; font-size: 18px; flex-shrink: 0; }
+        .rating-item { margin-bottom: 24px; }
+        .rating-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; }
+        .rating-label { font-size: 13px; font-weight: 600; color: #64748B; }
+        .rating-score { font-size: 24px; font-weight: 700; color: #1E293B; }
+        .rating-score span { font-size: 13px; color: #94A3B8; font-weight: 500; }
+        .rating-stars { color: #F59E0B; font-size: 16px; letter-spacing: 2px; margin-bottom: 8px; }
+        .rating-track { height: 8px; background: #F1F5F9; border-radius: 4px; overflow: hidden; }
+        .rating-fill { height: 100%; background: var(--admin-gradient-h); border-radius: 4px; }
+        .btn-block { display: block; width: 100%; text-align: center; }
+        .activity-list { display: flex; flex-direction: column; gap: 16px; }
+        .activity-item { display: flex; align-items: flex-start; gap: 12px; padding-bottom: 16px; border-bottom: 1px solid #F1F5F9; }
+        .activity-item:last-child { padding-bottom: 0; border-bottom: none; }
+        .activity-icon { width: 40px; height: 40px; border-radius: 50%; display: flex; align-items: center; justify-content: center; flex-shrink: 0; font-size: 14px; }
+        .activity-icon.cancelled { background: #FEE2E2; color: #DC2626; }
+        .activity-icon.completed { background: #D1FAE5; color: #059669; }
+        .activity-icon.upcoming { background: #DBEAFE; color: #2563EB; }
+        .activity-icon.default { background: #F1F5F9; color: #64748B; }
+        .activity-text { font-size: 13px; color: #1E293B; }
+        .activity-date { font-size: 12px; color: #94A3B8; margin-top: 4px; }
+        .announcement-list { display: flex; flex-direction: column; gap: 16px; }
+        .announcement-meta { display: flex; flex-wrap: wrap; gap: 16px; font-size: 13px; color: #64748B; margin-top: 8px; }
+        .announcement-meta span { display: inline-flex; align-items: center; gap: 6px; }
+        .quick-actions-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 16px; }
+        .quick-action-card { border-radius: 20px; padding: 24px; box-shadow: 0 4px 20px rgba(0,0,0,0.08); cursor: pointer; transition: box-shadow .2s; }
+        .quick-action-card:hover { box-shadow: 0 8px 28px rgba(0,0,0,0.12); }
+        .quick-action-card.primary { background: var(--admin-gradient); color: white; box-shadow: 0 2px 10px rgba(15,118,110,0.18); }
+        .quick-action-card.secondary { background: white; border: 1px solid #F1F5F9; }
+        .quick-action-icon { width: 48px; height: 48px; border-radius: 12px; display: flex; align-items: center; justify-content: center; font-size: 22px; margin-bottom: 16px; }
+        .quick-action-card.primary .quick-action-icon { background: rgba(255,255,255,0.25); color: white; }
+        .quick-action-card.secondary .quick-action-icon { background: var(--admin-accent-light); color: var(--admin-teal); }
+        .quick-action-title { font-size: 16px; font-weight: 600; margin-bottom: 6px; }
+        .quick-action-card.secondary .quick-action-title { color: #1E293B; }
+        .quick-action-desc { font-size: 13px; }
+        .quick-action-card.primary .quick-action-desc { color: rgba(255,255,255,0.9); }
+        .quick-action-card.secondary .quick-action-desc { color: #64748B; }
+        .empty-state { font-size: 13px; color: #94A3B8; }
+        @media (max-width: 1200px) {
+            .quick-actions-grid { grid-template-columns: 1fr 1fr; }
+            .attendance-mini-stats { grid-template-columns: 1fr; }
         }
     </style>
 </head>
-<body class="bg-gray-50 font-sans">
-    <div class="flex min-h-screen">
-        <aside class="w-56 bg-gradient-to-b from-purple-600 via-purple-500 to-purple-700 text-white flex flex-col fixed h-full shadow-xl">
-            <div class="p-6 border-b border-white border-opacity-20">
-                <h1 class="text-2xl font-bold">TalaqqiHub</h1>
-                <p class="text-sm text-purple-100 opacity-90">Admin Portal</p>
-            </div>
-            
-            <nav class="flex-1 py-4 overflow-y-auto scrollbar-hide">
-                <a href="#" class="flex items-center px-6 py-3 bg-white bg-opacity-10 border-l-4 border-white">
-                    <svg class="w-5 h-5 mr-3" fill="currentColor" viewBox="0 0 20 20"><path d="M10.707 2.293a1 1 0 00-1.414 0l-7 7a1 1 0 001.414 1.414L4 10.414V17a1 1 0 001 1h2a1 1 0 001-1v-2a1 1 0 011-1h2a1 1 0 011 1v2a1 1 0 001 1h2a1 1 0 001-1v-6.586l.293.293a1 1 0 001.414-1.414l-7-7z"/></svg>
-                    <span class="text-sm font-medium">Dashboard</span>
-                </a>
-                <a href="<%= request.getContextPath() %>/admin/class-schedule" class="flex items-center px-6 py-3 hover:bg-white hover:bg-opacity-5 transition">
-                    <svg class="w-5 h-5 mr-3" fill="currentColor" viewBox="0 0 20 20"><path d="M6 2a1 1 0 00-1 1v1H4a2 2 0 00-2 2v10a2 2 0 002 2h12a2 2 0 002-2V6a2 2 0 00-2-2h-1V3a1 1 0 10-2 0v1H7V3a1 1 0 00-1-1zm0 5a1 1 0 000 2h8a1 1 0 100-2H6z"/></svg>
-                    <span class="text-sm font-medium">Class Schedule</span>
-                </a>
-                <a href="<%= request.getContextPath() %>/admin/packages" class="flex items-center px-6 py-3 hover:bg-white hover:bg-opacity-5 transition">
-                    <svg class="w-5 h-5 mr-3" fill="currentColor" viewBox="0 0 20 20"><path d="M2 11a1 1 0 011-1h2a1 1 0 011 1v5a1 1 0 01-1 1H3a1 1 0 01-1-1v-5zM8 7a1 1 0 011-1h2a1 1 0 011 1v9a1 1 0 01-1 1H9a1 1 0 01-1-1V7zM14 4a1 1 0 011-1h2a1 1 0 011 1v12a1 1 0 01-1 1h-2a1 1 0 01-1-1V4z"/></svg>
-                    <span class="text-sm font-medium">Attendance Analytics</span>
-                </a>
-                <a href="<%= request.getContextPath() %>/admin/talaqqi-sessions" class="flex items-center px-6 py-3 hover:bg-white hover:bg-opacity-5 transition">
-                    <svg class="w-5 h-5 mr-3" fill="currentColor" viewBox="0 0 20 20"><path d="M2 6a2 2 0 012-2h6a2 2 0 012 2v8a2 2 0 01-2 2H4a2 2 0 01-2-2V6zM14.553 7.106A1 1 0 0014 8v4a1 1 0 00.553.894l2 1A1 1 0 0018 13V7a1 1 0 00-1.447-.894l-2 1z"/></svg>
-                    <span class="text-sm font-medium">Talaqqi Session</span>
-                </a>
-                <a href="#" class="flex items-center px-6 py-3 hover:bg-white hover:bg-opacity-5 transition">
-                    <svg class="w-5 h-5 mr-3" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm1-12a1 1 0 10-2 0v4a1 1 0 00.293.707l2.828 2.829a1 1 0 101.415-1.415L11 9.586V6z" clip-rule="evenodd"/></svg>
-                    <span class="text-sm font-medium">Evaluation Analytics</span>
-                </a>
-                <a href="#" class="flex items-center px-6 py-3 hover:bg-white hover:bg-opacity-5 transition">
-                    <svg class="w-5 h-5 mr-3" fill="currentColor" viewBox="0 0 20 20"><path d="M18 3a1 1 0 00-1.196-.98l-10 2A1 1 0 006 5v9.114A4.369 4.369 0 005 14c-1.657 0-3 .895-3 2s1.343 2 3 2 3-.895 3-2V7.82l8-1.6v5.894A4.37 4.37 0 0015 12c-1.657 0-3 .895-3 2s1.343 2 3 2 3-.895 3-2V3z"/></svg>
-                    <span class="text-sm font-medium">Announcements</span>
-                </a>
-                <a href="#" class="flex items-center px-6 py-3 hover:bg-white hover:bg-opacity-5 transition">
-                    <svg class="w-5 h-5 mr-3" fill="currentColor" viewBox="0 0 20 20"><path d="M11 3a1 1 0 10-2 0v1a1 1 0 102 0V3zM15.657 5.757a1 1 0 00-1.414-1.414l-.707.707a1 1 0 001.414 1.414l.707-.707zM18 10a1 1 0 01-1 1h-1a1 1 0 110-2h1a1 1 0 011 1zM5.05 6.464A1 1 0 106.464 5.05l-.707-.707a1 1 0 00-1.414 1.414l.707.707zM5 10a1 1 0 01-1 1H3a1 1 0 110-2h1a1 1 0 011 1zM8 16v-1h4v1a2 2 0 11-4 0zM12 14c.015-.34.208-.646.477-.859a4 4 0 10-4.954 0c.27.213.462.519.476.859h4.002z"/></svg>
-                    <span class="text-sm font-medium">AI Assistance</span>
-                </a>
-                <a href="<%= request.getContextPath() %>/admin/manage-students" class="flex items-center px-6 py-3 hover:bg-white hover:bg-opacity-5 transition">
-                    <svg class="w-5 h-5 mr-3" fill="currentColor" viewBox="0 0 20 20"><path d="M9 6a3 3 0 11-6 0 3 3 0 016 0zM17 6a3 3 0 11-6 0 3 3 0 016 0zM12.93 17c.046-.327.07-.66.07-1a6.97 6.97 0 00-1.5-4.33A5 5 0 0119 16v1h-6.07zM6 11a5 5 0 015 5v1H1v-1a5 5 0 015-5z"/></svg>
-                    <span class="text-sm font-medium">Manage Students</span>
-                </a>
-                <a href="<%= request.getContextPath() %>/admin/manage-teachers" class="flex items-center px-6 py-3 hover:bg-white hover:bg-opacity-5 transition">
-                    <svg class="w-5 h-5 mr-3" fill="currentColor" viewBox="0 0 20 20"><path d="M13 6a3 3 0 11-6 0 3 3 0 016 0zM18 8a2 2 0 11-4 0 2 2 0 014 0zM14 15a4 4 0 00-8 0v3h8v-3zM6 8a2 2 0 11-4 0 2 2 0 014 0zM16 18v-3a5.972 5.972 0 00-.75-2.906A3.005 3.005 0 0119 15v3h-3zM4.75 12.094A5.973 5.973 0 004 15v3H1v-3a3 3 0 013.75-2.906z"/></svg>
-                    <span class="text-sm font-medium">Manage Teachers</span>
-                </a>
-                <a href="<%= request.getContextPath() %>/admin/packages" class="flex items-center px-6 py-3 hover:bg-white hover:bg-opacity-5 transition">
-                    <svg class="w-5 h-5 mr-3" fill="currentColor" viewBox="0 0 20 20"><path d="M3 1a1 1 0 000 2h1.22l.305 1.222a.997.997 0 00.01.042l1.358 5.43-.893.892C3.74 11.846 4.632 14 6.414 14H15a1 1 0 000-2H6.414l1-1H14a1 1 0 00.894-.553l3-6A1 1 0 0017 3H6.28l-.31-1.243A1 1 0 005 1H3zM16 16.5a1.5 1.5 0 11-3 0 1.5 1.5 0 013 0zM6.5 18a1.5 1.5 0 100-3 1.5 1.5 0 000 3z"/></svg>
-                    <span class="text-sm font-medium">Packages</span>
-                </a>
-                <a href="#" class="flex items-center px-6 py-3 hover:bg-white hover:bg-opacity-5 transition">
-                    <svg class="w-5 h-5 mr-3" fill="currentColor" viewBox="0 0 20 20"><path d="M10 2a6 6 0 00-6 6v3.586l-.707.707A1 1 0 004 14h12a1 1 0 00.707-1.707L16 11.586V8a6 6 0 00-6-6zM10 18a3 3 0 01-3-3h6a3 3 0 01-3 3z"/></svg>
-                    <span class="text-sm font-medium">Notifications</span>
-                </a>
-                <a href="#" class="flex items-center px-6 py-3 hover:bg-white hover:bg-opacity-5 transition">
-                    <svg class="w-5 h-5 mr-3" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M10 9a3 3 0 100-6 3 3 0 000 6zm-7 9a7 7 0 1114 0H3z" clip-rule="evenodd"/></svg>
-                    <span class="text-sm font-medium">Profile</span>
-                </a>
-            </nav>
-            
-            <div class="p-6 border-t border-white border-opacity-20">
-                <a href="#" class="flex items-center hover:bg-white hover:bg-opacity-10 px-3 py-2 rounded transition">
-                    <svg class="w-5 h-5 mr-3" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M3 3a1 1 0 00-1 1v12a1 1 0 102 0V4a1 1 0 00-1-1zm10.293 9.293a1 1 0 001.414 1.414l3-3a1 1 0 000-1.414l-3-3a1 1 0 10-1.414 1.414L14.586 9H7a1 1 0 100 2h7.586l-1.293 1.293z" clip-rule="evenodd"/></svg>
-                    <span class="text-sm font-medium">Logout</span>
-                </a>
-            </div>
-        </aside>
+<body>
+    <jsp:include page="/WEB-INF/views/includes/adminSidebar.jsp">
+        <jsp:param name="activePage" value="dashboard"/>
+    </jsp:include>
 
-        <main class="flex-1 ml-56 overflow-y-auto scrollbar-hide">
-            <header class="bg-white shadow-sm sticky top-0 z-10">
-                <div class="flex items-center justify-between px-8 py-4">
-                    <h2 class="text-2xl font-bold text-gray-800">Admin Dashboard</h2>
-                    <div class="flex items-center space-x-5">
-                        <div class="relative cursor-pointer">
-                            <svg class="w-6 h-6 text-gray-600" fill="currentColor" viewBox="0 0 20 20"><path d="M10 2a6 6 0 00-6 6v3.586l-.707.707A1 1 0 004 14h12a1 1 0 00.707-1.707L16 11.586V8a6 6 0 00-6-6zM10 18a3 3 0 01-3-3h6a3 3 0 01-3 3z"/></svg>
-                            <span class="absolute -top-1 -right-1 bg-red-500 text-white text-xs rounded-full w-5 h-5 flex items-center justify-center font-semibold">3</span>
-                        </div>
-                        <div class="flex items-center space-x-3 cursor-pointer">
-                            <div class="w-10 h-10 bg-purple-400 rounded-full flex items-center justify-center text-white font-semibold text-sm">
-                                AM
-                            </div>
-                            <div class="flex items-center space-x-2">
-                                <div>
-                                    <p class="text-sm font-semibold text-gray-800"><%= adminName %></p>
-                                    <p class="text-xs text-gray-500">Administrator</p>
-                                </div>
-                                <svg class="w-4 h-4 text-gray-400" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z" clip-rule="evenodd"/></svg>
-                            </div>
-                        </div>
+    <div class="main-content">
+        <jsp:include page="/WEB-INF/views/includes/adminTopNavbar.jsp">
+            <jsp:param name="pageTitle" value="Admin Dashboard"/>
+        </jsp:include>
+
+        <div class="page-content">
+            <h1 class="page-title">Welcome back, <%= adminName %>!</h1>
+            <p class="page-subtitle">Here's an overview of TalaqqiHub platform activity</p>
+
+            <h2 class="section-title">Platform Overview</h2>
+            <div class="stats-grid">
+                <div class="stat-card">
+                    <div class="stat-icon"><i class="fas fa-users"></i></div>
+                    <div>
+                        <div class="stat-value"><%= totalActiveStudents %></div>
+                        <div class="stat-label">Total Active Students</div>
+                        <div class="stat-hint">Currently enrolled</div>
                     </div>
                 </div>
-            </header>
+                <div class="stat-card">
+                    <div class="stat-icon purple"><i class="fas fa-chalkboard-user"></i></div>
+                    <div>
+                        <div class="stat-value"><%= totalActiveTeachers %></div>
+                        <div class="stat-label">Total Active Teachers</div>
+                        <div class="stat-hint">Currently teaching</div>
+                    </div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-icon"><i class="fas fa-video"></i></div>
+                    <div>
+                        <div class="stat-value"><%= totalSessions %></div>
+                        <div class="stat-label">Total Talaqqi Sessions</div>
+                        <div class="stat-hint">All-time sessions</div>
+                    </div>
+                </div>
+            </div>
 
-            <div class="p-8">
-                <div class="mb-8">
-                    <h1 class="text-3xl font-bold text-gray-800 mb-2">Welcome back, <%= adminName %>!</h1>
-                    <p class="text-gray-600">Here's an overview of TalaqqiHub platform activity</p>
+            <div class="stats-grid">
+                <div class="stat-card">
+                    <div class="stat-icon blue"><i class="fas fa-clock"></i></div>
+                    <div>
+                        <div class="stat-value" style="color:#3B82F6;"><%= upcomingSessions %></div>
+                        <div class="stat-label">Upcoming Sessions</div>
+                        <div class="stat-hint">Scheduled sessions</div>
+                    </div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-icon green"><i class="fas fa-check-circle"></i></div>
+                    <div>
+                        <div class="stat-value" style="color:#10B981;"><%= completedSessions %></div>
+                        <div class="stat-label">Completed Sessions</div>
+                        <div class="stat-hint">Successfully finished</div>
+                    </div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-icon red"><i class="fas fa-times-circle"></i></div>
+                    <div>
+                        <div class="stat-value" style="color:#EF4444;"><%= cancelledSessions %></div>
+                        <div class="stat-label">Cancelled Sessions</div>
+                        <div class="stat-hint">Cancelled by users</div>
+                    </div>
+                </div>
+            </div>
+
+            <h2 class="section-title">Analytics Overview</h2>
+            <div class="trends-grid">
+                <div class="panel">
+                    <div class="panel-icon-head">
+                        <div class="panel-icon"><i class="fas fa-chart-pie"></i></div>
+                        <div class="panel-title">Attendance Rate Overview</div>
+                    </div>
+
+                    <div class="attendance-ring-wrap">
+                        <div class="attendance-ring">
+                            <svg viewBox="0 0 192 192">
+                                <circle cx="96" cy="96" r="80" stroke="#E2E8F0" stroke-width="24" fill="none"/>
+                                <circle cx="96" cy="96" r="80" stroke="url(#attendanceGradient)" stroke-width="24" fill="none"
+                                    stroke-dasharray="502.4" stroke-dashoffset="<%= attendanceOffset %>" stroke-linecap="round"/>
+                                <defs>
+                                    <linearGradient id="attendanceGradient" x1="0%" y1="0%" x2="100%" y2="100%">
+                                        <stop offset="0%" style="stop-color:#0f766e;stop-opacity:1" />
+                                        <stop offset="100%" style="stop-color:#6d28d9;stop-opacity:1" />
+                                    </linearGradient>
+                                </defs>
+                            </svg>
+                            <div class="attendance-ring-center">
+                                <div class="attendance-rate-value"><%= String.format("%.1f", attendanceRate) %>%</div>
+                                <div class="attendance-rate-label">Attendance Rate</div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="attendance-mini-stats">
+                        <div class="attendance-mini-stat present">
+                            <div class="label">Present</div>
+                            <div class="value"><%= presentCount %></div>
+                        </div>
+                        <div class="attendance-mini-stat late">
+                            <div class="label">Late</div>
+                            <div class="value"><%= lateCount %></div>
+                        </div>
+                        <div class="attendance-mini-stat absent">
+                            <div class="label">Absent</div>
+                            <div class="value"><%= absentCount %></div>
+                        </div>
+                    </div>
+
+                    <p class="panel-note">Overall student attendance performance</p>
+                    <a href="<%= request.getContextPath() %>/admin/attendance" class="btn-primary btn-block">View Full Attendance Analytics</a>
                 </div>
 
-                <section class="mb-8">
-                    <h3 class="text-xl font-bold text-gray-800 mb-6">Platform Overview</h3>
-                    <div class="grid grid-cols-3 gap-6 mb-6">
-                        <div class="bg-white rounded-xl shadow-sm p-6">
-                            <div class="flex items-start justify-between">
-                                <div class="w-12 h-12 bg-purple-200 rounded-xl flex items-center justify-center text-2xl">
-                                    👥
-                                </div>
-                                <div class="text-right">
-                                    <p class="text-4xl font-bold text-gray-800"><%= totalActiveStudents %></p>
-                                </div>
-                            </div>
-                            <div class="mt-4">
-                                <p class="font-semibold text-gray-800">Total Active Students</p>
-                                <p class="text-sm text-gray-500">Currently enrolled</p>
-                            </div>
-                        </div>
+                <div class="panel">
+                    <div class="panel-icon-head">
+                        <div class="panel-icon"><i class="fas fa-star"></i></div>
+                        <div class="panel-title">Evaluation Analytics</div>
+                    </div>
 
-                        <div class="bg-white rounded-xl shadow-sm p-6">
-                            <div class="flex items-start justify-between">
-                                <div class="w-12 h-12 bg-purple-200 rounded-xl flex items-center justify-center text-2xl">
-                                    👤
-                                </div>
-                                <div class="text-right">
-                                    <p class="text-4xl font-bold text-gray-800"><%= totalActiveTeachers %></p>
-                                </div>
-                            </div>
-                            <div class="mt-4">
-                                <p class="font-semibold text-gray-800">Total Active Teachers</p>
-                                <p class="text-sm text-gray-500">Currently teaching</p>
-                            </div>
+                    <div class="rating-item">
+                        <div class="rating-header">
+                            <span class="rating-label">Average Teacher Rating</span>
+                            <span class="rating-score"><%= String.format("%.1f", avgTeacherRating) %> <span>/5.0</span></span>
                         </div>
-
-                        <div class="bg-white rounded-xl shadow-sm p-6">
-                            <div class="flex items-start justify-between">
-                                <div class="w-12 h-12 bg-purple-200 rounded-xl flex items-center justify-center text-2xl">
-                                    🎥
-                                </div>
-                                <div class="text-right">
-                                    <p class="text-4xl font-bold text-gray-800"><%= totalSessions %></p>
-                                </div>
-                            </div>
-                            <div class="mt-4">
-                                <p class="font-semibold text-gray-800">Total Talaqqi Sessions</p>
-                                <p class="text-sm text-gray-500">All-time sessions</p>
-                            </div>
+                        <div class="rating-stars">
+                            <i class="fas fa-star"></i><i class="fas fa-star"></i><i class="fas fa-star"></i><i class="fas fa-star"></i><i class="far fa-star"></i>
+                        </div>
+                        <div class="rating-track">
+                            <div class="rating-fill" style="width: <%= teacherRatingWidth %>%"></div>
                         </div>
                     </div>
 
-                    <div class="grid grid-cols-3 gap-6">
-                        <div class="bg-white rounded-xl shadow-sm p-6">
-                            <div class="flex items-start justify-between">
-                                <div class="w-12 h-12 bg-blue-100 rounded-xl flex items-center justify-center text-2xl">
-                                    ⏰
-                                </div>
-                                <div class="text-right">
-                                    <p class="text-4xl font-bold text-blue-600"><%= upcomingSessions %></p>
-                                </div>
-                            </div>
-                            <div class="mt-4">
-                                <p class="font-semibold text-gray-800">Upcoming Sessions</p>
-                                <p class="text-sm text-gray-500">Scheduled sessions</p>
-                            </div>
+                    <div class="rating-item">
+                        <div class="rating-header">
+                            <span class="rating-label">Average Student Performance</span>
+                            <span class="rating-score"><%= String.format("%.1f", avgStudentPerformance) %> <span>/5.0</span></span>
                         </div>
-
-                        <div class="bg-white rounded-xl shadow-sm p-6">
-                            <div class="flex items-start justify-between">
-                                <div class="w-12 h-12 bg-green-100 rounded-xl flex items-center justify-center text-2xl">
-                                    ✅
-                                </div>
-                                <div class="text-right">
-                                    <p class="text-4xl font-bold text-green-600"><%= completedSessions %></p>
-                                </div>
-                            </div>
-                            <div class="mt-4">
-                                <p class="font-semibold text-gray-800">Completed Sessions</p>
-                                <p class="text-sm text-gray-500">Successfully finished</p>
-                            </div>
+                        <div class="rating-stars">
+                            <i class="fas fa-star"></i><i class="fas fa-star"></i><i class="fas fa-star"></i><i class="fas fa-star"></i><i class="far fa-star"></i>
                         </div>
-
-                        <div class="bg-white rounded-xl shadow-sm p-6">
-                            <div class="flex items-start justify-between">
-                                <div class="w-12 h-12 bg-red-100 rounded-xl flex items-center justify-center text-2xl">
-                                    ❌
-                                </div>
-                                <div class="text-right">
-                                    <p class="text-4xl font-bold text-red-600"><%= cancelledSessions %></p>
-                                </div>
-                            </div>
-                            <div class="mt-4">
-                                <p class="font-semibold text-gray-800">Cancelled Sessions</p>
-                                <p class="text-sm text-gray-500">Cancelled by users</p>
-                            </div>
+                        <div class="rating-track">
+                            <div class="rating-fill" style="width: <%= studentPerfWidth %>%"></div>
                         </div>
                     </div>
-                </section>
 
-                <section class="mb-8">
-                    <h3 class="text-xl font-bold text-gray-800 mb-6">Analytics Overview</h3>
-                    <div class="grid grid-cols-2 gap-6">
-                        <div class="bg-white rounded-xl shadow-sm p-6">
-                            <div class="flex items-center mb-6">
-                                <div class="w-10 h-10 bg-purple-200 rounded-lg flex items-center justify-center text-xl mr-3">
-                                    📊
-                                </div>
-                                <h4 class="text-lg font-semibold text-gray-800">Attendance Rate Overview</h4>
-                            </div>
+                    <p class="panel-note">Platform-wide evaluation metrics</p>
+                    <a href="<%= request.getContextPath() %>/admin/evaluation-analytics" class="btn-primary btn-block">View Full Evaluation Analytics</a>
+                </div>
+            </div>
 
-                            <div class="flex items-center justify-center mb-6">
-                                <div class="relative w-48 h-48">
-                                    <svg class="w-48 h-48 transform -rotate-90">
-                                        <circle cx="96" cy="96" r="80" stroke="#e5e7eb" stroke-width="24" fill="none"/>
-                                        <circle cx="96" cy="96" r="80" stroke="url(#gradient)" stroke-width="24" fill="none" stroke-dasharray="502.4" stroke-dashoffset="62.8" stroke-linecap="round"/>
-                                        <defs>
-                                            <linearGradient id="gradient" x1="0%" y1="0%" x2="100%" y2="100%">
-                                                <stop offset="0%" style="stop-color:#8b5cf6;stop-opacity:1" />
-                                                <stop offset="100%" style="stop-color:#a855f7;stop-opacity:1" />
-                                            </linearGradient>
-                                        </defs>
-                                    </svg>
-                                    <div class="absolute inset-0 flex flex-col items-center justify-center">
-                                        <p class="text-4xl font-bold text-gray-800"><%= String.format("%.1f", attendanceRate) %>%</p>
-                                        <p class="text-sm text-gray-600">Attendance Rate</p>
-                                    </div>
-                                </div>
-                            </div>
+            <h2 class="section-title">Recent Activities</h2>
+            <div class="panel">
+                <div class="activity-list">
+                    <%
+                    if (recentActivities != null && !recentActivities.isEmpty()) {
+                        for (Map<String, Object> activity : recentActivities) {
+                            String status = (String) activity.get("classStatus");
+                            String teacherName = (String) activity.get("teacherName");
+                            String studentName = (String) activity.get("studentName");
+                            String className = (String) activity.get("className");
 
-                            <div class="grid grid-cols-2 gap-4 mb-6">
-                                <div class="bg-green-50 border border-green-200 rounded-lg p-4">
-                                    <p class="text-sm text-green-600 font-medium mb-1">Present</p>
-                                    <p class="text-3xl font-bold text-green-600"><%= presentCount %></p>
-                                </div>
-                                <div class="bg-red-50 border border-red-200 rounded-lg p-4">
-                                    <p class="text-sm text-red-600 font-medium mb-1">Absent</p>
-                                    <p class="text-3xl font-bold text-red-600"><%= absentCount %></p>
-                                </div>
-                            </div>
+                            String iconClass = "default";
+                            String iconFa = "fa-circle";
+                            String message = className;
 
-                            <p class="text-center text-sm text-gray-600 mb-4">Overall student attendance performance</p>
-                            
-                            <button class="w-full bg-gradient-to-r from-purple-500 to-pink-500 text-white font-semibold py-3 rounded-lg hover:from-purple-600 hover:to-pink-600 transition">
-                                View Full Attendance Analytics
-                            </button>
-                        </div>
-
-                        <div class="bg-white rounded-xl shadow-sm p-6">
-                            <div class="flex items-center mb-6">
-                                <div class="w-10 h-10 bg-purple-200 rounded-lg flex items-center justify-center text-xl mr-3">
-                                    ⭐
-                                </div>
-                                <h4 class="text-lg font-semibold text-gray-800">Evaluation Analytics</h4>
-                            </div>
-
-                            <div class="mb-8">
-                                <div class="flex items-center justify-between mb-2">
-                                    <p class="text-sm font-medium text-gray-700">Average Teacher Rating</p>
-                                    <p class="text-2xl font-bold text-gray-800"><%= String.format("%.1f", avgTeacherRating) %> <span class="text-sm text-gray-500">/5.0</span></p>
-                                </div>
-                                <div class="flex items-center mb-3">
-                                    <span class="text-yellow-400 text-xl">★</span>
-                                    <span class="text-yellow-400 text-xl">★</span>
-                                    <span class="text-yellow-400 text-xl">★</span>
-                                    <span class="text-yellow-400 text-xl">★</span>
-                                    <span class="text-gray-300 text-xl">★</span>
-                                </div>
-                                <div class="w-full bg-gray-200 rounded-full h-2">
-                                    <div class="bg-gradient-to-r from-purple-400 to-pink-500 h-2 rounded-full" style="width: 92%"></div>
-                                </div>
-                            </div>
-
-                            <div class="mb-8">
-                                <div class="flex items-center justify-between mb-2">
-                                    <p class="text-sm font-medium text-gray-700">Average Student Performance</p>
-                                    <p class="text-2xl font-bold text-gray-800"><%= String.format("%.1f", avgStudentPerformance) %> <span class="text-sm text-gray-500">/5.0</span></p>
-                                </div>
-                                <div class="flex items-center mb-3">
-                                    <span class="text-yellow-400 text-xl">★</span>
-                                    <span class="text-yellow-400 text-xl">★</span>
-                                    <span class="text-yellow-400 text-xl">★</span>
-                                    <span class="text-yellow-400 text-xl">★</span>
-                                    <span class="text-gray-300 text-xl">★</span>
-                                </div>
-                                <div class="w-full bg-gray-200 rounded-full h-2">
-                                    <div class="bg-gradient-to-r from-purple-400 to-pink-500 h-2 rounded-full" style="width: 84%"></div>
-                                </div>
-                            </div>
-
-                            <p class="text-center text-sm text-gray-600 mb-4">Platform-wide evaluation metrics</p>
-                            
-                            <button class="w-full bg-gradient-to-r from-purple-400 to-purple-300 text-white font-semibold py-3 rounded-lg hover:from-purple-500 hover:to-purple-400 transition">
-                                View Full Evaluation Analytics
-                            </button>
-                        </div>
-                    </div>
-                </section>
-
-                <section class="mb-8">
-                    <h3 class="text-xl font-bold text-gray-800 mb-6">Recent Activities</h3>
-                    <div class="bg-white rounded-xl shadow-sm p-6">
-                        <div class="space-y-4">
-                            <%
-                            if (recentActivities != null && !recentActivities.isEmpty()) {
-                                for (int i = 0; i < recentActivities.size(); i++) {
-                                    Map<String, Object> activity = recentActivities.get(i);
-                                    String status = (String) activity.get("classStatus");
-                                    String teacherName = (String) activity.get("teacherName");
-                                    String studentName = (String) activity.get("studentName");
-                                    String className = (String) activity.get("className");
-                                    
-                                    String iconBg = "bg-gray-100";
-                                    String iconColor = "text-gray-600";
-                                    String icon = "●";
-                                    String message = className;
-                                    
-                                    if ("Cancelled".equals(status)) {
-                                        iconBg = "bg-red-100";
-                                        iconColor = "text-red-600";
-                                        icon = "⊗";
-                                        message = teacherName + " cancelled class for " + studentName;
-                                    } else if ("Completed".equals(status)) {
-                                        iconBg = "bg-green-100";
-                                        iconColor = "text-green-600";
-                                        icon = "✓";
-                                        message = "Class completed: " + className;
-                                    } else {
-                                        iconBg = "bg-blue-100";
-                                        iconColor = "text-blue-600";
-                                        icon = "📅";
-                                        message = "Upcoming: " + className;
-                                    }
-                                    
-                                    String borderClass = (i < recentActivities.size() - 1) ? "pb-4 border-b border-gray-100" : "";
-                            %>
-                            <div class="flex items-start space-x-3 <%= borderClass %>">
-                                <div class="w-10 h-10 <%= iconBg %> rounded-full flex items-center justify-center flex-shrink-0">
-                                    <span class="<%= iconColor %>"><%= icon %></span>
-                                </div>
-                                <div class="flex-1">
-                                    <p class="text-sm text-gray-800"><%= message %></p>
-                                    <p class="text-xs text-gray-500 mt-1"><%= activity.get("scheduleDate") %></p>
-                                </div>
-                            </div>
-                            <%
-                                }
+                            if ("Cancelled".equals(status)) {
+                                iconClass = "cancelled";
+                                iconFa = "fa-times";
+                                message = teacherName + " cancelled class for " + studentName;
+                            } else if ("Completed".equals(status)) {
+                                iconClass = "completed";
+                                iconFa = "fa-check";
+                                message = "Class completed: " + className;
                             } else {
-                            %>
-                            <p class="text-gray-500 text-sm">No recent activities</p>
-                            <%
+                                iconClass = "upcoming";
+                                iconFa = "fa-calendar";
+                                message = "Upcoming: " + className;
                             }
-                            %>
+                    %>
+                    <div class="activity-item">
+                        <div class="activity-icon <%= iconClass %>"><i class="fas <%= iconFa %>"></i></div>
+                        <div>
+                            <div class="activity-text"><%= message %></div>
+                            <div class="activity-date"><%= activity.get("scheduleDate") %></div>
                         </div>
                     </div>
-                </section>
-
-                <section class="mb-8">
-                    <div class="flex items-center justify-between mb-6">
-                        <h3 class="text-xl font-bold text-gray-800">Recent Announcements</h3>
-                        <button class="px-4 py-2 border border-gray-300 rounded-lg text-sm font-medium text-gray-700 hover:bg-gray-50 transition">
-                            Manage Announcements
-                        </button>
-                    </div>
-                    <div class="space-y-4">
-                        <%
-                        if (recentAnnouncements != null && !recentAnnouncements.isEmpty()) {
-                            for (Announcement announcement : recentAnnouncements) {
-                        %>
-                        <div class="bg-white rounded-xl shadow-sm p-6">
-                            <h4 class="font-semibold text-gray-800 mb-3"><%= announcement.getTitle() != null ? announcement.getTitle() : "Announcement" %></h4>
-                            <div class="flex items-center space-x-4 text-sm text-gray-600">
-                                <span class="flex items-center">
-                                    <span class="mr-1">👤</span> <%= announcement.getAuthor() != null ? announcement.getAuthor() : "Admin" %>
-                                </span>
-                                <span class="flex items-center">
-                                    <span class="mr-1">👥</span> <%= announcement.getTargetAudience() != null ? announcement.getTargetAudience() : "All Users" %>
-                                </span>
-                                <span>• <%= announcement.getDate() != null ? announcement.getDate() : "" %></span>
-                            </div>
-                        </div>
-                        <%
-                            }
-                        } else {
-                        %>
-                        <div class="bg-white rounded-xl shadow-sm p-6">
-                            <p class="text-gray-500 text-sm">No recent announcements</p>
-                        </div>
-                        <%
+                    <%
                         }
-                        %>
-                    </div>
-                </section>
-
-                <section class="mb-8">
-                    <h3 class="text-xl font-bold text-gray-800 mb-6">Quick Actions</h3>
-                    <div class="grid grid-cols-4 gap-4">
-                        <div class="bg-gradient-to-br from-pink-400 to-pink-300 rounded-xl shadow-sm p-6 text-white cursor-pointer hover:shadow-lg transition">
-                            <div class="w-12 h-12 bg-white bg-opacity-30 rounded-lg flex items-center justify-center text-2xl mb-4">
-                                🎁
-                            </div>
-                            <h4 class="font-semibold text-lg mb-2">Create Announcement</h4>
-                            <p class="text-sm text-white text-opacity-90">Send platform-wide message</p>
-                        </div>
-
-                        <div class="bg-white rounded-xl shadow-sm p-6 cursor-pointer hover:shadow-lg transition border border-gray-100">
-                            <div class="w-12 h-12 bg-purple-100 rounded-lg flex items-center justify-center text-2xl mb-4">
-                                📅
-                            </div>
-                            <h4 class="font-semibold text-lg mb-2 text-gray-800">View Class Schedule</h4>
-                            <p class="text-sm text-gray-600">Manage platform schedule</p>
-                        </div>
-
-                        <div class="bg-white rounded-xl shadow-sm p-6 cursor-pointer hover:shadow-lg transition border border-gray-100">
-                            <div class="w-12 h-12 bg-purple-100 rounded-lg flex items-center justify-center text-2xl mb-4">
-                                📊
-                            </div>
-                            <h4 class="font-semibold text-lg mb-2 text-gray-800">Attendance Analytics</h4>
-                            <p class="text-sm text-gray-600">View detailed reports</p>
-                        </div>
-
-                        <div class="bg-white rounded-xl shadow-sm p-6 cursor-pointer hover:shadow-lg transition border border-gray-100">
-                            <div class="w-12 h-12 bg-purple-100 rounded-lg flex items-center justify-center text-2xl mb-4">
-                                ⭐
-                            </div>
-                            <h4 class="font-semibold text-lg mb-2 text-gray-800">Evaluation Analytics</h4>
-                            <p class="text-sm text-gray-600">Track performance</p>
-                        </div>
-                    </div>
-                </section>
+                    } else {
+                    %>
+                    <p class="empty-state">No recent activities</p>
+                    <%
+                    }
+                    %>
+                </div>
             </div>
-        </main>
+
+            <div class="panel-head" style="margin-top: 40px;">
+                <h2 class="section-title" style="margin-bottom: 0;">Recent Announcements</h2>
+                <a href="<%= request.getContextPath() %>/admin/announcements" class="btn-secondary">Manage Announcements</a>
+            </div>
+            <div class="announcement-list">
+                <%
+                if (recentAnnouncements != null && !recentAnnouncements.isEmpty()) {
+                    for (Announcement announcement : recentAnnouncements) {
+                %>
+                <div class="panel">
+                    <div class="panel-title"><%= announcement.getTitle() != null ? announcement.getTitle() : "Announcement" %></div>
+                    <div class="announcement-meta">
+                        <span><i class="fas fa-user"></i> <%= announcement.getAuthor() != null ? announcement.getAuthor() : "Admin" %></span>
+                        <span><i class="fas fa-users"></i> <%= announcement.getTargetAudience() != null ? announcement.getTargetAudience() : "All Users" %></span>
+                        <span><i class="fas fa-calendar"></i> <%= announcement.getDate() != null ? announcement.getDate() : "" %></span>
+                    </div>
+                </div>
+                <%
+                    }
+                } else {
+                %>
+                <div class="panel">
+                    <p class="empty-state">No recent announcements</p>
+                </div>
+                <%
+                }
+                %>
+            </div>
+
+            <h2 class="section-title" style="margin-top: 40px;">Quick Actions</h2>
+            <div class="quick-actions-grid">
+                <a href="<%= request.getContextPath() %>/admin/announcements" class="quick-action-card primary" style="text-decoration:none;">
+                    <div class="quick-action-icon"><i class="fas fa-bullhorn"></i></div>
+                    <div class="quick-action-title">Create Announcement</div>
+                    <div class="quick-action-desc">Send platform-wide message</div>
+                </a>
+                <a href="<%= request.getContextPath() %>/admin/class-schedule" class="quick-action-card secondary" style="text-decoration:none;">
+                    <div class="quick-action-icon"><i class="fas fa-calendar"></i></div>
+                    <div class="quick-action-title">View Class Schedule</div>
+                    <div class="quick-action-desc">Manage platform schedule</div>
+                </a>
+                <a href="<%= request.getContextPath() %>/admin/attendance" class="quick-action-card secondary" style="text-decoration:none;">
+                    <div class="quick-action-icon"><i class="fas fa-chart-bar"></i></div>
+                    <div class="quick-action-title">Attendance Analytics</div>
+                    <div class="quick-action-desc">View detailed reports</div>
+                </a>
+                <a href="<%= request.getContextPath() %>/admin/evaluation-analytics" class="quick-action-card secondary" style="text-decoration:none;">
+                    <div class="quick-action-icon"><i class="fas fa-star"></i></div>
+                    <div class="quick-action-title">Evaluation Analytics</div>
+                    <div class="quick-action-desc">Track performance</div>
+                </a>
+            </div>
+        </div>
     </div>
 </body>
 </html>

@@ -1,3 +1,3 @@
 @echo off
 echo Checking teacher table structure...
-"C:\xampp\mysql\bin\mysql.exe" -u root -e "USE talaqqihub; SHOW TABLES LIKE 'teacher'; DESCRIBE teacher;"
+"C:\xampp\mysql\bin\mysql.exe" -u root -e "USE talaqqihub_db; SHOW TABLES LIKE 'teacher'; DESCRIBE teacher;"

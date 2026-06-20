@@ -1,81 +1,91 @@
 <%@ page contentType="text/html;charset=UTF-8" language="java" %>
 <%@ page import="model.Student" %>
 <!doctype html>
-<html>
+<html lang="en">
 <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
-    <title>Student Profile</title>
-    <script src="https://cdn.tailwindcss.com"></script>
+    <title>Student Profile - TalaqqiHub Admin</title>
+    <%@ include file="/WEB-INF/views/includes/adminLayoutStyles.jsp" %>
+    <style>
+        .profile-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 32px; }
+        .profile-section-title { font-size: 14px; font-weight: 700; color: #334155; margin-bottom: 16px; }
+        .profile-field-label { font-size: 12px; color: #94A3B8; margin-bottom: 4px; }
+        .profile-field-value { font-size: 14px; font-weight: 600; color: #1E293B; }
+        .profile-fields { display: grid; grid-template-columns: 1fr 1fr; gap: 16px 24px; }
+        .session-stats { display: grid; grid-template-columns: repeat(3, 1fr); gap: 24px; text-align: center; margin-top: 8px; }
+        .session-stat-value { font-size: 30px; font-weight: 800; color: #1E293B; }
+        .session-stat-value.blue { color: #3B82F6; }
+        .session-stat-value.green { color: #10B981; }
+        .profile-progress-track { width: 100%; height: 12px; background: #F1F5F9; border-radius: 999px; overflow: hidden; margin-top: 24px; }
+        .profile-progress-bar { height: 100%; border-radius: 999px; background: var(--admin-gradient-h); }
+        .status-badge { display: inline-block; padding: 6px 16px; border-radius: 999px; font-size: 13px; font-weight: 600; }
+        .status-badge.active { background: linear-gradient(90deg,#e6f9ef,#dff7e9); color:#06703a; }
+        .status-badge.inactive { background:#fff1f0; color:#8b1e1e; }
+        @media (max-width: 900px) { .profile-grid, .profile-fields, .session-stats { grid-template-columns: 1fr; } }
+    </style>
 </head>
-<body class="bg-transparent">
-<div class="min-h-screen flex items-center justify-center p-6 bg-gray-50">
-    <div class="w-full max-w-4xl">
-        <div class="bg-white rounded-lg shadow-md overflow-hidden">
-            <div class="px-8 py-6">
-                <div class="flex items-start justify-between">
+<body>
+    <jsp:include page="/WEB-INF/views/includes/adminSidebar.jsp">
+        <jsp:param name="activePage" value="manage-students"/>
+    </jsp:include>
+
+    <div class="main-content">
+        <jsp:include page="/WEB-INF/views/includes/adminTopNavbar.jsp">
+            <jsp:param name="pageTitle" value="Student Profile"/>
+        </jsp:include>
+
+        <div class="page-content">
+            <div class="panel" style="max-width: 960px; margin: 0 auto;">
+                <div class="panel-head">
                     <div>
-                        <h3 class="text-2xl font-semibold text-gray-900">Student Profile</h3>
-                        <p class="text-sm text-gray-500 mt-1">View-only access</p>
+                        <h1 class="page-title" style="margin-bottom: 4px;">Student Profile</h1>
+                        <p class="page-subtitle" style="margin-bottom: 0;">View-only access</p>
                     </div>
-                    <div class="text-sm">
-                        <a href="<%= request.getContextPath() %>/admin/manage-students" class="text-gray-400 hover:text-gray-600">Close</a>
-                    </div>
+                    <a href="<%= request.getContextPath() %>/admin/manage-students" class="btn-secondary">Back to Students</a>
                 </div>
 
-                <div class="mt-6 grid grid-cols-2 gap-8">
+                <div class="profile-grid">
                     <div>
-                        <h4 class="text-sm font-semibold text-gray-700 mb-4">Personal Information</h4>
-                        <div class="grid grid-cols-2 gap-y-4 text-sm text-gray-600">
+                        <h4 class="profile-section-title">Personal Information</h4>
+                        <div class="profile-fields">
                             <div>
-                                <p class="text-xs text-gray-500">Full Name</p>
-                                <p class="font-medium text-gray-800"><%= ((Student)request.getAttribute("student") != null) ? ((Student)request.getAttribute("student")).getStudentName() : "-" %></p>
+                                <p class="profile-field-label">Full Name</p>
+                                <p class="profile-field-value"><%= ((Student)request.getAttribute("student") != null) ? ((Student)request.getAttribute("student")).getStudentName() : "-" %></p>
                             </div>
                             <div>
-                                <p class="text-xs text-gray-500">Email</p>
-                                <p class="font-medium text-gray-800"><%= ((Student)request.getAttribute("student") != null) ? ((Student)request.getAttribute("student")).getStudentEmail() : "-" %></p>
+                                <p class="profile-field-label">Email</p>
+                                <p class="profile-field-value"><%= ((Student)request.getAttribute("student") != null) ? ((Student)request.getAttribute("student")).getStudentEmail() : "-" %></p>
                             </div>
                             <div>
-                                <p class="text-xs text-gray-500">Phone Number</p>
-                                <p class="font-medium text-gray-800"><%= ((Student)request.getAttribute("student") != null) ? ((Student)request.getAttribute("student")).getPhoneNumber() : "-" %></p>
+                                <p class="profile-field-label">Phone Number</p>
+                                <p class="profile-field-value"><%= ((Student)request.getAttribute("student") != null) ? ((Student)request.getAttribute("student")).getPhoneNumber() : "-" %></p>
                             </div>
                             <div>
-                                <p class="text-xs text-gray-500">Date of Birth</p>
-                                <p class="font-medium text-gray-800"><%= ((Student)request.getAttribute("student") != null) ? ((Student)request.getAttribute("student")).getDateOfBirth() : "-" %></p>
+                                <p class="profile-field-label">Date of Birth</p>
+                                <p class="profile-field-value"><%= ((Student)request.getAttribute("student") != null) ? ((Student)request.getAttribute("student")).getDateOfBirth() : "-" %></p>
                             </div>
                         </div>
                     </div>
 
                     <div>
-                        <h4 class="text-sm font-semibold text-gray-700 mb-4">Account Information</h4>
-                        <div class="grid grid-cols-2 gap-y-4 text-sm text-gray-600">
+                        <h4 class="profile-section-title">Account Information</h4>
+                        <div class="profile-fields">
                             <div>
-                                <p class="text-xs text-gray-500">Registration Date</p>
-                                <p class="font-medium text-gray-800"><%= ((Student)request.getAttribute("student") != null) ? ((Student)request.getAttribute("student")).getRegistrationDate() : "-" %></p>
+                                <p class="profile-field-label">Registration Date</p>
+                                <p class="profile-field-value"><%= ((Student)request.getAttribute("student") != null) ? ((Student)request.getAttribute("student")).getRegistrationDate() : "-" %></p>
                             </div>
                             <div>
-                                <p class="text-xs text-gray-500">Account Status</p>
+                                <p class="profile-field-label">Account Status</p>
                                 <%
                                     Student __st = (Student) request.getAttribute("student");
                                     boolean __isActive = __st != null && "Active".equalsIgnoreCase(__st.getStudentStatus());
                                     String __statusText = __st != null ? __st.getStudentStatus() : "-";
                                 %>
-                                <p class="font-medium">
-                                    <% if (__isActive) { %>
-                                        <span class="inline-block px-4 py-1.5 rounded-full text-sm font-semibold shadow-sm align-middle" style="background: linear-gradient(90deg,#e6f9ef,#dff7e9); color:#06703a;">
-                                            <%= __statusText %>
-                                        </span>
-                                    <% } else { %>
-                                        <span class="inline-block px-4 py-1.5 rounded-full text-sm font-semibold shadow-sm align-middle" style="background:#fff1f0; color:#8b1e1e;">
-                                            <%= __statusText %>
-                                        </span>
-                                    <% } %>
-                                </p>
+                                <span class="status-badge <%= __isActive ? "active" : "inactive" %>"><%= __statusText %></span>
                             </div>
-
-                            <!-- Assigned Teacher removed for admin profile -->
                             <div>
-                                <p class="text-xs text-gray-500">Package Subscribed</p>
+                                <p class="profile-field-label">Package Subscribed</p>
                                 <%
                                     String _pkgName = "-";
                                     Object attrPkg = request.getAttribute("packageName");
@@ -101,43 +111,36 @@
                                         } catch (Throwable ignore) {}
                                     }
                                 %>
-                                <p class="font-medium text-gray-800"><%= _pkgName %></p>
+                                <p class="profile-field-value"><%= _pkgName %></p>
                             </div>
                         </div>
                     </div>
                 </div>
 
-                <div class="mt-8">
-                    <h4 class="text-sm font-semibold text-gray-700 mb-4">Session Information</h4>
-                    <div class="mt-2 grid grid-cols-3 gap-6 text-center">
+                <div style="margin-top: 32px;">
+                    <h4 class="profile-section-title">Session Information</h4>
+                    <div class="session-stats">
                         <div>
-                            <p class="text-3xl font-extrabold text-gray-800"><%= request.getAttribute("totalSessions") != null ? request.getAttribute("totalSessions") : 0 %></p>
-                            <p class="text-sm text-gray-500 mt-1">Total Sessions</p>
+                            <p class="session-stat-value"><%= request.getAttribute("totalSessions") != null ? request.getAttribute("totalSessions") : 0 %></p>
+                            <p class="profile-field-label" style="margin-top: 6px;">Total Sessions</p>
                         </div>
                         <div>
-                            <p class="text-3xl font-extrabold text-blue-600"><%= request.getAttribute("usedSessions") != null ? request.getAttribute("usedSessions") : 0 %></p>
-                            <p class="text-sm text-gray-500 mt-1">Sessions Used</p>
+                            <p class="session-stat-value blue"><%= request.getAttribute("usedSessions") != null ? request.getAttribute("usedSessions") : 0 %></p>
+                            <p class="profile-field-label" style="margin-top: 6px;">Sessions Used</p>
                         </div>
                         <div>
-                            <p class="text-3xl font-extrabold text-green-600"><%= request.getAttribute("remainingSessions") != null ? request.getAttribute("remainingSessions") : 0 %></p>
-                            <p class="text-sm text-gray-500 mt-1">Sessions Remaining</p>
+                            <p class="session-stat-value green"><%= request.getAttribute("remainingSessions") != null ? request.getAttribute("remainingSessions") : 0 %></p>
+                            <p class="profile-field-label" style="margin-top: 6px;">Sessions Remaining</p>
                         </div>
                     </div>
 
-                    <div class="mt-6">
-                        <div class="w-full bg-gray-100 rounded-full h-3">
-                            <div class="h-3 rounded-full bg-gradient-to-r from-purple-500 to-pink-400" style="width:<%= request.getAttribute("progressPercentage") != null ? request.getAttribute("progressPercentage") : 0 %>%"></div>
-                        </div>
-                        <p class="text-xs text-gray-500 mt-3">Progress — <%= request.getAttribute("progressPercentage") != null ? request.getAttribute("progressPercentage") : 0 %>%</p>
+                    <div class="profile-progress-track">
+                        <div class="profile-progress-bar" style="width:<%= request.getAttribute("progressPercentage") != null ? request.getAttribute("progressPercentage") : 0 %>%"></div>
                     </div>
-                </div>
-
-                <div class="mt-6 text-right">
-                    <a href="<%= request.getContextPath() %>/admin/manage-students" class="inline-block px-4 py-2 bg-white border rounded text-sm">Close</a>
+                    <p class="profile-field-label" style="margin-top: 12px;">Progress — <%= request.getAttribute("progressPercentage") != null ? request.getAttribute("progressPercentage") : 0 %>%</p>
                 </div>
             </div>
         </div>
     </div>
-</div>
 </body>
 </html>

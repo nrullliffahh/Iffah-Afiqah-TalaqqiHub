@@ -1,6 +1,7 @@
 package controller;
 
 import dao.TalaqqiSessionDAO;
+import util.SessionRoleUtil;
 import dao.QuranDAO;
 import model.TalaqqiSession;
 import model.Student;
@@ -86,17 +87,30 @@ public class StudentTalaqqiSessionServlet extends HttpServlet {
             session = talaqqiSessionDAO.getUpcomingSessionForStudent(studentId);
         }
 
+        List<TalaqqiSession> upcomingSessions =
+                talaqqiSessionDAO.getUpcomingSessionsListForStudent(studentId, 10);
+
         // ── Load Quran data for current session ─────────────────────────────
         List<QuranVerse> verses = null;
         if (session != null) {
             int surahNumber = session.getCurrentSurahNumber();
             int ayahNumber = session.getCurrentAyahNumber();
+            int ayahEnd = session.getCurrentAyahEnd();
 
-            // Fetch the current Quran verse reference
+            int verseCount;
+            if (ayahEnd > ayahNumber) {
+                verseCount = ayahEnd - ayahNumber + 1;
+            } else if (ayahEnd > 0) {
+                verseCount = 1;
+            } else {
+                verseCount = 5;
+            }
+            if (verseCount > 50) {
+                verseCount = 50;
+            }
+
             QuranVerse currentVerse = quranDAO.getAyah(surahNumber, ayahNumber);
-
-            // Also pre-load next few verses for smooth navigation
-            verses = loadVerseSequence(surahNumber, ayahNumber, 5);
+            verses = loadVerseSequence(surahNumber, ayahNumber, verseCount);
 
             request.setAttribute("currentVerse", currentVerse);
         } else {
@@ -105,6 +119,7 @@ public class StudentTalaqqiSessionServlet extends HttpServlet {
 
         // ── Set request attributes for JSP ───────────────────────────────────
         request.setAttribute("session", session);
+        request.setAttribute("upcomingSessions", upcomingSessions);
         request.setAttribute("verses", verses);
         request.setAttribute("studentId", studentId);
         request.setAttribute("studentName", httpSession.getAttribute("studentName"));
@@ -263,7 +278,7 @@ public class StudentTalaqqiSessionServlet extends HttpServlet {
     private boolean isAuthenticated(HttpSession httpSession) {
         if (httpSession == null) return false;
         String studentId = (String) httpSession.getAttribute("studentId");
-        return studentId != null && !studentId.trim().isEmpty();
+        return SessionRoleUtil.isStudentLoggedIn(httpSession);
     }
 
     /**

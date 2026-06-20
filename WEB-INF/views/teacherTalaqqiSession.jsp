@@ -1,5 +1,5 @@
 <%@ page language="java" contentType="text/html; charset=UTF-8" pageEncoding="UTF-8"%>
-<%@ page import="model.TalaqqiSession,java.util.List" %>
+<%@ page import="model.TalaqqiSession,java.util.List,util.JitsiConfig" %>
 <%
     if (session == null || session.getAttribute("teacherId") == null) {
         response.sendRedirect(request.getContextPath() + "/teacher/login");
@@ -30,6 +30,9 @@
     String roomName = hasSession ? ts.getRoomName() : "";
     int initSurah = hasSession ? ts.getCurrentSurahNumber() : 2;
     int initAyah = hasSession ? ts.getCurrentAyahNumber() : 1;
+    int initAyahEnd = hasSession && ts.getCurrentAyahEnd() > 0
+            ? ts.getCurrentAyahEnd()
+            : initAyah + 3;
 
     String safeTeacherName = (teacherName != null ? teacherName : "Teacher")
             .replace("&", "&amp;").replace("\"", "&quot;");
@@ -45,8 +48,9 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Talaqqi Session</title>
 
+    <%@ include file="/WEB-INF/views/includes/teacherLayoutStyles.jsp" %>
     <script src="https://cdn.tailwindcss.com"></script>
-    <script src="https://meet.jit.si/external_api.js"></script>
+    <script src="<%= JitsiConfig.getScriptUrl() %>" async></script>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -58,7 +62,7 @@
             --purple-800: #5b21b6;
             --purple-700: #6d28d9;
             --purple-600: #7c3aed;
-            --pink-400: #f472b6;
+            --purple-500: #8b5cf6;
             --ink-900: #1f2a44;
             --ink-700: #607090;
             --line-200: #e5e7eb;
@@ -71,14 +75,10 @@
             color: var(--ink-900);
         }
 
-        .sidebar-gradient {
-            background: linear-gradient(180deg, #7c3aed 0%, #5b21b6 100%);
-        }
-
         .join-gradient,
         .next-gradient,
         .apply-gradient {
-            background: linear-gradient(90deg, #a78bfa 0%, #f472b6 100%);
+            background: linear-gradient(90deg, #7c3aed 0%, #be185d 100%);
         }
 
         .join-gradient:hover,
@@ -94,11 +94,11 @@
         }
 
         .teacher-pill {
-            background: linear-gradient(90deg, #a78bfa 0%, #f9a8d4 100%);
+            background: linear-gradient(90deg, #7c3aed 0%, #be185d 100%);
         }
 
         .ayah-badge {
-            background: linear-gradient(90deg, #a78bfa 0%, #f472b6 100%);
+            background: linear-gradient(90deg, #7c3aed 0%, #be185d 100%);
         }
 
         .arabic-text {
@@ -179,7 +179,7 @@
         }
 
         .toggle-wrap input:checked + .toggle-track {
-            background: linear-gradient(90deg, #a78bfa 0%, #f472b6 100%);
+            background: linear-gradient(90deg, #7c3aed 0%, #be185d 100%);
         }
 
         .toggle-wrap input:checked + .toggle-track::before {
@@ -198,86 +198,18 @@
         }
     </style>
 </head>
-<body class="bg-gray-50">
-<div class="flex h-screen overflow-hidden">
-    <aside class="sidebar-gradient w-64 flex-shrink-0 overflow-y-auto">
-        <div class="p-6">
-            <div class="text-white mb-8">
-                <h1 class="text-2xl font-bold">TalaqqiHub</h1>
-                <p class="text-purple-200 text-sm mt-1">Teacher Portal</p>
-            </div>
-            
-            <nav class="space-y-2">
-                <a href="<%= contextPath %>/teacher/teacherdashboard" 
-                   class="flex items-center space-x-3 px-4 py-3 text-purple-200 hover:bg-white hover:bg-opacity-10 rounded-lg transition">
-                    <i class="fas fa-home w-5"></i>
-                    <span>Dashboard</span>
-                </a>
-                
-                <a href="<%= contextPath %>/teacher/classschedule" 
-                   class="flex items-center space-x-3 px-4 py-3 text-purple-200 hover:bg-white hover:bg-opacity-10 rounded-lg transition">
-                    <i class="far fa-calendar w-5"></i>
-                    <span>Class Schedule</span>
-                </a>
-                
-                <a href="<%= contextPath %>/teacher/attendance" 
-                   class="flex items-center space-x-3 px-4 py-3 text-purple-200 hover:bg-white hover:bg-opacity-10 rounded-lg transition">
-                    <i class="far fa-clipboard w-5"></i>
-                    <span>Attendance</span>
-                </a>
-                
-                <a href="<%= contextPath %>/teacher/evaluation" 
-                   class="flex items-center space-x-3 px-4 py-3 text-purple-200 hover:bg-white hover:bg-opacity-10 rounded-lg transition">
-                    <i class="far fa-file-alt w-5"></i>
-                    <span>Evaluation</span>
-                </a>
-                
-                <a href="<%= contextPath %>/teacher/sessions" 
-                   class="flex items-center space-x-3 px-4 py-3 text-white bg-white bg-opacity-20 rounded-lg">
-                    <i class="fas fa-book-quran w-5"></i>
-                    <span>Talaqqi Sessions</span>
-                </a>
-                
-                <a href="<%= contextPath %>/teacher/announcements" 
-                   class="flex items-center space-x-3 px-4 py-3 text-purple-200 hover:bg-white hover:bg-opacity-10 rounded-lg transition">
-                    <i class="far fa-bell w-5"></i>
-                    <span>Announcements</span>
-                </a>
-                
-                <a href="<%= contextPath %>/teacher/ai-assistance" 
-                   class="flex items-center space-x-3 px-4 py-3 text-purple-200 hover:bg-white hover:bg-opacity-10 rounded-lg transition">
-                    <i class="fas fa-bolt w-5"></i>
-                    <span>AI Assistance</span>
-                </a>
-            </nav>
-        </div>
-        
-        <div class="absolute bottom-0 w-64 p-6">
-            <a href="<%= contextPath %>/teacher/logout" 
-               class="flex items-center space-x-3 px-4 py-3 text-purple-200 hover:bg-white hover:bg-opacity-10 rounded-lg transition">
-                <i class="fas fa-sign-out-alt w-5"></i>
-                <span>Logout</span>
-            </a>
-        </div>
-    </aside>
+<body>
+<jsp:include page="/WEB-INF/views/includes/teacherSidebar.jsp">
+    <jsp:param name="activePage" value="talaqqi-sessions"/>
+</jsp:include>
 
-    <main class="flex-1 overflow-auto">
-        <header class="h-16 bg-white border-b border-gray-200 flex items-center justify-between px-6 md:px-8 sticky top-0 z-20">
-            <h2 class="text-2xl md:text-3xl font-extrabold text-[#26344f]">Talaqqi Session</h2>
-            <div class="flex items-center gap-5">
-                <button class="relative text-[#6f7fa0] text-base md:text-lg">
-                    <i class="far fa-bell"></i>
-                    <span class="absolute -top-2 -right-2 w-6 h-6 text-xs bg-pink-400 text-white rounded-full grid place-items-center font-bold">2</span>
-                </button>
-                <div class="flex items-center gap-3">
-                    <div class="w-10 h-10 rounded-full teacher-pill text-white grid place-items-center text-sm font-bold"><%= safeTeacherInit %></div>
-                    <p class="text-sm md:text-base font-semibold text-[#26344f]"><%= safeTeacherName %></p>
-                    <i class="fas fa-chevron-down text-[#8a95ad] text-sm"></i>
-                </div>
-            </div>
-        </header>
+<div class="main-content">
+    <jsp:include page="/WEB-INF/views/includes/teacherTopNavbar.jsp">
+        <jsp:param name="pageTitle" value="Talaqqi Session"/>
+        <jsp:param name="notifPrefix" value="sessionNotif"/>
+    </jsp:include>
 
-        <div class="p-8 space-y-6">
+    <div class="page-content space-y-6" style="padding-top:24px;">
             <% if (upcoming != null && !upcoming.isEmpty()) { %>
             <div class="bg-white rounded-lg border border-gray-200 p-4 text-sm flex gap-3 items-center shadow-sm">
                 <i class="fas fa-calendar-check text-purple-600"></i>
@@ -397,7 +329,7 @@
 
                         <div>
                             <label class="text-xs md:text-sm text-[#64748b] font-semibold block mb-1">Ending Ayah (Verse)</label>
-                            <input id="ayahEndInput" type="number" min="1" value="<%= initAyah + 3 %>" class="w-full border border-gray-300 rounded-lg h-9 px-2 text-xs md:text-sm focus:outline-none focus:ring-2 focus:ring-purple-500">
+                            <input id="ayahEndInput" type="number" min="1" value="<%= initAyahEnd %>" class="w-full border border-gray-300 rounded-lg h-9 px-2 text-xs md:text-sm focus:outline-none focus:ring-2 focus:ring-purple-500">
                         </div>
 
                         <div class="grid grid-cols-2 gap-2 pt-1">
@@ -462,7 +394,7 @@
             </section>
             <% } %>
         </div>
-    </main>
+    </div>
 </div>
 
 <div id="talaqqi-config" style="display:none"
@@ -474,9 +406,11 @@
      data-teacher-name="<%= safeTeacherName %>"
      data-init-surah="<%= initSurah %>"
      data-init-ayah="<%= initAyah %>"
+     data-init-ayah-end="<%= initAyahEnd %>"
      data-is-active="<%= isSessionActive %>"
      data-session-duration="<%= duration %>"
-     data-is-completed="<%= isSessionCompleted %>">
+     data-is-completed="<%= isSessionCompleted %>"
+     data-jitsi-domain="<%= JitsiConfig.getDomain() %>">
 </div>
 
 <script>
@@ -484,6 +418,12 @@
     "use strict";
 
     var cfg = document.getElementById("talaqqi-config").dataset;
+    var JITSI_DOMAIN = cfg.jitsiDomain || "8x8.vc";
+    var JITSI_JWT = <%=
+        JitsiConfig.getJwt() != null
+            ? "\"" + JitsiConfig.getJwt().replace("\\", "\\\\").replace("\"", "\\\"").replace("\n", "") + "\""
+            : "null"
+    %>;
     var CTX = cfg.ctx || "";
     var SESSION_ID = cfg.sessionId || "";
     var STUDENT_ID = cfg.studentId || "";
@@ -493,7 +433,10 @@
     var SessionModel = {
         currentSurah: parseInt(cfg.initSurah || "2", 10),
         currentAyah: parseInt(cfg.initAyah || "1", 10),
-        currentAyahEnd: parseInt(cfg.initAyah || "1", 10) + 3,
+        currentAyahEnd: parseInt(cfg.initAyahEnd || String(parseInt(cfg.initAyah || "1", 10) + 3), 10),
+        appliedAyahStart: parseInt(cfg.initAyah || "1", 10),
+        appliedAyahEnd: parseInt(cfg.initAyahEnd || String(parseInt(cfg.initAyah || "1", 10) + 3), 10),
+        focusAyah: parseInt(cfg.initAyah || "1", 10),
         totalAyahs: 286,
         isActive: cfg.isActive === "true",
         studentAttendance: "waiting",
@@ -541,6 +484,21 @@
     var timer = null;
     var elapsed = 0;
 
+    function apiFetch(path, options) {
+        options = options || {};
+        options.credentials = "same-origin";
+        return fetch(CTX + path, options).then(function (r) {
+            if (r.status === 401) {
+                toast("Session expired. Please log in again.", "warning");
+                setTimeout(function () {
+                    window.location.href = CTX + "/teacher/login";
+                }, 1200);
+                return Promise.reject(new Error("unauthorized"));
+            }
+            return r;
+        });
+    }
+
     function init() {
         if (!SESSION_ID) return;
 
@@ -584,15 +542,16 @@
     }
 
     function startSession() {
-        fetch(CTX + "/teacher/sessions", {
+        apiFetch("/teacher/sessions", {
             method: "POST",
             headers: { "Content-Type": "application/x-www-form-urlencoded" },
             body: "action=startSession&sessionId=" + encodeURIComponent(SESSION_ID)
         }).then(function (r) {
             return r.json();
         }).then(function (data) {
-            if (!data.success) {
-                toast("Could not start session", "error");
+            if (!data || !data.success) {
+                var reason = (data && data.error) ? data.error : "Could not start session";
+                toast(reason, "error");
                 return;
             }
             SessionModel.isActive = true;
@@ -606,7 +565,7 @@
     }
 
     function endSession() {
-        fetch(CTX + "/teacher/sessions", {
+        apiFetch("/teacher/sessions", {
             method: "POST",
             headers: { "Content-Type": "application/x-www-form-urlencoded" },
             body: "action=endSession&sessionId=" + encodeURIComponent(SESSION_ID)
@@ -649,7 +608,7 @@
         if (jitsiContainer) jitsiContainer.classList.remove("hidden");
         if (placeholder) placeholder.classList.add("hidden");
 
-        jitsiApi = new JitsiMeetExternalAPI("meet.jit.si", {
+        var jitsiOpts = {
             roomName: room,
             width: "100%",
             height: "100%",
@@ -665,12 +624,16 @@
                 SHOW_JITSI_WATERMARK: false,
                 TOOLBAR_BUTTONS: ["microphone", "camera", "chat", "hangup", "raisehand", "tileview"]
             }
-        });
+        };
+        if (JITSI_JWT) {
+            jitsiOpts.jwt = JITSI_JWT;
+        }
+        jitsiApi = new JitsiMeetExternalAPI(JITSI_DOMAIN, jitsiOpts);
 
-        jitsiApi.addEventListener("participantJoined", function () {
+        jitsiApi.addEventListener("participantJoined", function (participant) {
+            if (participant && participant.local) return;
             setStudentStatus("connected");
-            recordAttendance("Present", true);
-            toast("Student joined", "success");
+            toast("Student joined the session", "success");
         });
 
         jitsiApi.addEventListener("participantLeft", function () {
@@ -721,7 +684,7 @@
     }
 
     function recordAttendance(status, auto) {
-        fetch(CTX + "/teacher/sessions", {
+        return apiFetch("/teacher/sessions", {
             method: "POST",
             headers: { "Content-Type": "application/x-www-form-urlencoded" },
             body: "action=recordAttendance"
@@ -729,7 +692,7 @@
                 + "&studentId=" + encodeURIComponent(STUDENT_ID)
                 + "&status=" + encodeURIComponent(status)
                 + "&auto=" + (auto ? "true" : "false")
-        });
+        }).then(function (r) { return r.json(); }).catch(function () { return null; });
     }
 
     function loadJuzList() {
@@ -746,7 +709,7 @@
 
     function loadSurahList() {
         if (!surahSelector) return;
-        fetch(CTX + "/teacher/quran-api?action=surahList")
+        apiFetch("/teacher/quran-api?action=surahList")
             .then(function (r) { return r.json(); })
             .then(function (json) {
                 var list = json && json.data ? json.data : [];
@@ -767,7 +730,7 @@
     }
 
     function loadSurahInfo(surahNo) {
-        return fetch(CTX + "/teacher/quran-api?action=surahInfo&surah=" + surahNo)
+        return apiFetch("/teacher/quran-api?action=surahInfo&surah=" + surahNo)
             .then(function (r) { return r.json(); })
             .then(function (json) {
                 if (!json || !json.data) {
@@ -813,7 +776,7 @@
     }
 
     function fetchAyah(surah, ayah) {
-        return fetch(CTX + "/teacher/quran-api?action=ayah&surah=" + surah + "&ayah=" + ayah)
+        return apiFetch("/teacher/quran-api?action=ayah&surah=" + surah + "&ayah=" + ayah)
             .then(function (r) { return r.json(); })
             .then(function (json) {
                 if (!json || !json.data || !json.data[0]) return null;
@@ -846,10 +809,14 @@
             SessionModel.currentSurah = surah;
             SessionModel.currentAyah = ayahStart;
             SessionModel.currentAyahEnd = ayahEnd;
+            SessionModel.appliedAyahStart = ayahStart;
+            SessionModel.appliedAyahEnd = ayahEnd;
+            SessionModel.focusAyah = ayahStart;
             SessionModel.verses = rows.filter(Boolean);
 
             renderVerses();
             updateCurrentDisplay();
+            updateNavButtons();
             applyTranslationVisibility();
 
             if (pushToServer) {
@@ -888,6 +855,7 @@
             
             var card = document.createElement("div");
             card.className = "soft-card p-5 mb-4 border border-gray-200 rounded-lg hover:shadow-md transition";
+            card.setAttribute("data-ayah", String(v.number));
             card.innerHTML = ''
                 + '<div class="flex items-start gap-3 mb-4">'
                 + '<div class="w-8 h-8 ayah-badge rounded-full text-white font-bold grid place-items-center flex-shrink-0 text-sm">' + v.number + '</div>'
@@ -898,9 +866,24 @@
             verseCards.appendChild(card);
         }
 
-        if (centerAyahLabel) centerAyahLabel.textContent = String(SessionModel.currentAyah);
-        if (prevAyahBtn) prevAyahBtn.disabled = SessionModel.currentAyah <= 1;
-        if (nextAyahBtn) nextAyahBtn.disabled = SessionModel.totalAyahs > 0 && SessionModel.currentAyah >= SessionModel.totalAyahs;
+        if (centerAyahLabel) centerAyahLabel.textContent = String(SessionModel.focusAyah || SessionModel.appliedAyahStart);
+        updateNavButtons();
+    }
+
+    function updateNavButtons() {
+        var start = SessionModel.appliedAyahStart;
+        var end = SessionModel.appliedAyahEnd;
+        var focus = SessionModel.focusAyah || start;
+        if (prevAyahBtn) prevAyahBtn.disabled = focus <= start;
+        if (nextAyahBtn) nextAyahBtn.disabled = focus >= end;
+    }
+
+    function scrollToAyahCard(ayahNum) {
+        if (!verseCards) return;
+        var card = verseCards.querySelector('[data-ayah="' + ayahNum + '"]');
+        if (card) {
+            card.scrollIntoView({ behavior: "smooth", block: "center" });
+        }
     }
 
     function fallbackTranslit(ayah) {
@@ -944,6 +927,9 @@
             SessionModel.currentSurah = surah;
             SessionModel.currentAyah = start;
             SessionModel.currentAyahEnd = end;
+            SessionModel.appliedAyahStart = start;
+            SessionModel.appliedAyahEnd = end;
+            SessionModel.focusAyah = start;
             
             toast("Quran display saved", "success");
         });
@@ -959,22 +945,24 @@
     }
 
     function moveWindow(delta) {
-        var start = SessionModel.currentAyah + delta;
-        if (start < 1) return;
-        var windowSize = Math.max(1, SessionModel.currentAyahEnd - SessionModel.currentAyah);
-        var end = start + windowSize;
-        if (SessionModel.totalAyahs > 0 && end > SessionModel.totalAyahs) {
-            end = SessionModel.totalAyahs;
-        }
-        if (ayahStartInput) ayahStartInput.value = String(start);
-        if (ayahEndInput) ayahEndInput.value = String(end);
-        loadVerseRange(SessionModel.currentSurah, start, end, true);
+        var start = SessionModel.appliedAyahStart;
+        var end = SessionModel.appliedAyahEnd;
+        var focus = (SessionModel.focusAyah || start) + delta;
+        if (focus < start || focus > end) return;
+        SessionModel.focusAyah = focus;
+        if (centerAyahLabel) centerAyahLabel.textContent = String(focus);
+        scrollToAyahCard(focus);
+        updateNavButtons();
     }
 
     function updateCurrentDisplay() {
         if (currentJuz) currentJuz.textContent = "1";
         if (currentSurah) currentSurah.textContent = String(SessionModel.currentSurah);
-        if (currentAyah) currentAyah.textContent = String(SessionModel.currentAyah);
+        if (currentAyah) {
+            currentAyah.textContent = SessionModel.appliedAyahEnd > SessionModel.appliedAyahStart
+                ? (SessionModel.appliedAyahStart + "-" + SessionModel.appliedAyahEnd)
+                : String(SessionModel.appliedAyahStart);
+        }
     }
 
     function applyTranslationVisibility() {
@@ -988,7 +976,7 @@
     }
 
     function persistQuranRef(surah, ayah, ayahEnd) {
-        fetch(CTX + "/teacher/sessions", {
+        apiFetch("/teacher/sessions", {
             method: "POST",
             headers: { "Content-Type": "application/x-www-form-urlencoded" },
             body: "action=updateQuran"

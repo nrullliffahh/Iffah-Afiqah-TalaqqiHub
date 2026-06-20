@@ -4,6 +4,7 @@ import dao.TalaqqiSessionDAO;
 import dao.TeacherDAO;
 import model.TalaqqiSession;
 import model.Teacher;
+import util.SessionRoleUtil;
 
 import javax.servlet.ServletException;
 import javax.servlet.http.HttpServlet;
@@ -115,7 +116,11 @@ public class TeacherTalaqqiSessionServlet extends HttpServlet {
 
         HttpSession httpSession = request.getSession(false);
         if (!isAuthenticated(httpSession)) {
-            sendJson(response, SC_UNAUTHORIZED, "{\"success\":false,\"error\":\"Unauthorized\"}");
+            String authError = (httpSession == null)
+                    ? "Session expired. Please log in again."
+                    : "Not logged in as teacher. Please log in again.";
+            sendJson(response, SC_UNAUTHORIZED,
+                    "{\"success\":false,\"error\":\"" + escapeJson(authError) + "\"}");
             return;
         }
 
@@ -135,6 +140,7 @@ public class TeacherTalaqqiSessionServlet extends HttpServlet {
             // ── Start Session ─────────────────────────────────────────────────
             case "startSession": {
                 String sessionId = request.getParameter("sessionId");
+                if (sessionId != null) sessionId = sessionId.trim();
                 if (isEmpty(sessionId)) {
                     sendJson(response, SC_BAD_REQUEST, "{\"success\":false,\"error\":\"sessionId required\"}");
                     return;
@@ -142,12 +148,15 @@ public class TeacherTalaqqiSessionServlet extends HttpServlet {
                 // Validate the session belongs to this teacher
                 TalaqqiSession ts = talaqqiSessionDAO.getSessionBySessionId(sessionId, teacherId);
                 if (ts == null) {
-                    sendJson(response, SC_NOT_FOUND, "{\"success\":false,\"error\":\"Session not found\"}");
+                    System.err.println("[TeacherTalaqqiSessionServlet] startSession: session not found for sessionId="
+                            + sessionId + ", teacherId=" + teacherId);
+                    sendJson(response, SC_NOT_FOUND,
+                            "{\"success\":false,\"error\":\"Session not found for this teacher\"}");
                     return;
                 }
                 
-                // Record session start time in database
-                boolean startTimeRecorded = talaqqiSessionDAO.recordSessionStartTime(sessionId);
+                // Record session start time in database (non-blocking; session can still start)
+                talaqqiSessionDAO.recordSessionStartTime(sessionId);
                 
                 // Mark active in HTTP session
                 httpSession.setAttribute(SESSION_KEY, sessionId);
@@ -170,8 +179,9 @@ public class TeacherTalaqqiSessionServlet extends HttpServlet {
                     return;
                 }
 
-                // Record leave time if a student was present
-                if (!isEmpty(studentId)) {
+                // Record leave time for all students who joined this session
+                int leaveUpdated = talaqqiSessionDAO.updateLeaveTimesForSession(sessionId, currentSqlTime());
+                if (leaveUpdated == 0 && !isEmpty(studentId)) {
                     talaqqiSessionDAO.updateLeaveTime(sessionId, studentId, currentSqlTime());
                 }
 
@@ -250,9 +260,14 @@ public class TeacherTalaqqiSessionServlet extends HttpServlet {
                     return;
                 }
 
-                String status  = (statusParam != null && !statusParam.isEmpty()) ? statusParam : "Present";
-                boolean auto   = "true".equalsIgnoreCase(autoParam);
-                Time    joinTime = currentSqlTime();
+                boolean auto = "true".equalsIgnoreCase(autoParam);
+                String status;
+                if (auto) {
+                    status = talaqqiSessionDAO.determineAttendanceStatus(sessionId, studentId);
+                } else {
+                    status = (statusParam != null && !statusParam.isEmpty()) ? statusParam : "Present";
+                }
+                Time joinTime = currentSqlTime();
 
                 // Fetch teacherId from the session to ensure correct scope
                 TalaqqiSession ts = talaqqiSessionDAO.getSessionBySessionId(sessionId, teacherId);
@@ -279,7 +294,7 @@ public class TeacherTalaqqiSessionServlet extends HttpServlet {
     // ══════════════════════════════════════════════════════════════════════════
 
     private boolean isAuthenticated(HttpSession s) {
-        return s != null && s.getAttribute("teacherId") != null;
+        return SessionRoleUtil.isTeacherLoggedIn(s);
     }
 
     private boolean isEmpty(String s) {

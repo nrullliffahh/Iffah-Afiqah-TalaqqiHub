@@ -119,8 +119,8 @@
                                 </div>
                                 <div class="flex-1">
                                     <div class="flex items-start space-x-3">
-                                        <div class="w-10 h-10 rounded-full bg-pink-50 flex items-center justify-center">
-                                            <svg class="w-5 h-5 text-pink-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 8h10M7 12h4m1 8a9 9 0 110-18 9 9 0 010 18z"/></svg>
+                                        <div class="w-10 h-10 rounded-full bg-purple-50 flex items-center justify-center">
+                                            <svg class="w-5 h-5 text-purple-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 8h10M7 12h4m1 8a9 9 0 110-18 9 9 0 010 18z"/></svg>
                                         </div>
                                         <div>
                                             <h3 class="font-semibold">Professional Conduct and Ethics</h3>

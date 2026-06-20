@@ -5,6 +5,7 @@ import model.Attendance;
 import javax.servlet.*;
 import javax.servlet.http.*;
 import java.io.IOException;
+import java.text.SimpleDateFormat;
 import java.util.*;
 
 public class TeacherAttendanceServlet extends HttpServlet {
@@ -108,10 +109,48 @@ public class TeacherAttendanceServlet extends HttpServlet {
         request.setAttribute("presentDataJson", presentDataJson.toString());
         request.setAttribute("absentDataJson", absentDataJson.toString());
         request.setAttribute("lateDataJson", lateDataJson.toString());
+        request.setAttribute("recordsJson", buildRecordsJson(records));
 
         
         // Forward to JSP
         RequestDispatcher dispatcher = request.getRequestDispatcher("/WEB-INF/views/teacherAttendance.jsp");
         dispatcher.forward(request, response);
+    }
+
+    private String buildRecordsJson(List<Attendance> records) {
+        SimpleDateFormat dateFormat = new SimpleDateFormat("yyyy-MM-dd");
+        StringBuilder json = new StringBuilder("[");
+
+        for (int i = 0; i < records.size(); i++) {
+            Attendance record = records.get(i);
+            if (i > 0) {
+                json.append(",");
+            }
+
+            json.append("{");
+            json.append("\"studentId\":\"").append(escapeJson(record.getStudentCode())).append("\",");
+            json.append("\"studentName\":\"").append(escapeJson(record.getStudentName())).append("\",");
+            json.append("\"status\":\"").append(escapeJson(record.getStatus())).append("\",");
+            if (record.getSessionDate() != null) {
+                json.append("\"date\":\"").append(dateFormat.format(record.getSessionDate())).append("\"");
+            } else {
+                json.append("\"date\":\"\"");
+            }
+            json.append("}");
+        }
+
+        json.append("]");
+        return json.toString();
+    }
+
+    private String escapeJson(String value) {
+        if (value == null) {
+            return "";
+        }
+        return value
+                .replace("\\", "\\\\")
+                .replace("\"", "\\\"")
+                .replace("\n", "\\n")
+                .replace("\r", "\\r");
     }
 }

@@ -10,20 +10,29 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Edit Package - Admin</title>
+    <%@ include file="/WEB-INF/views/includes/adminLayoutStyles.jsp" %>
     <script src="https://cdn.tailwindcss.com"></script>
     <link rel="stylesheet" href="<%= request.getContextPath() %>/css/theme.css">
     <link rel="stylesheet" href="<%= request.getContextPath() %>/css/styles.css">
 </head>
-<body class="bg-gray-50 font-sans">
-    <div class="flex min-h-screen">
-        <%@ include file="includes/adminSidebar.jsp" %>
-        <main class="flex-1 ml-56 p-8">
-            <h1 class="text-2xl font-bold mb-4">Edit Package</h1>
+<body>
+    <jsp:include page="/WEB-INF/views/includes/adminSidebar.jsp">
+        <jsp:param name="activePage" value="packages"/>
+    </jsp:include>
+
+    <div class="main-content">
+        <jsp:include page="/WEB-INF/views/includes/adminTopNavbar.jsp">
+            <jsp:param name="pageTitle" value="Edit Package"/>
+        </jsp:include>
+
+        <div class="page-content">
+            <h1 class="page-title">Edit Package</h1>
+            <p class="page-subtitle">Update package details and pricing</p>
             <c:if test="${empty pkg}">
-                <div class="bg-red-50 border border-red-200 p-4 rounded">Package not found.</div>
+                <div class="flash-error">Package not found.</div>
             </c:if>
             <c:if test="${not empty pkg}">
-                <form method="post" action="<%= request.getContextPath() %>/admin/packages/edit" class="bg-white p-6 rounded shadow-md max-w-2xl">
+                <form method="post" action="<%= request.getContextPath() %>/admin/packages/edit" class="panel max-w-2xl">
                     <% model.Package _pkg = (model.Package) request.getAttribute("pkg");
                        String hiddenId = "P000";
                        if (_pkg != null) hiddenId = String.format("P%03d", _pkg.getPackageId());
@@ -71,12 +80,12 @@
                     </div>
 
                     <div class="flex space-x-3">
-                        <button type="submit" class="bg-purple-600 text-white px-4 py-2 rounded">Save</button>
-                        <a href="<%= request.getContextPath() %>/admin/packages" class="bg-gray-200 px-4 py-2 rounded">Cancel</a>
+                        <button type="submit" class="btn-primary">Save</button>
+                        <a href="<%= request.getContextPath() %>/admin/packages" class="btn-secondary">Cancel</a>
                     </div>
                 </form>
             </c:if>
-        </main>
+        </div>
     </div>
 </body>
 </html>

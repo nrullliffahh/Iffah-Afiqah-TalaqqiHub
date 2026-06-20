@@ -202,15 +202,16 @@
                         <label class="flex items-start cursor-pointer">
                             <input
                                 type="checkbox"
+                                id="agreeToTerms"
                                 name="agreeToTerms"
                                 class="w-4 h-4 mt-1 rounded cursor-pointer"
                                 style="accent-color: var(--color-primary-500);"
                                 required
                             />
                             <span class="ml-2" style="color: var(--color-text-muted);">
-                                I agree to the 
-                                <a href="${pageContext.request.contextPath}/termCondition.jsp" style="color: var(--color-primary-500);" class="hover:opacity-80">
-                                    Terms & Conditions
+                                I agree to the
+                                <a href="#" id="openTermsLink" style="color: var(--color-primary-500);" class="hover:opacity-80 font-semibold">
+                                    Terms &amp; Conditions
                                 </a>
                             </span>
                         </label>
@@ -244,5 +245,95 @@
             </div>
         </div>
     </div>
+
+    <!-- Terms & Conditions Modal -->
+    <div id="termsModal" class="fixed inset-0 bg-gray-900/50 flex items-center justify-center p-4 hidden z-50">
+        <div class="w-full max-w-2xl mx-auto">
+            <div class="bg-white rounded-2xl shadow-2xl overflow-hidden max-h-[90vh] flex flex-col">
+                <div class="terms-header-gradient relative px-6 py-7 overflow-hidden flex-shrink-0" style="background: linear-gradient(135deg, #2d6a66 0%, #4a6fa5 45%, #7c3aed 100%);">
+                    <div class="absolute -top-8 -right-8 w-36 h-36 rounded-full bg-white/10"></div>
+                    <div class="absolute top-4 right-24 w-20 h-20 rounded-full bg-white/5"></div>
+                    <div class="relative flex items-start justify-between gap-4">
+                        <div>
+                            <h2 class="text-white text-2xl font-bold tracking-tight">Terms &amp; Conditions</h2>
+                            <p class="text-white/80 mt-1 text-sm">Please read these terms carefully before using TalaqqiHub</p>
+                        </div>
+                        <button type="button" id="termsClose" aria-label="Close" class="text-white hover:bg-white/15 p-2 rounded-lg transition-colors flex-shrink-0">
+                            <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5">
+                                <path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12" />
+                            </svg>
+                        </button>
+                    </div>
+                </div>
+                <div id="termsModalContent" class="overflow-y-auto flex-1 px-5 py-5 space-y-3" style="scrollbar-width: thin;">
+                    <div class="text-sm text-gray-500 text-center py-8">Loading terms...</div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        document.addEventListener('DOMContentLoaded', function () {
+            const openTermsLink = document.getElementById('openTermsLink');
+            const termsModal = document.getElementById('termsModal');
+            const termsClose = document.getElementById('termsClose');
+            const termsModalContent = document.getElementById('termsModalContent');
+            const termsPath = '${pageContext.request.contextPath}/termCondition.jsp';
+            let termsLoaded = false;
+
+            function closeTermsModal() {
+                termsModal.classList.add('hidden');
+                document.body.style.overflow = '';
+            }
+
+            function agreeToTerms() {
+                const checkbox = document.getElementById('agreeToTerms');
+                if (checkbox) checkbox.checked = true;
+                closeTermsModal();
+            }
+
+            async function loadTerms() {
+                if (termsLoaded || !termsModalContent) return;
+                try {
+                    const res = await fetch(termsPath, { cache: 'no-store' });
+                    if (!res.ok) throw new Error('HTTP ' + res.status);
+                    const text = await res.text();
+                    const doc = new DOMParser().parseFromString(text, 'text/html');
+                    const fetchedContent = doc.getElementById('termsContent');
+                    if (fetchedContent) {
+                        termsModalContent.innerHTML = fetchedContent.innerHTML;
+                        const agreeBtn = termsModalContent.querySelector('#agreeBtn');
+                        if (agreeBtn) {
+                            agreeBtn.removeAttribute('onclick');
+                            agreeBtn.addEventListener('click', agreeToTerms);
+                        }
+                        termsLoaded = true;
+                    } else {
+                        termsModalContent.innerHTML = '<div class="p-4 text-sm text-red-600">Failed to load terms content.</div>';
+                    }
+                } catch (err) {
+                    termsModalContent.innerHTML = '<div class="p-4 text-sm text-red-600">Failed to load terms. Please try again later.</div>';
+                    console.error('Failed to fetch terms:', err);
+                }
+            }
+
+            if (openTermsLink && termsModal) {
+                openTermsLink.addEventListener('click', async function (evt) {
+                    evt.preventDefault();
+                    await loadTerms();
+                    termsModal.classList.remove('hidden');
+                    document.body.style.overflow = 'hidden';
+                });
+            }
+
+            if (termsClose) {
+                termsClose.addEventListener('click', closeTermsModal);
+            }
+
+            termsModal.addEventListener('click', function (evt) {
+                if (evt.target === termsModal) closeTermsModal();
+            });
+        });
+    </script>
 </body>
 </html>
