@@ -1,17 +1,16 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <Context>
-    <!--
-        Tomcat JDBC DataSource for TalaqqiHub.
-        Adjust username/password/url as needed, or set system env vars before Tomcat starts.
-    -->
     <Resource name="jdbc/TalaqqiHubDB"
               auth="Container"
               type="javax.sql.DataSource"
               factory="org.apache.tomcat.jdbc.pool.DataSourceFactory"
               driverClassName="com.mysql.cj.jdbc.Driver"
-              url="jdbc:mysql://127.0.0.1:3306/talaqqihub?useSSL=false&amp;serverTimezone=UTC&amp;connectTimeout=5000&amp;socketTimeout=10000"
-              username="root"
-              password="admin"
+
+              url="jdbc:mysql://mysql-2b375d73-nrullliffahh-3229.i.aivencloud.com:16135/defaultdb?sslMode=REQUIRED"
+
+              username=""
+              password=""
+
               initialSize="2"
               maxActive="20"
               maxIdle="10"
