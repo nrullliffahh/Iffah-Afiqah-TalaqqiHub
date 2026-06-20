@@ -117,7 +117,7 @@
 
                 <p id="recordCount" class="records-info">Showing database class records</p>
 
-                <div style="overflow-x:auto;">
+                <div class="table-responsive">
                     <table id="classRecordsTable" class="records-table">
                         <thead>
                             <tr>

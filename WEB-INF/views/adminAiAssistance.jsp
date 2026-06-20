@@ -164,6 +164,7 @@
 
                 <div class="records-info" id="recordsInfo">Showing 1-<%= interactions.size() %> of <%= interactions.size() %> interactions</div>
 
+                <div class="table-responsive">
                 <table class="records-table">
                     <thead>
                         <tr>
@@ -200,6 +201,7 @@
                         <% } %>
                     </tbody>
                 </table>
+                </div>
             </div>
         </div>
     </div>

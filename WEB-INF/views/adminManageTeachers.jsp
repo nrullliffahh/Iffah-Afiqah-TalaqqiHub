@@ -109,7 +109,7 @@
 
                 <p class="records-info">Showing <%= request.getAttribute("totalTeachers") != null ? request.getAttribute("totalTeachers") : 0 %> teachers</p>
 
-                <div style="overflow-x:auto;">
+                <div class="table-responsive">
                     <table id="teachersTable" class="records-table">
                         <thead>
                             <tr>

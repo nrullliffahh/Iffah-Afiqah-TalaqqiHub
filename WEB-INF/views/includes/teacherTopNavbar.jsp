@@ -62,7 +62,12 @@
 
 <div class="top-navbar">
 
-    <div class="navbar-title"><%= navbarTitle %></div>
+    <div class="navbar-left">
+        <button type="button" class="sidebar-toggle" id="portalSidebarToggle" aria-label="Toggle navigation menu" aria-expanded="false">
+            <i class="fas fa-bars"></i>
+        </button>
+        <div class="navbar-title"><%= navbarTitle %></div>
+    </div>
 
     <div class="navbar-right">
 
@@ -76,7 +81,7 @@
 
             <div class="user-avatar"><%= initials %></div>
 
-            <div>
+            <div class="user-text">
 
                 <p class="user-name"><%= teacherName %></p>
 

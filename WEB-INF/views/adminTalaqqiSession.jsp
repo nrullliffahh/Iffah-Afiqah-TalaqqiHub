@@ -111,7 +111,7 @@
                     </c:choose>
                 </p>
 
-                <div style="overflow-x:auto;">
+                <div class="table-responsive">
                     <table id="sessionsTable" class="records-table">
                         <thead>
                             <tr>

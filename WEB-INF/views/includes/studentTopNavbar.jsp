@@ -26,7 +26,12 @@
     String ctx = request.getContextPath();
 %>
 <div class="top-navbar">
-    <div class="navbar-title"><%= navbarTitle %></div>
+    <div class="navbar-left">
+        <button type="button" class="sidebar-toggle" id="portalSidebarToggle" aria-label="Toggle navigation menu" aria-expanded="false">
+            <i class="fas fa-bars"></i>
+        </button>
+        <div class="navbar-title"><%= navbarTitle %></div>
+    </div>
     <div class="navbar-right">
         <jsp:include page="/WEB-INF/views/includes/studentNotifications.jsp">
             <jsp:param name="prefix" value="<%= notifPrefix %>"/>
@@ -34,7 +39,7 @@
         <div class="user-info" id="studentProfileWrap">
             <button type="button" class="profile-trigger" onclick="document.getElementById('studentProfileDropdown').classList.toggle('open')">
                 <div class="user-avatar"><%= initials %></div>
-                <div style="text-align:left;">
+                <div class="user-text">
                     <p class="user-name"><%= studentName %></p>
                     <p class="user-role"><%= studentId != null ? "Student ID: " + studentId : "Student" %></p>
                 </div>

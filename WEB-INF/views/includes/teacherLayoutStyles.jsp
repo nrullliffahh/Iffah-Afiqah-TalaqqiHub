@@ -16,7 +16,7 @@
     }
     * { font-family: 'Poppins', sans-serif; margin: 0; padding: 0; box-sizing: border-box; }
     body { background: var(--teacher-bg); overflow-x: hidden; color: var(--teacher-text); }
-    .sidebar { position: fixed; left: 0; top: 0; width: 280px; height: 100vh; background: var(--teacher-sidebar); overflow-y: auto; z-index: 1000; padding: 30px 0; }
+    .sidebar { position: fixed; left: 0; top: 0; width: 280px; height: 100vh; background: var(--teacher-sidebar); overflow-y: auto; z-index: 1000; padding: 30px 0; padding-bottom: 100px; }
     .sidebar-brand { padding: 0 25px 30px; margin-bottom: 20px; border-bottom: 1px solid rgba(255,255,255,0.1); }
     .brand-title { font-size: 24px; font-weight: 700; color: rgba(255,255,255,0.95); }
     .brand-subtitle { font-size: 13px; color: rgba(255,255,255,0.6); }
@@ -86,9 +86,5 @@
     .notif-item-time { font-size: 11px; color: #94A3B8; margin-top: 4px; }
     .notif-menu-foot { padding: 12px; text-align: center; border-top: 1px solid #f1f5f9; }
     .notif-menu-foot a { font-size: 13px; font-weight: 600; color: var(--teacher-purple); text-decoration: none; }
-    @media (max-width: 1200px) {
-        .stats-grid, .stats-grid-4, .trends-grid { grid-template-columns: 1fr; }
-        .main-content { margin-left: 0; }
-        .sidebar { position: relative; width: 100%; height: auto; }
-    }
 </style>
+<%@ include file="/WEB-INF/views/includes/portalResponsive.jsp" %>

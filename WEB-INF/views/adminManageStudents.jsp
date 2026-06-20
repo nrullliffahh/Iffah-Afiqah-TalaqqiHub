@@ -95,7 +95,7 @@
 
                 <p class="records-info">Showing <%= request.getAttribute("totalStudents") %> students</p>
 
-                <div style="overflow-x:auto;">
+                <div class="table-responsive">
                     <table id="studentsTable" class="records-table">
                         <thead>
                             <tr>

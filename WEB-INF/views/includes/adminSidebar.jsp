@@ -4,7 +4,10 @@
     String activePage = request.getParameter("activePage");
     if (activePage == null) activePage = "";
 %>
-<div class="sidebar">
+<div class="sidebar" id="portalSidebar">
+    <button type="button" class="sidebar-close" id="portalSidebarClose" aria-label="Close navigation menu">
+        <i class="fas fa-times"></i>
+    </button>
     <div class="sidebar-brand">
         <div class="brand-title">TalaqqiHub</div>
         <div class="brand-subtitle">Admin Portal</div>
