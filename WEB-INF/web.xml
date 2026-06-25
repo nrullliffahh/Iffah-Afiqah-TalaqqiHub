@@ -191,6 +191,11 @@
     </servlet>
 
     <servlet>
+        <servlet-name>AdminTeacherProfileServlet</servlet-name>
+        <servlet-class>controller.AdminTeacherProfileServlet</servlet-class>
+    </servlet>
+
+    <servlet>
         <servlet-name>AdminClassScheduleServlet</servlet-name>
         <servlet-class>controller.AdminClassScheduleServlet</servlet-class>
     </servlet>
@@ -539,6 +544,11 @@
     <servlet-mapping>
         <servlet-name>AdminManageTeachersServlet</servlet-name>
         <url-pattern>/admin/manage-teachers</url-pattern>
+    </servlet-mapping>
+
+    <servlet-mapping>
+        <servlet-name>AdminTeacherProfileServlet</servlet-name>
+        <url-pattern>/admin/teacher-profile</url-pattern>
     </servlet-mapping>
 
     <servlet-mapping>

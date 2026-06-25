@@ -31,6 +31,15 @@
             <h1 class="page-title">Manage Teachers</h1>
             <p class="page-subtitle">View teacher profiles and manage registration approvals</p>
 
+            <% if (request.getAttribute("flashMessage") != null) {
+                   String flashType = request.getAttribute("flashType") != null ? request.getAttribute("flashType").toString() : "success";
+                   boolean isError = "error".equalsIgnoreCase(flashType);
+            %>
+            <div style="margin-bottom:20px;padding:14px 18px;border-radius:12px;font-size:14px;font-weight:500;<%= isError ? "background:#FEF2F2;color:#B91C1C;border:1px solid #FECACA;" : "background:#ECFDF5;color:#047857;border:1px solid #A7F3D0;" %>">
+                <%= request.getAttribute("flashMessage") %>
+            </div>
+            <% } %>
+
             <div class="stats-grid-4">
                 <div class="stat-card">
                     <div class="stat-icon purple"><i class="fas fa-chalkboard-user"></i></div>
@@ -107,7 +116,7 @@
                     </div>
                 </form>
 
-                <p class="records-info">Showing <%= request.getAttribute("totalTeachers") != null ? request.getAttribute("totalTeachers") : 0 %> teachers</p>
+                <p class="records-info">Showing <%= request.getAttribute("displayCount") != null ? request.getAttribute("displayCount") : 0 %> of <%= request.getAttribute("totalTeachers") != null ? request.getAttribute("totalTeachers") : 0 %> teachers</p>
 
                 <div class="table-responsive">
                     <table id="teachersTable" class="records-table">
@@ -136,15 +145,15 @@
                                 <td><%= t.getQualification() != null ? t.getQualification() : "-" %></td>
                                 <td><%= t.getDateOfBirth() != null ? t.getDateOfBirth().toString() : "-" %></td>
                                 <td>
-                                    <% String st = t.getStatus() != null ? t.getStatus() : ""; %>
+                                    <% String st = t.getStatus() != null ? t.getStatus() : "Pending"; %>
                                     <% if ("approved".equalsIgnoreCase(st)) { %>
                                         <span class="status-badge status-approved">Approved</span>
-                                    <% } else if ("pending".equalsIgnoreCase(st)) { %>
+                                    <% } else if ("pending".equalsIgnoreCase(st) || st.trim().isEmpty()) { %>
                                         <span class="status-badge status-pending">Pending</span>
                                     <% } else if ("rejected".equalsIgnoreCase(st)) { %>
                                         <span class="status-badge status-rejected">Rejected</span>
                                     <% } else { %>
-                                        <span class="status-badge status-default">-</span>
+                                        <span class="status-badge status-pending"><%= st %></span>
                                     <% } %>
                                 </td>
                                 <td>
@@ -153,7 +162,7 @@
                                             <input type="hidden" name="teacherId" value="<%= t.getTeacherId() != null ? t.getTeacherId() : "" %>" />
                                             <button type="button" class="js-action-btn btn-action" data-action="view">View</button>
                                         </form>
-                                        <% if ("pending".equalsIgnoreCase(st)) { %>
+                                        <% if ("pending".equalsIgnoreCase(st) || st.trim().isEmpty()) { %>
                                             <button type="button" class="js-action-btn btn-action btn-approve" data-action="approve">Approve</button>
                                             <button type="button" class="js-action-btn btn-action btn-reject" data-action="reject">Reject</button>
                                         <% } %>

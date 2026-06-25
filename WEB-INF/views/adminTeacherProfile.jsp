@@ -7,7 +7,7 @@
             <p class="text-sm text-gray-500 mt-1">View-only access</p>
         </div>
         <div class="text-sm">
-            <a href="#" onclick="document.getElementById('teacherProfileModal').classList.add('hidden'); return false;" class="text-gray-400 hover:text-gray-600">Close</a>
+            <a href="#" onclick="var modal=document.getElementById('teacherProfileModal'); if(modal){modal.classList.remove('open');} return false;" class="text-gray-400 hover:text-gray-600">Close</a>
         </div>
     </div>
 

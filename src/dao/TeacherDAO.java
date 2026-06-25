@@ -80,38 +80,52 @@ public class TeacherDAO {
     }
     
     public boolean registerTeacher(Teacher teacher) {
+        if (insertTeacher(teacher, true)) {
+            return true;
+        }
+        return insertTeacher(teacher, false);
+    }
+
+    private boolean insertTeacher(Teacher teacher, boolean includeApprovalStatus) {
         Connection conn = null;
         PreparedStatement stmt = null;
-        
+
         try {
             conn = DBConnection.getConnection();
             if (conn == null) {
                 System.err.println("registerTeacher: DB connection is null.");
                 return false;
             }
-            String sql = "INSERT INTO teacher (teacherId, teacherName, teacherEmail, teacherPassword, teacherPhoneNo, teacherDateofBirth, registrationDate, teacherSecQues, teacherSecPassword, qualifications, specialtyArea, certificationPath) VALUES (?, ?, ?, ?, ?, ?, CURDATE(), ?, ?, ?, ?, ?)";
-            stmt = conn.prepareStatement(sql);
-            
+
             String teacherId = getNextTeacherId();
+            String sql = includeApprovalStatus
+                    ? "INSERT INTO teacher (teacherId, teacherName, teacherEmail, teacherPassword, teacherPhoneNo, teacherDateofBirth, registrationDate, teacherSecQues, teacherSecPassword, qualifications, specialtyArea, certificationPath, approvalStatus, teacherStatus) VALUES (?, ?, ?, ?, ?, ?, CURDATE(), ?, ?, ?, ?, ?, 'Pending', 'Pending')"
+                    : "INSERT INTO teacher (teacherId, teacherName, teacherEmail, teacherPassword, teacherPhoneNo, teacherDateofBirth, registrationDate, teacherSecQues, teacherSecPassword, qualifications, specialtyArea, certificationPath, teacherStatus) VALUES (?, ?, ?, ?, ?, ?, CURDATE(), ?, ?, ?, ?, ?, 'Pending')";
+            stmt = conn.prepareStatement(sql);
+
             stmt.setString(1, teacherId);
             stmt.setString(2, teacher.getFullName());
             stmt.setString(3, teacher.getEmail());
             stmt.setString(4, teacher.getPassword());
             stmt.setString(5, teacher.getPhone());
-            stmt.setDate(6, Date.valueOf(teacher.getDateOfBirth()));
+            stmt.setDate(6, teacher.getDateOfBirth() != null ? Date.valueOf(teacher.getDateOfBirth()) : null);
             stmt.setString(7, teacher.getSecurityQuestion());
             stmt.setString(8, teacher.getSecurityAnswer());
             stmt.setString(9, teacher.getQualification());
             stmt.setString(10, teacher.getSpecialty());
             stmt.setString(11, teacher.getCertificationPath());
-            
+
             int result = stmt.executeUpdate();
-            System.out.println("Teacher registration result: " + result);
             if (result > 0) {
                 teacher.setTeacherId(teacherId);
+                teacher.setStatus("Pending");
             }
             return result > 0;
         } catch (SQLException e) {
+            if (includeApprovalStatus) {
+                System.err.println("registerTeacher with approvalStatus failed: " + e.getMessage());
+                return false;
+            }
             System.err.println("SQL Error in registerTeacher: " + e.getMessage());
             e.printStackTrace();
             return false;
@@ -349,7 +363,7 @@ public class TeacherDAO {
             }
             String sql = includeApprovalStatus
                     ? "SELECT teacherId, teacherName, teacherEmail, registrationDate, specialtyArea, teacherPhoneNo, qualifications, approvalStatus, certificationPath FROM teacher WHERE teacherId = ?"
-                    : "SELECT teacherId, teacherName, teacherEmail, registrationDate, specialtyArea, teacherPhoneNo, qualifications, certificationPath FROM teacher WHERE teacherId = ?";
+                    : "SELECT teacherId, teacherName, teacherEmail, registrationDate, specialtyArea, teacherPhoneNo, qualifications, teacherStatus, certificationPath FROM teacher WHERE teacherId = ?";
             stmt = conn.prepareStatement(sql);
             stmt.setString(1, teacherId);
             rs = stmt.executeQuery();
@@ -363,7 +377,9 @@ public class TeacherDAO {
                 teacher.setPhone(rs.getString("teacherPhoneNo"));
                 teacher.setQualification(rs.getString("qualifications"));
                 if (includeApprovalStatus) {
-                    teacher.setStatus(rs.getString("approvalStatus"));
+                    teacher.setStatus(normalizeApprovalStatus(rs.getString("approvalStatus")));
+                } else {
+                    teacher.setStatus(mapTeacherStatusToApproval(rs.getString("teacherStatus")));
                 }
                 teacher.setCertificationPath(rs.getString("certificationPath"));
 
@@ -547,6 +563,15 @@ public class TeacherDAO {
      * Get all teachers for admin listing
      */
     public java.util.List<model.Teacher> getAllTeachers() {
+        java.util.List<model.Teacher> teachers = queryAllTeachers(true);
+        if (teachers != null) {
+            return teachers;
+        }
+        teachers = queryAllTeachers(false);
+        return teachers != null ? teachers : new java.util.ArrayList<>();
+    }
+
+    private java.util.List<model.Teacher> queryAllTeachers(boolean includeApprovalStatus) {
         java.util.List<model.Teacher> list = new java.util.ArrayList<>();
         Connection conn = null;
         PreparedStatement pstmt = null;
@@ -558,39 +583,101 @@ public class TeacherDAO {
                 System.err.println("getAllTeachers: DB connection is null.");
                 return list;
             }
-            String sql = "SELECT teacherId, teacherName, teacherEmail, teacherPhoneNo, specialtyArea, qualifications, registrationDate, approvalStatus FROM teacher ORDER BY registrationDate DESC";
+            String sql = includeApprovalStatus
+                    ? "SELECT teacherId, teacherName, teacherEmail, teacherPhoneNo, specialtyArea, qualifications, registrationDate, approvalStatus FROM teacher ORDER BY registrationDate DESC"
+                    : "SELECT teacherId, teacherName, teacherEmail, teacherPhoneNo, specialtyArea, qualifications, registrationDate, teacherStatus FROM teacher ORDER BY registrationDate DESC";
             pstmt = conn.prepareStatement(sql);
             rs = pstmt.executeQuery();
 
             while (rs.next()) {
-                model.Teacher t = new model.Teacher();
-                t.setTeacherId(rs.getString("teacherId"));
-                t.setFullName(rs.getString("teacherName"));
-                t.setEmail(rs.getString("teacherEmail"));
-                t.setPhone(rs.getString("teacherPhoneNo"));
-                t.setSpecialty(rs.getString("specialtyArea"));
-                t.setQualification(rs.getString("qualifications"));
-                // reuse dateOfBirth field for registration date as other code does
-                java.sql.Date sqlDate = rs.getDate("registrationDate");
-                if (sqlDate != null) t.setDateOfBirth(sqlDate.toLocalDate());
-                try { t.setStatus(rs.getString("approvalStatus")); } catch (Throwable ignore) {}
+                model.Teacher t = mapTeacherRow(rs, includeApprovalStatus);
                 list.add(t);
             }
+            return list;
         } catch (SQLException e) {
+            if (includeApprovalStatus) {
+                System.err.println("getAllTeachers with approvalStatus failed: " + e.getMessage());
+                return null;
+            }
             e.printStackTrace();
+            return list;
         } finally {
             try { if (rs != null) rs.close(); } catch (SQLException ignored) {}
             try { if (pstmt != null) pstmt.close(); } catch (SQLException ignored) {}
             try { if (conn != null) conn.close(); } catch (SQLException ignored) {}
         }
+    }
 
-        return list;
+    private model.Teacher mapTeacherRow(ResultSet rs, boolean includeApprovalStatus) throws SQLException {
+        model.Teacher t = new model.Teacher();
+        t.setTeacherId(rs.getString("teacherId"));
+        t.setFullName(rs.getString("teacherName"));
+        t.setEmail(rs.getString("teacherEmail"));
+        t.setPhone(rs.getString("teacherPhoneNo"));
+        t.setSpecialty(rs.getString("specialtyArea"));
+        t.setQualification(rs.getString("qualifications"));
+        java.sql.Date sqlDate = rs.getDate("registrationDate");
+        if (sqlDate != null) {
+            t.setDateOfBirth(sqlDate.toLocalDate());
+        }
+        if (includeApprovalStatus) {
+            t.setStatus(normalizeApprovalStatus(rs.getString("approvalStatus")));
+        } else {
+            t.setStatus(mapTeacherStatusToApproval(rs.getString("teacherStatus")));
+        }
+        return t;
+    }
+
+    private String normalizeApprovalStatus(String status) {
+        if (status == null || status.trim().isEmpty()) {
+            return "Pending";
+        }
+        return status.trim();
+    }
+
+    private String mapTeacherStatusToApproval(String teacherStatus) {
+        if (teacherStatus == null || teacherStatus.trim().isEmpty()) {
+            return "Pending";
+        }
+        switch (teacherStatus.trim().toLowerCase()) {
+            case "active":
+                return "Approved";
+            case "inactive":
+                return "Rejected";
+            case "pending":
+                return "Pending";
+            default:
+                return "Pending";
+        }
+    }
+
+    private String mapApprovalToTeacherStatus(String approvalStatus) {
+        if (approvalStatus == null) {
+            return "Pending";
+        }
+        switch (approvalStatus.trim().toLowerCase()) {
+            case "approved":
+                return "Active";
+            case "rejected":
+                return "Inactive";
+            case "pending":
+            default:
+                return "Pending";
+        }
     }
 
     /**
      * Update teacher status (Approved / Pending / Rejected)
      */
     public boolean updateTeacherStatus(String teacherId, String status) {
+        if (updateApprovalStatusColumn(teacherId, status)) {
+            updateTeacherStatusColumn(teacherId, status);
+            return true;
+        }
+        return updateTeacherStatusColumn(teacherId, status);
+    }
+
+    private boolean updateApprovalStatusColumn(String teacherId, String status) {
         Connection conn = null;
         PreparedStatement pstmt = null;
         try {
@@ -601,10 +688,54 @@ public class TeacherDAO {
             }
             String sql = "UPDATE teacher SET approvalStatus = ? WHERE teacherId = ?";
             pstmt = conn.prepareStatement(sql);
-            pstmt.setString(1, status);
+            pstmt.setString(1, normalizeApprovalStatus(status));
             pstmt.setString(2, teacherId);
-            int updated = pstmt.executeUpdate();
-            return updated > 0;
+            return pstmt.executeUpdate() > 0;
+        } catch (SQLException e) {
+            System.err.println("updateApprovalStatusColumn failed: " + e.getMessage());
+            return false;
+        } finally {
+            try { if (pstmt != null) pstmt.close(); } catch (SQLException ignored) {}
+            try { if (conn != null) conn.close(); } catch (SQLException ignored) {}
+        }
+    }
+
+    private boolean updateTeacherStatusColumn(String teacherId, String status) {
+        Connection conn = null;
+        PreparedStatement pstmt = null;
+        try {
+            conn = DBConnection.getConnection();
+            if (conn == null) {
+                return false;
+            }
+            String sql = "UPDATE teacher SET teacherStatus = ? WHERE teacherId = ?";
+            pstmt = conn.prepareStatement(sql);
+            pstmt.setString(1, mapApprovalToTeacherStatus(status));
+            pstmt.setString(2, teacherId);
+            return pstmt.executeUpdate() > 0;
+        } catch (SQLException e) {
+            e.printStackTrace();
+            return false;
+        } finally {
+            try { if (pstmt != null) pstmt.close(); } catch (SQLException ignored) {}
+            try { if (conn != null) conn.close(); } catch (SQLException ignored) {}
+        }
+    }
+
+    public boolean updateCertificationPath(String teacherId, String certPath) {
+        Connection conn = null;
+        PreparedStatement pstmt = null;
+        try {
+            conn = DBConnection.getConnection();
+            if (conn == null) {
+                System.err.println("updateCertificationPath: DB connection is null.");
+                return false;
+            }
+            String sql = "UPDATE teacher SET certificationPath = ? WHERE teacherId = ?";
+            pstmt = conn.prepareStatement(sql);
+            pstmt.setString(1, certPath);
+            pstmt.setString(2, teacherId);
+            return pstmt.executeUpdate() > 0;
         } catch (SQLException e) {
             e.printStackTrace();
             return false;
