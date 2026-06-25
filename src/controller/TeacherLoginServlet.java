@@ -35,7 +35,24 @@ public class TeacherLoginServlet extends HttpServlet {
         if (teacher != null) {
             HttpSession session = request.getSession();
             SessionRoleUtil.bindTeacher(session, teacher.getTeacherId(), teacher.getFullName(), teacher.getEmail());
-            response.sendRedirect(request.getContextPath() + "/teacher/teacherdashboard");
+
+            Teacher fullTeacher = teacherDAO.getTeacherById(teacher.getTeacherId());
+            String approvalStatus = fullTeacher != null ? fullTeacher.getStatus() : null;
+            if (approvalStatus != null) {
+                session.setAttribute("teacherApprovalStatus", approvalStatus);
+            }
+
+            String contextPath = request.getContextPath();
+            if (approvalStatus != null && "Pending".equalsIgnoreCase(approvalStatus)) {
+                response.sendRedirect(contextPath + "/teacher/pending-approval");
+                return;
+            }
+            if (approvalStatus != null && "Rejected".equalsIgnoreCase(approvalStatus)) {
+                response.sendRedirect(contextPath + "/teacher/access-denied");
+                return;
+            }
+
+            response.sendRedirect(contextPath + "/teacher/teacherdashboard");
         } else {
             request.setAttribute("errorMessage", "Invalid email or password");
             request.getRequestDispatcher("/WEB-INF/views/teacherLogin.jsp").forward(request, response);

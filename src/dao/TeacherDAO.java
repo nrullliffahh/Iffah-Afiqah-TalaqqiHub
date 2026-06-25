@@ -145,11 +145,19 @@ public class TeacherDAO {
     }
     
     public Teacher authenticateTeacher(String email, String password) {
+        Teacher teacher = lookupTeacherByCredentials(email, password);
+        if (teacher == null && password != null) {
+            teacher = lookupTeacherByCredentials(email, hashPassword(password));
+        }
+        return teacher;
+    }
+
+    private Teacher lookupTeacherByCredentials(String email, String password) {
         Teacher teacher = null;
         Connection conn = null;
         PreparedStatement stmt = null;
         ResultSet rs = null;
-        
+
         try {
             conn = DBConnection.getConnection();
             if (conn == null) {
@@ -160,9 +168,9 @@ public class TeacherDAO {
             stmt = conn.prepareStatement(sql);
             stmt.setString(1, email);
             stmt.setString(2, password);
-            
+
             rs = stmt.executeQuery();
-            
+
             if (rs.next()) {
                 teacher = new Teacher();
                 teacher.setTeacherId(rs.getString("teacherId"));
@@ -180,7 +188,7 @@ public class TeacherDAO {
                 e.printStackTrace();
             }
         }
-        
+
         return teacher;
     }
     
@@ -320,23 +328,32 @@ public class TeacherDAO {
      * Get teacher details by teacher ID for dashboard
      */
     public Teacher getTeacherById(String teacherId) {
+        Teacher teacher = fetchTeacherById(teacherId, true);
+        if (teacher == null) {
+            teacher = fetchTeacherById(teacherId, false);
+        }
+        return teacher;
+    }
+
+    private Teacher fetchTeacherById(String teacherId, boolean includeApprovalStatus) {
         Teacher teacher = null;
         Connection conn = null;
         PreparedStatement stmt = null;
         ResultSet rs = null;
-        
+
         try {
             conn = DBConnection.getConnection();
             if (conn == null) {
                 System.err.println("getTeacherById: DB connection is null.");
                 return null;
             }
-            String sql = "SELECT teacherId, teacherName, teacherEmail, registrationDate, specialtyArea, teacherPhoneNo, qualifications, approvalStatus, certificationPath " +
-                        "FROM teacher WHERE teacherId = ?";
+            String sql = includeApprovalStatus
+                    ? "SELECT teacherId, teacherName, teacherEmail, registrationDate, specialtyArea, teacherPhoneNo, qualifications, approvalStatus, certificationPath FROM teacher WHERE teacherId = ?"
+                    : "SELECT teacherId, teacherName, teacherEmail, registrationDate, specialtyArea, teacherPhoneNo, qualifications, certificationPath FROM teacher WHERE teacherId = ?";
             stmt = conn.prepareStatement(sql);
             stmt.setString(1, teacherId);
             rs = stmt.executeQuery();
-            
+
             if (rs.next()) {
                 teacher = new Teacher();
                 teacher.setTeacherId(rs.getString("teacherId"));
@@ -345,13 +362,14 @@ public class TeacherDAO {
                 teacher.setSpecialty(rs.getString("specialtyArea"));
                 teacher.setPhone(rs.getString("teacherPhoneNo"));
                 teacher.setQualification(rs.getString("qualifications"));
-                teacher.setStatus(rs.getString("approvalStatus"));
+                if (includeApprovalStatus) {
+                    teacher.setStatus(rs.getString("approvalStatus"));
+                }
                 teacher.setCertificationPath(rs.getString("certificationPath"));
 
-                // Convert SQL Date to LocalDate (registration date reused)
                 java.sql.Date sqlDate = rs.getDate("registrationDate");
                 if (sqlDate != null) {
-                    teacher.setDateOfBirth(sqlDate.toLocalDate()); // Using dateOfBirth field for joined date
+                    teacher.setDateOfBirth(sqlDate.toLocalDate());
                 }
             }
         } catch (SQLException e) {
@@ -365,7 +383,7 @@ public class TeacherDAO {
                 e.printStackTrace();
             }
         }
-        
+
         return teacher;
     }
     
