@@ -330,6 +330,11 @@
         <url-pattern>/home</url-pattern>
     </servlet-mapping>
 
+    <servlet-mapping>
+        <servlet-name>HomeServlet</servlet-name>
+        <url-pattern>/</url-pattern>
+    </servlet-mapping>
+
     <!-- View Profile servlet -->
     <servlet>
         <servlet-name>ViewProfileServlet</servlet-name>
