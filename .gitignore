@@ -3,7 +3,12 @@ target/
 build/
 bin/
 WEB-INF/classes/
+WEB-INF/lib/*.jar
 *.class
+
+# Runtime uploads (certifications, etc.)
+uploads/*
+!uploads/.gitkeep
 
 # Node / frontend tooling
 node_modules/
@@ -20,6 +25,7 @@ package-lock.json
 # Environment / secrets
 .env
 .env.*
+!.env.example
 *.pem
 *.key
 

@@ -1,5 +1,6 @@
 # Kerocket — Java Servlet/JSP on Tomcat (NOT Node.js).
-# Build: Dockerfile (Maven WAR + Tomcat 9).
+# Build: Dockerfile only (Maven WAR + Tomcat 9). Self-contained: Tomcat + app listen on $PORT.
+# package.json lives under tools/ for optional Tailwind dev only — not a Node server.
 #
 # Deploy tab env vars supported by the app:
 #   DB_URL, DB_USER, DB_PASSWORD   — preferred for Aiven/MySQL JDBC
@@ -9,6 +10,7 @@
 
 [build]
 dockerfile = "Dockerfile"
+builder = "docker"
 
 [runtime]
 type = "docker"

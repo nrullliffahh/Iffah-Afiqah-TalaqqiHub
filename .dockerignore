@@ -1,6 +1,9 @@
 .git
 .gitignore
+.env
+.env.*
 *.md
+!README.md
 *.txt
 *.bat
 *.ps1
@@ -13,14 +16,19 @@ target/
 .worktrees/
 **/.worktrees/
 node_modules/
+tools/node_modules/
 WEB-INF/classes/
+WEB-INF/lib/
+uploads/
+!uploads/.gitkeep
 sources.txt
 agent-tools/
 .cursor/
 .classpath
 .project
 package-lock.json
-package.json
+docs/
+scripts/
 kerocket.toml
 
 # Local test/debug artifacts (not needed in production WAR)
@@ -38,3 +46,5 @@ beautiful_page.html
 !docker-entrypoint.sh
 !nixpacks.toml
 !pom.xml
+!README.md
+!.env.example

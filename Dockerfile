@@ -1,5 +1,5 @@
 # TalaqqiHub — Java Servlet/JSP on Tomcat 9 (NOT Node.js).
-# Kerocket: Docker build only. Maven compiles WAR; entrypoint binds $PORT on 0.0.0.0.
+# Kerocket: Docker build only. Self-contained image: Tomcat + ROOT.war, listens on 0.0.0.0:$PORT.
 # Required env: DB_URL + DB_USER + DB_PASSWORD, or DATABASE_URL from attached MySQL.
 
 FROM maven:3.9-eclipse-temurin-17 AS build
