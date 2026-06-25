@@ -28,7 +28,12 @@ Import `db/talaqqihub_backup.sql` into your cloud MySQL instance before testing 
 
 **Test student login (after import):** `hannah@gmail.com` / `hannah123`
 
-**Check database on production:** open `https://your-app-url/api/db-health` — should show `"ok":true` and `"studentCount"` > 0.
+**Check database on production (after redeploy):**
+
+- `https://your-app-url/api/db-health` or `/health/db`
+- Or immediately (older builds): `/admin/packages/dbcheck`
+
+Should return JSON with `"ok":true` and `"studentCount"` > 0.
 
 ### Local development (XAMPP)
 

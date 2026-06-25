@@ -336,13 +336,13 @@
     </servlet-mapping>
 
     <servlet-mapping>
-        <servlet-name>HomeServlet</servlet-name>
-        <url-pattern>/</url-pattern>
+        <servlet-name>DbHealthServlet</servlet-name>
+        <url-pattern>/api/db-health</url-pattern>
     </servlet-mapping>
 
     <servlet-mapping>
         <servlet-name>DbHealthServlet</servlet-name>
-        <url-pattern>/api/db-health</url-pattern>
+        <url-pattern>/health/db</url-pattern>
     </servlet-mapping>
 
     <!-- View Profile servlet -->
