@@ -18,6 +18,8 @@ agent-tools/
 .classpath
 .project
 package-lock.json
+package.json
+kerocket.toml
 
 # Keep deployment/build files in the Docker build context
 !Dockerfile

@@ -1,0 +1,9 @@
+# Kerocket project metadata — Java Servlet/JSP on Tomcat (not Node.js).
+# Build uses Dockerfile; do not use Nixpacks Node auto-detection.
+
+[build]
+dockerfile = "Dockerfile"
+
+[runtime]
+type = "docker"
+start = "/usr/local/bin/docker-entrypoint.sh catalina.sh run"

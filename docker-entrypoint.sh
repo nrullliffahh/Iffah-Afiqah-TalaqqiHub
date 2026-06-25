@@ -8,7 +8,14 @@ CONTEXT_FILE="${CONTEXT_DIR}/ROOT.xml"
 mkdir -p "${CONTEXT_DIR}"
 
 HTTP_PORT="${PORT:-8080}"
-sed -i "s/port=\"8080\"/port=\"${HTTP_PORT}\"/" "${TOMCAT_HOME}/conf/server.xml"
+SERVER_XML="${TOMCAT_HOME}/conf/server.xml"
+
+# Kerocket injects PORT — bind Tomcat HTTP connector on all interfaces.
+sed -i "s/port=\"8080\"/port=\"${HTTP_PORT}\"/" "${SERVER_XML}"
+if ! grep -q 'address="0.0.0.0"' "${SERVER_XML}"; then
+  sed -i "s/<Connector port=\"${HTTP_PORT}\"/<Connector address=\"0.0.0.0\" port=\"${HTTP_PORT}\"/" "${SERVER_XML}"
+fi
+echo "Tomcat HTTP connector listening on 0.0.0.0:${HTTP_PORT}"
 
 escape_xml_attr() {
   printf '%s' "$1" | sed 's/&/\&amp;/g; s/"/\&quot;/g; s/'"'"'/\&apos;/g; s/</\&lt;/g; s/>/\&gt;/g'
