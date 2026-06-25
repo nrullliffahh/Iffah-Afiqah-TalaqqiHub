@@ -1,50 +1,59 @@
 package util;
 
+import java.io.Reader;
 import java.net.URI;
 import java.net.URLDecoder;
 import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.Paths;
 import java.sql.Connection;
 import java.sql.DriverManager;
 import java.sql.SQLException;
+import java.util.Base64;
+import java.util.Properties;
+import java.util.concurrent.atomic.AtomicBoolean;
 import javax.naming.InitialContext;
 import javax.naming.NamingException;
 import javax.sql.DataSource;
 
 /**
- * Database connections for TalaqqiHub.
+ * Database connections for TalaqqiHub (student, teacher, admin — all roles).
  *
  * Resolution order:
- * 1. JNDI DataSource (java:comp/env/jdbc/TalaqqiHubDB) — used on Kerocket/Tomcat with docker-entrypoint.sh
- * 2. DATABASE_URL environment variable (mysql:// or jdbc:mysql://)
- * 3. DB_URL / DB_USER / DB_PASSWORD or MYSQLHOST / MYSQLUSER / MYSQLPASSWORD / MYSQLDATABASE
+ * 1. Environment / system properties (DB_URL, DATABASE_URL, MYSQLHOST, …)
+ * 2. /usr/local/tomcat/conf/talaqqihub-db.properties (written by docker-entrypoint.sh)
+ * 3. JNDI DataSource (java:comp/env/jdbc/TalaqqiHubDB)
  * 4. Local XAMPP defaults for development only
  */
 public class DBConnection {
 
     private static final String DB_DRIVER = "com.mysql.cj.jdbc.Driver";
     private static final String JNDI_NAME = "java:comp/env/jdbc/TalaqqiHubDB";
-    private static final String JDBC_SUFFIX =
-            "?useSSL=false&serverTimezone=UTC&connectTimeout=5000&socketTimeout=10000&allowPublicKeyRetrieval=true";
-
-    private static final DbConfig CONFIG = resolveConfig();
+    private static final Path DEPLOY_PROPERTIES = Paths.get("/usr/local/tomcat/conf/talaqqihub-db.properties");
+    private static final AtomicBoolean LOGGED_CONFIG = new AtomicBoolean(false);
 
     private static final class DbConfig {
         final String url;
         final String user;
         final String password;
         final boolean production;
+        final String source;
 
-        DbConfig(String url, String user, String password, boolean production) {
+        DbConfig(String url, String user, String password, boolean production, String source) {
             this.url = url;
             this.user = user != null ? user : "";
             this.password = password != null ? password : "";
             this.production = production;
+            this.source = source;
         }
     }
 
     public static Connection getConnection() {
-        // Prefer direct JDBC from env on cloud (Kerocket/Aiven) — more reliable than JNDI alone.
-        Connection connection = tryDirectConnection();
+        DbConfig config = resolveConfig();
+        logConfigOnce(config);
+
+        Connection connection = tryDirectConnection(config);
         if (connection != null) {
             return connection;
         }
@@ -54,31 +63,45 @@ public class DBConnection {
             return connection;
         }
 
-        if (!CONFIG.production) {
+        if (!config.production) {
             connection = tryLocalDevFallback();
             if (connection != null) {
                 return connection;
             }
         }
 
-        System.err.println("DBConnection: all connection methods failed (production=" + CONFIG.production + ").");
+        System.err.println(
+            "DBConnection: all connection methods failed (source=" + config.source
+                + ", production=" + config.production + ")."
+        );
         return null;
     }
 
-    private static Connection tryDirectConnection() {
-        if (CONFIG.url == null || CONFIG.url.isEmpty()) {
+    private static void logConfigOnce(DbConfig config) {
+        if (LOGGED_CONFIG.compareAndSet(false, true)) {
+            System.out.println(
+                "DBConnection initialized: source=" + config.source
+                    + ", production=" + config.production
+                    + ", user=" + safeUser(config.user)
+                    + ", jdbcHost=" + safeJdbcHost(config.url)
+            );
+        }
+    }
+
+    private static Connection tryDirectConnection(DbConfig config) {
+        if (config.url == null || config.url.isEmpty()) {
             return null;
         }
         try {
             Class.forName(DB_DRIVER);
-            Connection connection = DriverManager.getConnection(CONFIG.url, CONFIG.user, CONFIG.password);
-            System.out.println("Database connection established using environment configuration.");
+            Connection connection = DriverManager.getConnection(config.url, config.user, config.password);
+            System.out.println("Database connection established (" + config.source + ").");
             return connection;
         } catch (ClassNotFoundException e) {
             System.err.println("MySQL JDBC Driver not found: " + e.getMessage());
         } catch (SQLException e) {
-            System.err.println("Database connection failed: " + e.getMessage());
-            System.err.println("JDBC user=" + safeUser(CONFIG.user) + ", url host=" + safeJdbcHost(CONFIG.url));
+            System.err.println("Database connection failed (" + config.source + "): " + e.getMessage());
+            System.err.println("JDBC user=" + safeUser(config.user) + ", url host=" + safeJdbcHost(config.url));
         }
         return null;
     }
@@ -101,7 +124,8 @@ public class DBConnection {
     }
 
     private static Connection tryLocalDevFallback() {
-        String localUrl = "jdbc:mysql://127.0.0.1:3306/talaqqihub_db" + JDBC_SUFFIX;
+        String localUrl = "jdbc:mysql://127.0.0.1:3306/talaqqihub_db"
+            + "?useSSL=false&serverTimezone=UTC&connectTimeout=5000&socketTimeout=10000&allowPublicKeyRetrieval=true";
 
         try {
             Connection connection = DriverManager.getConnection(localUrl, "root", "admin");
@@ -123,27 +147,20 @@ public class DBConnection {
     }
 
     private static DbConfig resolveConfig() {
-        // Prefer explicit Deploy-tab JDBC vars (e.g. Aiven DB_URL with sslMode=REQUIRED).
         String dbUrl = firstNonEmpty(getenv("DB_URL"), getProperty("DB_URL"));
-        String dbUser = firstNonEmpty(
-                getenv("DB_USER"), getProperty("DB_USER"),
-                getenv("MYSQLUSER"), getProperty("MYSQLUSER"),
-                getenv("MYSQL_USER"), getProperty("MYSQL_USER")
-        );
-        String dbPassword = firstNonEmpty(
-                getenv("DB_PASSWORD"), getProperty("DB_PASSWORD"),
-                getenv("MYSQLPASSWORD"), getProperty("MYSQLPASSWORD"),
-                getenv("MYSQL_PASSWORD"), getProperty("MYSQL_PASSWORD")
-        );
+        String dbUser = credentialsUser();
+        String dbPassword = credentialsPassword();
         if (dbUrl != null) {
-            return new DbConfig(ensureJdbcParams(dbUrl), dbUser != null ? dbUser : "root", dbPassword != null ? dbPassword : "", true);
+            return new DbConfig(
+                ensureJdbcParams(dbUrl),
+                dbUser != null ? dbUser : "root",
+                dbPassword != null ? dbPassword : "",
+                true,
+                "env:DB_URL"
+            );
         }
 
-        String databaseUrl = firstNonEmpty(
-                getenv("DATABASE_URL"),
-                getProperty("DATABASE_URL")
-        );
-
+        String databaseUrl = firstNonEmpty(getenv("DATABASE_URL"), getProperty("DATABASE_URL"));
         if (databaseUrl != null) {
             DbConfig parsed = parseDatabaseUrl(databaseUrl);
             if (parsed != null) {
@@ -151,24 +168,103 @@ public class DBConnection {
             }
         }
 
-        String mysqlHost = firstNonEmpty(getenv("MYSQLHOST"), getProperty("MYSQLHOST"), getenv("MYSQL_HOST"), getProperty("MYSQL_HOST"));
+        String mysqlHost = firstNonEmpty(
+            getenv("MYSQLHOST"), getProperty("MYSQLHOST"),
+            getenv("MYSQL_HOST"), getProperty("MYSQL_HOST")
+        );
         String mysqlDatabase = firstNonEmpty(
-                getenv("MYSQLDATABASE"), getProperty("MYSQLDATABASE"),
-                getenv("MYSQL_DATABASE"), getProperty("MYSQL_DATABASE"),
-                "talaqqihub_db"
+            getenv("MYSQLDATABASE"), getProperty("MYSQLDATABASE"),
+            getenv("MYSQL_DATABASE"), getProperty("MYSQL_DATABASE"),
+            "talaqqihub_db"
         );
 
         if (mysqlHost != null) {
-            String port = firstNonEmpty(getenv("MYSQLPORT"), getProperty("MYSQLPORT"), getenv("MYSQL_PORT"), getProperty("MYSQL_PORT"), "3306");
-            String url = "jdbc:mysql://" + mysqlHost + ":" + port + "/" + mysqlDatabase + JDBC_SUFFIX;
-            return new DbConfig(url, dbUser != null ? dbUser : "root", dbPassword != null ? dbPassword : "", true);
+            String port = firstNonEmpty(
+                getenv("MYSQLPORT"), getProperty("MYSQLPORT"),
+                getenv("MYSQL_PORT"), getProperty("MYSQL_PORT"),
+                "3306"
+            );
+            String url = "jdbc:mysql://" + mysqlHost + ":" + port + "/" + mysqlDatabase
+                + "?sslMode=REQUIRED&serverTimezone=UTC&connectTimeout=5000&socketTimeout=10000&allowPublicKeyRetrieval=true";
+            return new DbConfig(
+                url,
+                dbUser != null ? dbUser : "root",
+                dbPassword != null ? dbPassword : "",
+                true,
+                "env:MYSQLHOST"
+            );
+        }
+
+        DbConfig fromFile = loadFromDeployPropertiesFile();
+        if (fromFile != null) {
+            return fromFile;
         }
 
         return new DbConfig(
-                "jdbc:mysql://127.0.0.1:3306/talaqqihub_db" + JDBC_SUFFIX,
-                "root",
-                "admin",
-                false
+            "jdbc:mysql://127.0.0.1:3306/talaqqihub_db"
+                + "?useSSL=false&serverTimezone=UTC&connectTimeout=5000&socketTimeout=10000&allowPublicKeyRetrieval=true",
+            "root",
+            "admin",
+            false,
+            "local-default"
+        );
+    }
+
+    private static DbConfig loadFromDeployPropertiesFile() {
+        if (!Files.isRegularFile(DEPLOY_PROPERTIES)) {
+            return null;
+        }
+        try {
+            Properties props = new Properties();
+            try (Reader reader = Files.newBufferedReader(DEPLOY_PROPERTIES, StandardCharsets.UTF_8)) {
+                props.load(reader);
+            }
+
+            String url = decodePropertyValue(props, "db.url.b64", "db.url");
+            if (url == null || url.isEmpty()) {
+                return null;
+            }
+
+            String user = decodePropertyValue(props, "db.user.b64", "db.user");
+            String password = decodePropertyValue(props, "db.password.b64", "db.password");
+            return new DbConfig(
+                ensureJdbcParams(url),
+                user != null ? user : "",
+                password != null ? password : "",
+                true,
+                "file:" + DEPLOY_PROPERTIES
+            );
+        } catch (Exception e) {
+            System.err.println("Failed to read deploy DB properties: " + e.getMessage());
+            return null;
+        }
+    }
+
+    private static String decodePropertyValue(Properties props, String b64Key, String plainKey) {
+        String b64 = props.getProperty(b64Key);
+        if (b64 != null && !b64.trim().isEmpty()) {
+            try {
+                return new String(Base64.getDecoder().decode(b64.trim()), StandardCharsets.UTF_8);
+            } catch (IllegalArgumentException ignored) {
+                // Fall through to plain key.
+            }
+        }
+        return props.getProperty(plainKey);
+    }
+
+    private static String credentialsUser() {
+        return firstNonEmpty(
+            getenv("DB_USER"), getProperty("DB_USER"),
+            getenv("MYSQLUSER"), getProperty("MYSQLUSER"),
+            getenv("MYSQL_USER"), getProperty("MYSQL_USER")
+        );
+    }
+
+    private static String credentialsPassword() {
+        return firstNonEmpty(
+            getenv("DB_PASSWORD"), getProperty("DB_PASSWORD"),
+            getenv("MYSQLPASSWORD"), getProperty("MYSQLPASSWORD"),
+            getenv("MYSQL_PASSWORD"), getProperty("MYSQL_PASSWORD")
         );
     }
 
@@ -183,19 +279,9 @@ public class DBConnection {
             if (parsed == null) {
                 return null;
             }
-            String user = firstNonEmpty(
-                    parsed.user,
-                    getenv("DB_USER"), getProperty("DB_USER"),
-                    getenv("MYSQLUSER"), getProperty("MYSQLUSER"),
-                    getenv("MYSQL_USER"), getProperty("MYSQL_USER")
-            );
-            String password = firstNonEmpty(
-                    parsed.password,
-                    getenv("DB_PASSWORD"), getProperty("DB_PASSWORD"),
-                    getenv("MYSQLPASSWORD"), getProperty("MYSQLPASSWORD"),
-                    getenv("MYSQL_PASSWORD"), getProperty("MYSQL_PASSWORD")
-            );
-            return new DbConfig(ensureJdbcParams(parsed.jdbcUrl), user, password, true);
+            String user = firstNonEmpty(parsed.user, credentialsUser());
+            String password = firstNonEmpty(parsed.password, credentialsPassword());
+            return new DbConfig(ensureJdbcParams(parsed.jdbcUrl), user, password, true, "env:DATABASE_URL(jdbc)");
         }
 
         if (raw.startsWith("mysql://") || raw.startsWith("mariadb://")) {
@@ -203,7 +289,13 @@ public class DBConnection {
             if (parsed == null) {
                 return null;
             }
-            return new DbConfig(ensureJdbcParams(parsed.jdbcUrl), parsed.user, parsed.password, true);
+            return new DbConfig(
+                ensureJdbcParams(parsed.jdbcUrl),
+                parsed.user,
+                parsed.password,
+                true,
+                "env:DATABASE_URL(mysql)"
+            );
         }
 
         return null;
@@ -293,7 +385,6 @@ public class DBConnection {
             sb.append(sep).append("allowPublicKeyRetrieval=true");
             sep = "&";
         }
-        // Do not force useSSL=false when Aiven/cloud URLs already specify sslMode or useSSL.
         if (!jdbcUrl.contains("sslMode=") && !jdbcUrl.contains("useSSL=")) {
             sb.append(sep).append("useSSL=true");
         }
@@ -391,13 +482,5 @@ public class DBConnection {
         } else {
             System.out.println("Connection test FAILED.");
         }
-    }
-
-    static {
-        System.out.println(
-            "DBConnection initialized: production=" + CONFIG.production
-                + ", user=" + safeUser(CONFIG.user)
-                + ", jdbcHost=" + safeJdbcHost(CONFIG.url)
-        );
     }
 }

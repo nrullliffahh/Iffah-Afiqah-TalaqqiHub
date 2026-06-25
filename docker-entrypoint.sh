@@ -21,6 +21,10 @@ escape_xml_attr() {
   printf '%s' "$1" | sed 's/&/\&amp;/g; s/"/\&quot;/g; s/'"'"'/\&apos;/g; s/</\&lt;/g; s/>/\&gt;/g'
 }
 
+b64_encode() {
+  printf '%s' "$1" | base64 | tr -d '\n'
+}
+
 JDBC_URL=""
 DB_USER=""
 DB_PASSWORD=""
@@ -102,6 +106,15 @@ if [ -n "${JDBC_URL}" ]; then
 </Context>
 EOF
   echo "Configured Tomcat JNDI datasource at ${CONTEXT_FILE} (user=${DB_USER:-<empty>}, host from DB_URL)"
+
+  PROPFILE="${TOMCAT_HOME}/conf/talaqqihub-db.properties"
+  {
+    printf 'db.url.b64=%s\n' "$(b64_encode "${JDBC_URL}")"
+    printf 'db.user.b64=%s\n' "$(b64_encode "${DB_USER}")"
+    printf 'db.password.b64=%s\n' "$(b64_encode "${DB_PASSWORD}")"
+  } > "${PROPFILE}"
+  chmod 600 "${PROPFILE}"
+  echo "Wrote Java DB config to ${PROPFILE}"
 else
   echo "No database environment variables found; skipping JNDI context generation."
   echo "Set DB_URL+DB_USER+DB_PASSWORD or DATABASE_URL in Kerocket Deploy tab."
