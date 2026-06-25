@@ -43,30 +43,44 @@ public class DBConnection {
     }
 
     public static Connection getConnection() {
-        Connection connection = tryJndiConnection();
+        // Prefer direct JDBC from env on cloud (Kerocket/Aiven) — more reliable than JNDI alone.
+        Connection connection = tryDirectConnection();
         if (connection != null) {
             return connection;
         }
 
+        connection = tryJndiConnection();
+        if (connection != null) {
+            return connection;
+        }
+
+        if (!CONFIG.production) {
+            connection = tryLocalDevFallback();
+            if (connection != null) {
+                return connection;
+            }
+        }
+
+        System.err.println("DBConnection: all connection methods failed (production=" + CONFIG.production + ").");
+        return null;
+    }
+
+    private static Connection tryDirectConnection() {
+        if (CONFIG.url == null || CONFIG.url.isEmpty()) {
+            return null;
+        }
         try {
             Class.forName(DB_DRIVER);
-            connection = DriverManager.getConnection(CONFIG.url, CONFIG.user, CONFIG.password);
+            Connection connection = DriverManager.getConnection(CONFIG.url, CONFIG.user, CONFIG.password);
             System.out.println("Database connection established using environment configuration.");
             return connection;
         } catch (ClassNotFoundException e) {
             System.err.println("MySQL JDBC Driver not found: " + e.getMessage());
-            e.printStackTrace();
         } catch (SQLException e) {
             System.err.println("Database connection failed: " + e.getMessage());
-            System.err.println("Configured host/database from env; user=" + safeUser(CONFIG.user));
-            e.printStackTrace();
-
-            if (!CONFIG.production) {
-                connection = tryLocalDevFallback();
-            }
+            System.err.println("JDBC user=" + safeUser(CONFIG.user) + ", url host=" + safeJdbcHost(CONFIG.url));
         }
-
-        return connection;
+        return null;
     }
 
     private static Connection tryJndiConnection() {
@@ -215,7 +229,12 @@ public class DBConnection {
             int port = uri.getPort() > 0 ? uri.getPort() : 3306;
             String path = uri.getPath();
             String database = (path != null && path.length() > 1) ? path.substring(1) : "talaqqihub_db";
+            String query = uri.getQuery();
             String jdbcUrl = "jdbc:mysql://" + host + ":" + port + "/" + database;
+            if (query != null && !query.isEmpty()) {
+                query = query.replace("ssl-mode=", "sslMode=");
+                jdbcUrl += "?" + query;
+            }
             return new ParsedUrl(jdbcUrl, user, password);
         } catch (Exception e) {
             System.err.println("Failed to parse DATABASE_URL: " + e.getMessage());
@@ -255,10 +274,30 @@ public class DBConnection {
     }
 
     private static String ensureJdbcParams(String jdbcUrl) {
-        if (jdbcUrl.contains("connectTimeout=") || jdbcUrl.contains("socketTimeout=")) {
-            return jdbcUrl;
+        StringBuilder sb = new StringBuilder(jdbcUrl);
+        String sep = jdbcUrl.contains("?") ? "&" : "?";
+
+        if (!jdbcUrl.contains("serverTimezone=")) {
+            sb.append(sep).append("serverTimezone=UTC");
+            sep = "&";
         }
-        return jdbcUrl + (jdbcUrl.contains("?") ? "&" : "?") + JDBC_SUFFIX.substring(1);
+        if (!jdbcUrl.contains("connectTimeout=")) {
+            sb.append(sep).append("connectTimeout=5000");
+            sep = "&";
+        }
+        if (!jdbcUrl.contains("socketTimeout=")) {
+            sb.append(sep).append("socketTimeout=10000");
+            sep = "&";
+        }
+        if (!jdbcUrl.contains("allowPublicKeyRetrieval=")) {
+            sb.append(sep).append("allowPublicKeyRetrieval=true");
+            sep = "&";
+        }
+        // Do not force useSSL=false when Aiven/cloud URLs already specify sslMode or useSSL.
+        if (!jdbcUrl.contains("sslMode=") && !jdbcUrl.contains("useSSL=")) {
+            sb.append(sep).append("useSSL=true");
+        }
+        return sb.toString();
     }
 
     private static String decode(String value) {
@@ -271,6 +310,25 @@ public class DBConnection {
 
     private static String safeUser(String user) {
         return user == null || user.isEmpty() ? "(empty)" : user;
+    }
+
+    private static String safeJdbcHost(String jdbcUrl) {
+        if (jdbcUrl == null) {
+            return "(none)";
+        }
+        try {
+            int start = jdbcUrl.indexOf("://");
+            if (start < 0) {
+                return "(unparsed)";
+            }
+            String rest = jdbcUrl.substring(start + 3);
+            int slash = rest.indexOf('/');
+            String hostPort = slash >= 0 ? rest.substring(0, slash) : rest;
+            int at = hostPort.lastIndexOf('@');
+            return at >= 0 ? hostPort.substring(at + 1) : hostPort;
+        } catch (Exception e) {
+            return "(unparsed)";
+        }
     }
 
     private static String getenv(String key) {
@@ -333,5 +391,13 @@ public class DBConnection {
         } else {
             System.out.println("Connection test FAILED.");
         }
+    }
+
+    static {
+        System.out.println(
+            "DBConnection initialized: production=" + CONFIG.production
+                + ", user=" + safeUser(CONFIG.user)
+                + ", jdbcHost=" + safeJdbcHost(CONFIG.url)
+        );
     }
 }

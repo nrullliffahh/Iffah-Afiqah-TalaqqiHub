@@ -46,15 +46,23 @@ if [ -z "${JDBC_URL}" ] && [ -n "${DATABASE_URL:-}" ]; then
       DB_USER="${USERINFO%%:*}"
       DB_PASSWORD="${USERINFO#*:}"
       HOST="${HOSTPART%%/*}"
-      DBNAME="${HOSTPART#*/}"
-      DBNAME="${DBNAME%%\?*}"
+      PATH_AND_QUERY="${HOSTPART#*/}"
+      DBNAME="${PATH_AND_QUERY%%\?*}"
+      QUERY_PARAMS="${PATH_AND_QUERY#*\?}"
+      if [ "${PATH_AND_QUERY}" = "${DBNAME}" ]; then
+        QUERY_PARAMS=""
+      fi
       HOST_ONLY="${HOST%%:*}"
       PORT_PART="${HOST#*:}"
       if [ "${HOST}" = "${HOST_ONLY}" ]; then
         PORT_PART="3306"
       fi
-      SSL_PARAM="useSSL=${MYSQL_USE_SSL:-true}"
-      JDBC_URL="jdbc:mysql://${HOST_ONLY}:${PORT_PART}/${DBNAME}?${SSL_PARAM}&serverTimezone=UTC&connectTimeout=5000&socketTimeout=10000&allowPublicKeyRetrieval=true"
+      if [ -n "${QUERY_PARAMS}" ]; then
+        QUERY_PARAMS="$(printf '%s' "${QUERY_PARAMS}" | sed 's/ssl-mode=/sslMode=/g')"
+        JDBC_URL="jdbc:mysql://${HOST_ONLY}:${PORT_PART}/${DBNAME}?${QUERY_PARAMS}&serverTimezone=UTC&connectTimeout=5000&socketTimeout=10000&allowPublicKeyRetrieval=true"
+      else
+        JDBC_URL="jdbc:mysql://${HOST_ONLY}:${PORT_PART}/${DBNAME}?sslMode=REQUIRED&serverTimezone=UTC&connectTimeout=5000&socketTimeout=10000&allowPublicKeyRetrieval=true"
+      fi
       ;;
   esac
 fi
@@ -66,15 +74,14 @@ if [ -z "${JDBC_URL}" ]; then
   DB_USER="${DB_USER:-${MYSQLUSER:-${MYSQL_USER:-root}}}"
   DB_PASSWORD="${DB_PASSWORD:-${MYSQLPASSWORD:-${MYSQL_PASSWORD:-}}}"
   if [ -n "${MYSQLHOST}" ]; then
-    SSL_PARAM="useSSL=${MYSQL_USE_SSL:-true}"
-    JDBC_URL="jdbc:mysql://${MYSQLHOST}:${MYSQLPORT}/${MYSQLDATABASE}?${SSL_PARAM}&serverTimezone=UTC&connectTimeout=5000&socketTimeout=10000&allowPublicKeyRetrieval=true"
+    JDBC_URL="jdbc:mysql://${MYSQLHOST}:${MYSQLPORT}/${MYSQLDATABASE}?sslMode=REQUIRED&serverTimezone=UTC&connectTimeout=5000&socketTimeout=10000&allowPublicKeyRetrieval=true"
   fi
 fi
 
 if [ -n "${JDBC_URL}" ]; then
-  U="$(escape_xml_attr "${DB_USER}")"
-  P="$(escape_xml_attr "${DB_PASSWORD}")"
-  URL_XML="$(escape_xml_attr "${JDBC_URL}")"
+  U="$(escape_xml_attr "$(printf '%s' "${DB_USER}")")"
+  P="$(escape_xml_attr "$(printf '%s' "${DB_PASSWORD}")")"
+  URL_XML="$(escape_xml_attr "$(printf '%s' "${JDBC_URL}")")"
 
   cat > "${CONTEXT_FILE}" <<EOF
 <?xml version="1.0" encoding="UTF-8"?>
@@ -82,18 +89,22 @@ if [ -n "${JDBC_URL}" ]; then
   <Resource name="jdbc/TalaqqiHubDB"
             auth="Container"
             type="javax.sql.DataSource"
+            factory="org.apache.tomcat.jdbc.pool.DataSourceFactory"
             maxTotal="20"
             maxIdle="5"
             maxWaitMillis="10000"
+            testOnBorrow="true"
+            validationQuery="SELECT 1"
             username="${U}"
             password="${P}"
             driverClassName="com.mysql.cj.jdbc.Driver"
             url="${URL_XML}"/>
 </Context>
 EOF
-  echo "Configured Tomcat JNDI datasource at ${CONTEXT_FILE}"
+  echo "Configured Tomcat JNDI datasource at ${CONTEXT_FILE} (user=${DB_USER:-<empty>}, host from DB_URL)"
 else
   echo "No database environment variables found; skipping JNDI context generation."
+  echo "Set DB_URL+DB_USER+DB_PASSWORD or DATABASE_URL in Kerocket Deploy tab."
 fi
 
 exec "$@"
