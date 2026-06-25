@@ -7,6 +7,10 @@
 
     <display-name>TalaqqiHub</display-name>
 
+    <listener>
+        <listener-class>util.DbStartupListener</listener-class>
+    </listener>
+
     <!-- DevtoolsFilter removed - recompiling classes -->
     <!--
     <filter>

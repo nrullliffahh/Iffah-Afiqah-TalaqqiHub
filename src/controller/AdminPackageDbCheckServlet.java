@@ -37,7 +37,10 @@ public class AdminPackageDbCheckServlet extends HttpServlet {
         try {
             conn = DBConnection.getConnection();
             if (conn == null) {
-                writeJson(out, false, source, host, production, -1, false, null, "Database connection is null");
+                writeJson(out, false, source, host, production, -1, false, null,
+                    DBConnection.getLastConnectionError().isEmpty()
+                        ? "Database connection is null"
+                        : DBConnection.getLastConnectionError());
                 return;
             }
 

@@ -4,13 +4,13 @@ set -eu
 TOMCAT_HOME="/usr/local/tomcat"
 CONTEXT_DIR="${TOMCAT_HOME}/conf/Catalina/localhost"
 CONTEXT_FILE="${CONTEXT_DIR}/ROOT.xml"
+CONF_DIR="${TOMCAT_HOME}/conf"
 
 mkdir -p "${CONTEXT_DIR}"
 
 HTTP_PORT="${PORT:-8080}"
 SERVER_XML="${TOMCAT_HOME}/conf/server.xml"
 
-# Kerocket injects PORT — bind Tomcat HTTP connector on all interfaces.
 sed -i "s/port=\"8080\"/port=\"${HTTP_PORT}\"/" "${SERVER_XML}"
 if ! grep -q 'address="0.0.0.0"' "${SERVER_XML}"; then
   sed -i "s/<Connector port=\"${HTTP_PORT}\"/<Connector address=\"0.0.0.0\" port=\"${HTTP_PORT}\"/" "${SERVER_XML}"
@@ -25,15 +25,42 @@ b64_encode() {
   printf '%s' "$1" | base64 | tr -d '\n'
 }
 
+write_secret_file() {
+  _path="$1"
+  _value="$2"
+  printf '%s' "$_value" > "${_path}"
+  chmod 600 "${_path}"
+}
+
+parse_mysql_url_credentials() {
+  _raw="$1"
+  case "${_raw}" in
+    mysql://*|mariadb://*)
+      _rest="${_raw#*://}"
+      _userinfo="${_rest%%@*}"
+      if [ "${_userinfo}" = "${_rest}" ]; then
+        return 0
+      fi
+      DB_USER="${_userinfo%%:*}"
+      DB_PASSWORD="${_userinfo#*:}"
+      ;;
+  esac
+}
+
 JDBC_URL=""
 DB_USER=""
 DB_PASSWORD=""
 
-# Prefer explicit JDBC vars from Kerocket env file (supports sslMode=REQUIRED for Aiven).
+echo "DB env at startup: DB_URL=$([ -n "${DB_URL:-}" ] && echo set || echo missing) DATABASE_URL=$([ -n "${DATABASE_URL:-}" ] && echo set || echo missing) DB_USER=$([ -n "${DB_USER:-}" ] && echo set || echo missing) DB_PASSWORD=$([ -n "${DB_PASSWORD:-}" ] && echo set || echo missing)"
+
 if [ -n "${DB_URL:-}" ]; then
   JDBC_URL="${DB_URL}"
-  DB_USER="${DB_USER:-${MYSQLUSER:-${MYSQL_USER:-root}}}"
+  DB_USER="${DB_USER:-${MYSQLUSER:-${MYSQL_USER:-}}}"
   DB_PASSWORD="${DB_PASSWORD:-${MYSQLPASSWORD:-${MYSQL_PASSWORD:-}}}"
+  if [ -z "${DB_USER}" ] || [ -z "${DB_PASSWORD}" ]; then
+    parse_mysql_url_credentials "${DATABASE_URL:-}"
+  fi
+  DB_USER="${DB_USER:-root}"
 fi
 
 if [ -z "${JDBC_URL}" ] && [ -n "${DATABASE_URL:-}" ]; then
@@ -42,6 +69,7 @@ if [ -z "${JDBC_URL}" ] && [ -n "${DATABASE_URL:-}" ]; then
       JDBC_URL="${DATABASE_URL}"
       DB_USER="${DB_USER:-${MYSQLUSER:-${MYSQL_USER:-}}}"
       DB_PASSWORD="${DB_PASSWORD:-${MYSQLPASSWORD:-${MYSQL_PASSWORD:-}}}"
+      parse_mysql_url_credentials "${DATABASE_URL}"
       ;;
     mysql://*|mariadb://*)
       REST="${DATABASE_URL#*://}"
@@ -93,7 +121,6 @@ if [ -n "${JDBC_URL}" ]; then
   <Resource name="jdbc/TalaqqiHubDB"
             auth="Container"
             type="javax.sql.DataSource"
-            factory="org.apache.tomcat.jdbc.pool.DataSourceFactory"
             maxTotal="20"
             maxIdle="5"
             maxWaitMillis="10000"
@@ -105,19 +132,23 @@ if [ -n "${JDBC_URL}" ]; then
             url="${URL_XML}"/>
 </Context>
 EOF
-  echo "Configured Tomcat JNDI datasource at ${CONTEXT_FILE} (user=${DB_USER:-<empty>}, host from DB_URL)"
+  echo "Configured Tomcat JNDI datasource (user=${DB_USER:-<empty>})"
 
-  PROPFILE="${TOMCAT_HOME}/conf/talaqqihub-db.properties"
+  write_secret_file "${CONF_DIR}/db.jdbc.url" "${JDBC_URL}"
+  write_secret_file "${CONF_DIR}/db.jdbc.user" "${DB_USER}"
+  write_secret_file "${CONF_DIR}/db.jdbc.password" "${DB_PASSWORD}"
+
+  PROPFILE="${CONF_DIR}/talaqqihub-db.properties"
   {
     printf 'db.url.b64=%s\n' "$(b64_encode "${JDBC_URL}")"
     printf 'db.user.b64=%s\n' "$(b64_encode "${DB_USER}")"
     printf 'db.password.b64=%s\n' "$(b64_encode "${DB_PASSWORD}")"
   } > "${PROPFILE}"
   chmod 600 "${PROPFILE}"
-  echo "Wrote Java DB config to ${PROPFILE}"
+  echo "Wrote JDBC credential files under ${CONF_DIR}"
 else
-  echo "No database environment variables found; skipping JNDI context generation."
-  echo "Set DB_URL+DB_USER+DB_PASSWORD or DATABASE_URL in Kerocket Deploy tab."
+  echo "ERROR: No database environment variables found."
+  echo "Set DB_URL+DB_USER+DB_PASSWORD or attach DATABASE_URL from Kerocket MySQL service."
 fi
 
 exec "$@"

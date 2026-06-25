@@ -10,28 +10,30 @@ import java.nio.file.Paths;
 import java.sql.Connection;
 import java.sql.DriverManager;
 import java.sql.SQLException;
+import java.util.ArrayList;
 import java.util.Base64;
+import java.util.LinkedHashSet;
+import java.util.List;
 import java.util.Properties;
+import java.util.Set;
 import java.util.concurrent.atomic.AtomicBoolean;
 import javax.naming.InitialContext;
 import javax.naming.NamingException;
 import javax.sql.DataSource;
 
 /**
- * Database connections for TalaqqiHub (student, teacher, admin — all roles).
- *
- * Resolution order:
- * 1. Environment / system properties (DB_URL, DATABASE_URL, MYSQLHOST, …)
- * 2. /usr/local/tomcat/conf/talaqqihub-db.properties (written by docker-entrypoint.sh)
- * 3. JNDI DataSource (java:comp/env/jdbc/TalaqqiHubDB)
- * 4. Local XAMPP defaults for development only
+ * Database connections for TalaqqiHub (student, teacher, admin).
  */
 public class DBConnection {
 
     private static final String DB_DRIVER = "com.mysql.cj.jdbc.Driver";
     private static final String JNDI_NAME = "java:comp/env/jdbc/TalaqqiHubDB";
     private static final Path DEPLOY_PROPERTIES = Paths.get("/usr/local/tomcat/conf/talaqqihub-db.properties");
+    private static final Path DEPLOY_URL_FILE = Paths.get("/usr/local/tomcat/conf/db.jdbc.url");
+    private static final Path DEPLOY_USER_FILE = Paths.get("/usr/local/tomcat/conf/db.jdbc.user");
+    private static final Path DEPLOY_PASSWORD_FILE = Paths.get("/usr/local/tomcat/conf/db.jdbc.password");
     private static final AtomicBoolean LOGGED_CONFIG = new AtomicBoolean(false);
+    private static volatile String lastConnectionError = "";
 
     private static final class DbConfig {
         final String url;
@@ -47,33 +49,38 @@ public class DBConnection {
             this.production = production;
             this.source = source;
         }
+
+        String key() {
+            return source + "|" + url + "|" + user;
+        }
     }
 
     public static Connection getConnection() {
-        DbConfig config = resolveConfig();
-        logConfigOnce(config);
+        lastConnectionError = "";
+        boolean anyProduction = false;
 
-        Connection connection = tryDirectConnection(config);
+        for (DbConfig config : resolveAllConfigs()) {
+            anyProduction = anyProduction || config.production;
+            logConfigOnce(config);
+            Connection connection = tryDirectConnection(config);
+            if (connection != null) {
+                return connection;
+            }
+        }
+
+        Connection connection = tryJndiConnection();
         if (connection != null) {
             return connection;
         }
 
-        connection = tryJndiConnection();
-        if (connection != null) {
-            return connection;
-        }
-
-        if (!config.production) {
+        if (!anyProduction) {
             connection = tryLocalDevFallback();
             if (connection != null) {
                 return connection;
             }
         }
 
-        System.err.println(
-            "DBConnection: all connection methods failed (source=" + config.source
-                + ", production=" + config.production + ")."
-        );
+        System.err.println("DBConnection: all connection methods failed. lastError=" + lastConnectionError);
         return null;
     }
 
@@ -87,15 +94,30 @@ public class DBConnection {
     }
 
     public static String getConfigSource() {
-        return resolveConfig().source;
+        List<DbConfig> configs = resolveAllConfigs();
+        return configs.isEmpty() ? "none" : configs.get(0).source;
     }
 
     public static String getConfigHost() {
-        return safeJdbcHost(resolveConfig().url);
+        List<DbConfig> configs = resolveAllConfigs();
+        return configs.isEmpty() ? "(none)" : safeJdbcHost(configs.get(0).url);
     }
 
     public static boolean isProductionConfig() {
-        return resolveConfig().production;
+        for (DbConfig config : resolveAllConfigs()) {
+            if (config.production) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    public static String getLastConnectionError() {
+        return lastConnectionError != null ? lastConnectionError : "";
+    }
+
+    public static boolean hasDeployCredentialFiles() {
+        return Files.isRegularFile(DEPLOY_URL_FILE);
     }
 
     private static void logConfigOnce(DbConfig config) {
@@ -105,12 +127,14 @@ public class DBConnection {
                     + ", production=" + config.production
                     + ", user=" + safeUser(config.user)
                     + ", jdbcHost=" + safeJdbcHost(config.url)
+                    + ", deployFiles=" + hasDeployCredentialFiles()
             );
         }
     }
 
     private static Connection tryDirectConnection(DbConfig config) {
         if (config.url == null || config.url.isEmpty()) {
+            lastConnectionError = "JDBC URL is empty for " + config.source;
             return null;
         }
         try {
@@ -119,8 +143,10 @@ public class DBConnection {
             System.out.println("Database connection established (" + config.source + ").");
             return connection;
         } catch (ClassNotFoundException e) {
-            System.err.println("MySQL JDBC Driver not found: " + e.getMessage());
+            lastConnectionError = "MySQL JDBC Driver not found: " + e.getMessage();
+            System.err.println(lastConnectionError);
         } catch (SQLException e) {
+            lastConnectionError = config.source + ": " + e.getMessage();
             System.err.println("Database connection failed (" + config.source + "): " + e.getMessage());
             System.err.println("JDBC user=" + safeUser(config.user) + ", url host=" + safeJdbcHost(config.url));
         }
@@ -139,6 +165,7 @@ public class DBConnection {
         } catch (NamingException ne) {
             System.out.println("JNDI DataSource not available: " + ne.getMessage());
         } catch (SQLException dsEx) {
+            lastConnectionError = "JNDI: " + dsEx.getMessage();
             System.err.println("JNDI DataSource getConnection() failed: " + dsEx.getMessage());
         }
         return null;
@@ -161,45 +188,48 @@ public class DBConnection {
             System.out.println("Database connection established using local XAMPP fallback (root/empty).");
             return connection;
         } catch (SQLException secondEx) {
+            lastConnectionError = "local fallback: " + secondEx.getMessage();
             System.err.println("Local fallback (root/empty) failed: " + secondEx.getMessage());
         }
 
         return null;
     }
 
-    private static DbConfig resolveConfig() {
+    private static List<DbConfig> resolveAllConfigs() {
+        List<DbConfig> configs = new ArrayList<>();
+        Set<String> seen = new LinkedHashSet<>();
+
+        addConfig(configs, seen, loadFromDeployCredentialFiles());
+        addConfig(configs, seen, loadFromDeployPropertiesFile());
+
         String dbUrl = firstNonEmpty(getenv("DB_URL"), getProperty("DB_URL"));
         String dbUser = credentialsUser();
         String dbPassword = credentialsPassword();
         if (dbUrl != null) {
-            return new DbConfig(
+            addConfig(configs, seen, new DbConfig(
                 ensureJdbcParams(dbUrl),
                 dbUser != null ? dbUser : "root",
                 dbPassword != null ? dbPassword : "",
                 true,
                 "env:DB_URL"
-            );
+            ));
         }
 
         String databaseUrl = firstNonEmpty(getenv("DATABASE_URL"), getProperty("DATABASE_URL"));
         if (databaseUrl != null) {
-            DbConfig parsed = parseDatabaseUrl(databaseUrl);
-            if (parsed != null) {
-                return parsed;
-            }
+            addConfig(configs, seen, parseDatabaseUrl(databaseUrl));
         }
 
         String mysqlHost = firstNonEmpty(
             getenv("MYSQLHOST"), getProperty("MYSQLHOST"),
             getenv("MYSQL_HOST"), getProperty("MYSQL_HOST")
         );
-        String mysqlDatabase = firstNonEmpty(
-            getenv("MYSQLDATABASE"), getProperty("MYSQLDATABASE"),
-            getenv("MYSQL_DATABASE"), getProperty("MYSQL_DATABASE"),
-            "talaqqihub_db"
-        );
-
         if (mysqlHost != null) {
+            String mysqlDatabase = firstNonEmpty(
+                getenv("MYSQLDATABASE"), getProperty("MYSQLDATABASE"),
+                getenv("MYSQL_DATABASE"), getProperty("MYSQL_DATABASE"),
+                "talaqqihub_db"
+            );
             String port = firstNonEmpty(
                 getenv("MYSQLPORT"), getProperty("MYSQLPORT"),
                 getenv("MYSQL_PORT"), getProperty("MYSQL_PORT"),
@@ -207,28 +237,66 @@ public class DBConnection {
             );
             String url = "jdbc:mysql://" + mysqlHost + ":" + port + "/" + mysqlDatabase
                 + "?sslMode=REQUIRED&serverTimezone=UTC&connectTimeout=5000&socketTimeout=10000&allowPublicKeyRetrieval=true";
-            return new DbConfig(
+            addConfig(configs, seen, new DbConfig(
                 url,
                 dbUser != null ? dbUser : "root",
                 dbPassword != null ? dbPassword : "",
                 true,
                 "env:MYSQLHOST"
-            );
+            ));
         }
 
-        DbConfig fromFile = loadFromDeployPropertiesFile();
-        if (fromFile != null) {
-            return fromFile;
-        }
-
-        return new DbConfig(
+        addConfig(configs, seen, new DbConfig(
             "jdbc:mysql://127.0.0.1:3306/talaqqihub_db"
                 + "?useSSL=false&serverTimezone=UTC&connectTimeout=5000&socketTimeout=10000&allowPublicKeyRetrieval=true",
             "root",
             "admin",
             false,
             "local-default"
-        );
+        ));
+
+        return configs;
+    }
+
+    private static void addConfig(List<DbConfig> configs, Set<String> seen, DbConfig config) {
+        if (config == null || config.url == null || config.url.isEmpty()) {
+            return;
+        }
+        String key = config.key();
+        if (seen.add(key)) {
+            configs.add(config);
+        }
+    }
+
+    private static DbConfig loadFromDeployCredentialFiles() {
+        if (!Files.isRegularFile(DEPLOY_URL_FILE)) {
+            return null;
+        }
+        try {
+            String url = readSecretFile(DEPLOY_URL_FILE);
+            if (url == null || url.isEmpty()) {
+                return null;
+            }
+            String user = readSecretFile(DEPLOY_USER_FILE);
+            String password = readSecretFile(DEPLOY_PASSWORD_FILE);
+            return new DbConfig(
+                ensureJdbcParams(url),
+                user != null ? user : "",
+                password != null ? password : "",
+                true,
+                "file:jdbc-credentials"
+            );
+        } catch (Exception e) {
+            System.err.println("Failed to read deploy JDBC credential files: " + e.getMessage());
+            return null;
+        }
+    }
+
+    private static String readSecretFile(Path path) throws Exception {
+        if (!Files.isRegularFile(path)) {
+            return "";
+        }
+        return Files.readString(path, StandardCharsets.UTF_8).trim();
     }
 
     private static DbConfig loadFromDeployPropertiesFile() {
@@ -253,7 +321,7 @@ public class DBConnection {
                 user != null ? user : "",
                 password != null ? password : "",
                 true,
-                "file:" + DEPLOY_PROPERTIES
+                "file:properties"
             );
         } catch (Exception e) {
             System.err.println("Failed to read deploy DB properties: " + e.getMessage());
@@ -407,7 +475,11 @@ public class DBConnection {
             sep = "&";
         }
         if (!jdbcUrl.contains("sslMode=") && !jdbcUrl.contains("useSSL=")) {
-            sb.append(sep).append("useSSL=true");
+            if (jdbcUrl.contains("127.0.0.1") || jdbcUrl.contains("localhost")) {
+                sb.append(sep).append("useSSL=false");
+            } else {
+                sb.append(sep).append("sslMode=REQUIRED");
+            }
         }
         return sb.toString();
     }
@@ -501,7 +573,7 @@ public class DBConnection {
             System.out.println("Connection test PASSED.");
             closeConnection(conn);
         } else {
-            System.out.println("Connection test FAILED.");
+            System.out.println("Connection test FAILED: " + getLastConnectionError());
         }
     }
 }

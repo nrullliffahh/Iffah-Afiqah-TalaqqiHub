@@ -35,7 +35,10 @@ public class DbHealthServlet extends HttpServlet {
         try {
             conn = DBConnection.getConnection();
             if (conn == null) {
-                writeJson(response.getWriter(), false, source, host, production, -1, "Database connection is null");
+                writeJson(response.getWriter(), false, source, host, production, -1,
+                    DBConnection.getLastConnectionError().isEmpty()
+                        ? "Database connection is null"
+                        : DBConnection.getLastConnectionError());
                 return;
             }
 
