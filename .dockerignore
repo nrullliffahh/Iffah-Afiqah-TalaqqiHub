@@ -5,6 +5,8 @@
 *.bat
 *.ps1
 *.sql
+*.bak
+*.jsp.bak
 bin/
 build/
 target/
@@ -20,6 +22,16 @@ agent-tools/
 package-lock.json
 package.json
 kerocket.toml
+
+# Local test/debug artifacts (not needed in production WAR)
+test_*.jsp
+test_*.html
+tmp_*.html
+tmp_*.txt
+debug-*.jsp
+beautiful_page.html
+*_backup*.sql
+*.html
 
 # Keep deployment/build files in the Docker build context
 !Dockerfile

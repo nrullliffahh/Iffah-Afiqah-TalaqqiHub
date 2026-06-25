@@ -18,6 +18,10 @@ public class AiConfig {
     }
 
     public static String getGeminiApiKey() {
+        String direct = getValidKey(System.getenv("GEMINI_API_KEY"));
+        if (direct != null) {
+            return direct;
+        }
         return getValidKey(getProperty("gemini.api.key", null));
     }
 
@@ -67,7 +71,9 @@ public class AiConfig {
         String catalinaBase = System.getProperty("catalina.base", "");
         String catalinaHome = System.getProperty("catalina.home", "");
         return new String[] {
+            catalinaBase + "/webapps/ROOT/WEB-INF/" + PROPERTIES_FILE,
             catalinaBase + "/webapps/TalaqqiHub/WEB-INF/" + PROPERTIES_FILE,
+            catalinaHome + "/webapps/ROOT/WEB-INF/" + PROPERTIES_FILE,
             catalinaHome + "/webapps/TalaqqiHub/WEB-INF/" + PROPERTIES_FILE,
             "WEB-INF/" + PROPERTIES_FILE,
             PROPERTIES_FILE

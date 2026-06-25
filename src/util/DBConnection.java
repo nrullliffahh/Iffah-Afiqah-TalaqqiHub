@@ -109,6 +109,22 @@ public class DBConnection {
     }
 
     private static DbConfig resolveConfig() {
+        // Prefer explicit Deploy-tab JDBC vars (e.g. Aiven DB_URL with sslMode=REQUIRED).
+        String dbUrl = firstNonEmpty(getenv("DB_URL"), getProperty("DB_URL"));
+        String dbUser = firstNonEmpty(
+                getenv("DB_USER"), getProperty("DB_USER"),
+                getenv("MYSQLUSER"), getProperty("MYSQLUSER"),
+                getenv("MYSQL_USER"), getProperty("MYSQL_USER")
+        );
+        String dbPassword = firstNonEmpty(
+                getenv("DB_PASSWORD"), getProperty("DB_PASSWORD"),
+                getenv("MYSQLPASSWORD"), getProperty("MYSQLPASSWORD"),
+                getenv("MYSQL_PASSWORD"), getProperty("MYSQL_PASSWORD")
+        );
+        if (dbUrl != null) {
+            return new DbConfig(ensureJdbcParams(dbUrl), dbUser != null ? dbUser : "root", dbPassword != null ? dbPassword : "", true);
+        }
+
         String databaseUrl = firstNonEmpty(
                 getenv("DATABASE_URL"),
                 getProperty("DATABASE_URL")
@@ -121,18 +137,6 @@ public class DBConnection {
             }
         }
 
-        String dbUrl = firstNonEmpty(getenv("DB_URL"), getProperty("DB_URL"));
-        String dbUser = firstNonEmpty(
-                getenv("DB_USER"), getProperty("DB_USER"),
-                getenv("MYSQLUSER"), getProperty("MYSQLUSER"),
-                getenv("MYSQL_USER"), getProperty("MYSQL_USER")
-        );
-        String dbPassword = firstNonEmpty(
-                getenv("DB_PASSWORD"), getProperty("DB_PASSWORD"),
-                getenv("MYSQLPASSWORD"), getProperty("MYSQLPASSWORD"),
-                getenv("MYSQL_PASSWORD"), getProperty("MYSQL_PASSWORD")
-        );
-
         String mysqlHost = firstNonEmpty(getenv("MYSQLHOST"), getProperty("MYSQLHOST"), getenv("MYSQL_HOST"), getProperty("MYSQL_HOST"));
         String mysqlDatabase = firstNonEmpty(
                 getenv("MYSQLDATABASE"), getProperty("MYSQLDATABASE"),
@@ -144,10 +148,6 @@ public class DBConnection {
             String port = firstNonEmpty(getenv("MYSQLPORT"), getProperty("MYSQLPORT"), getenv("MYSQL_PORT"), getProperty("MYSQL_PORT"), "3306");
             String url = "jdbc:mysql://" + mysqlHost + ":" + port + "/" + mysqlDatabase + JDBC_SUFFIX;
             return new DbConfig(url, dbUser != null ? dbUser : "root", dbPassword != null ? dbPassword : "", true);
-        }
-
-        if (dbUrl != null) {
-            return new DbConfig(ensureJdbcParams(dbUrl), dbUser != null ? dbUser : "root", dbPassword != null ? dbPassword : "", true);
         }
 
         return new DbConfig(

@@ -1,5 +1,11 @@
-# Kerocket project metadata — Java Servlet/JSP on Tomcat (not Node.js).
-# Build uses Dockerfile; do not use Nixpacks Node auto-detection.
+# Kerocket — Java Servlet/JSP on Tomcat (NOT Node.js).
+# Build: Dockerfile (Maven WAR + Tomcat 9).
+#
+# Deploy tab env vars supported by the app:
+#   DB_URL, DB_USER, DB_PASSWORD   — preferred for Aiven/MySQL JDBC
+#   DATABASE_URL                   — from attached MySQL data service
+#   GEMINI_API_KEY                 — AI assistant (GeminiService)
+#   PORT                           — HTTP port (Tomcat binds 0.0.0.0:$PORT)
 
 [build]
 dockerfile = "Dockerfile"
