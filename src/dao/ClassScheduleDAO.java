@@ -57,7 +57,7 @@ public class ClassScheduleDAO {
         if (availabilitySlotExists(
                 schedule.getTeacherId(),
                 schedule.getScheduleDate() != null ? schedule.getScheduleDate().toString() : null,
-                schedule.getStartTime())) {
+                schedule.getStartTime() != null ? schedule.getStartTime().toString() : null)) {
             System.out.println("Duplicate availability slot rejected: " + schedule.getScheduleDate() + " " + schedule.getStartTime());
             return false;
         }
