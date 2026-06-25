@@ -1,0 +1,12 @@
+.git
+.gitignore
+*.md
+*.txt
+*.bat
+*.sql
+bin/
+.worktrees/
+**/.worktrees/
+sources.txt
+Dockerfile
+.dockerignore
