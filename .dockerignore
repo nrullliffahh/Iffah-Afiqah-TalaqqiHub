@@ -8,5 +8,9 @@ bin/
 .worktrees/
 **/.worktrees/
 sources.txt
-Dockerfile
 .dockerignore
+
+# Keep deployment files in the Docker build context
+!Dockerfile
+!docker-entrypoint.sh
+!nixpacks.toml

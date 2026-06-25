@@ -1,0 +1,9 @@
+# This project is a Java Servlet/JSP app without Maven/Gradle.
+# Nixpacks cannot build it automatically — use the Dockerfile instead.
+# In Kerocket: Settings → Build strategy → Dockerfile
+
+[build]
+dockerfile = "Dockerfile"
+
+[start]
+cmd = "/usr/local/bin/docker-entrypoint.sh"
