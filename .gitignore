@@ -10,9 +10,42 @@ WEB-INF/lib/*.jar
 uploads/*
 !uploads/.gitkeep
 
-# Node / frontend tooling
+# Node / frontend tooling (optional dev-only under tools/)
 node_modules/
+tools/node_modules/
 package-lock.json
+tools/package-lock.json
+
+# Dev/test scratch (not shipped in production WAR or Docker image)
+*.bat
+*.ps1
+test_*.jsp
+test_*.html
+tmp_*
+*.bak
+*.jsp.bak
+*_backup*.sql
+debug-*.jsp
+debug-set-student*.jsp
+beautiful_page.html
+temp*.html
+response*.html
+final_*.html
+teacher_schedule.html
+admin_records_debug.jsp
+student_classbooking_*debug*.jsp
+student_classbooking_test.jsp
+db-test.jsp
+db-setup.jsp
+check_db.jsp
+check_table_columns.jsp
+check_feedback_table.jsp
+fix_schema.jsp
+verify_joins.jsp
+audit.jsp
+insert_normalized_test_data.jsp
+add_*_column.jsp
+test_hash.jsp
 
 # IDE
 .classpath

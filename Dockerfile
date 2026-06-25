@@ -14,7 +14,9 @@ RUN mvn -B -DskipTests package \
 FROM tomcat:9.0-jdk17
 
 LABEL org.opencontainers.image.title="TalaqqiHub" \
-      org.opencontainers.image.description="Java Servlet/JSP web application on Apache Tomcat 9"
+      org.opencontainers.image.description="Java Servlet/JSP web application on Apache Tomcat 9" \
+      io.kerocket.stack="java-tomcat" \
+      io.kerocket.build="dockerfile"
 
 RUN rm -rf /usr/local/tomcat/webapps/*
 

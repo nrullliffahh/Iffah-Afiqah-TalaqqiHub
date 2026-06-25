@@ -1,16 +1,18 @@
 # Kerocket — Java Servlet/JSP on Tomcat (NOT Node.js).
-# Build: Dockerfile only (Maven WAR + Tomcat 9). Self-contained: Tomcat + app listen on $PORT.
-# package.json lives under tools/ for optional Tailwind dev only — not a Node server.
+# Build: Dockerfile only. No root package.json — not a Node app.
+# Optional Tailwind dev tooling: tools/package.json (CSS pre-built in css/).
 #
-# Deploy tab env vars supported by the app:
-#   DB_URL, DB_USER, DB_PASSWORD   — preferred for Aiven/MySQL JDBC
-#   DATABASE_URL                   — from attached MySQL data service
-#   GEMINI_API_KEY                 — AI assistant (GeminiService)
-#   PORT                           — HTTP port (Tomcat binds 0.0.0.0:$PORT)
+# Deploy tab env vars:
+#   DB_URL, DB_USER, DB_PASSWORD, DATABASE_URL, GEMINI_API_KEY, PORT
+
+[project]
+name = "TalaqqiHub"
+language = "java"
+runtime = "tomcat"
 
 [build]
-dockerfile = "Dockerfile"
 builder = "docker"
+dockerfile = "Dockerfile"
 
 [runtime]
 type = "docker"

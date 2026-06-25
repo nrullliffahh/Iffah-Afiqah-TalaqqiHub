@@ -4,7 +4,9 @@ Java Servlet/JSP web application (Maven WAR) deployed on **Apache Tomcat 9**.
 
 ## Kerocket deployment
 
-This repo is **not** a Node.js app. Kerocket must use **Docker build** (`Dockerfile`):
+This repo is **not** a Node.js app. There is **no root `package.json`** by design.
+
+Kerocket must use **Docker build** (`kerocket.toml` → `Dockerfile`):
 
 - Maven compiles sources into `TalaqqiHub.war` and deploys as Tomcat `ROOT.war`
 - `docker-entrypoint.sh` binds Tomcat to `0.0.0.0:$PORT` and configures the MySQL JNDI datasource from env vars
