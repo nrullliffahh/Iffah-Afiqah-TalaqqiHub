@@ -50,6 +50,10 @@ public class AdminLoginServlet extends HttpServlet {
             }
             
             response.sendRedirect(request.getContextPath() + "/admin/dashboard");
+        } else if (!util.DBConnection.canConnect()) {
+            request.setAttribute("errorMessage",
+                "Database is unavailable. Check Kerocket DB settings and import db/talaqqihub_backup.sql.");
+            request.getRequestDispatcher("/WEB-INF/views/adminLogin.jsp").forward(request, response);
         } else {
             request.setAttribute("errorMessage", "Invalid email or password");
             request.getRequestDispatcher("/WEB-INF/views/adminLogin.jsp").forward(request, response);

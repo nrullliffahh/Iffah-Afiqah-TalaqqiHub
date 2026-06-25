@@ -39,6 +39,10 @@ public class StudentLoginServlet extends HttpServlet {
             HttpSession session = request.getSession();
             SessionRoleUtil.bindStudent(session, student, student.getStudentId(), student.getName());
             response.sendRedirect(request.getContextPath() + "/student/dashboard");
+        } else if (!util.DBConnection.canConnect()) {
+            request.setAttribute("errorMessage",
+                "Database is unavailable. Ask admin to check Kerocket DB settings and import db/talaqqihub_backup.sql.");
+            request.getRequestDispatcher("/WEB-INF/views/studentLogin.jsp").forward(request, response);
         } else {
             request.setAttribute("errorMessage", "Invalid email or password. Please try again.");
             request.getRequestDispatcher("/WEB-INF/views/studentLogin.jsp").forward(request, response);

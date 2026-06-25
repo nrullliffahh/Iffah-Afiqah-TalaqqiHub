@@ -77,6 +77,27 @@ public class DBConnection {
         return null;
     }
 
+    public static boolean canConnect() {
+        Connection conn = getConnection();
+        if (conn == null) {
+            return false;
+        }
+        closeConnection(conn);
+        return true;
+    }
+
+    public static String getConfigSource() {
+        return resolveConfig().source;
+    }
+
+    public static String getConfigHost() {
+        return safeJdbcHost(resolveConfig().url);
+    }
+
+    public static boolean isProductionConfig() {
+        return resolveConfig().production;
+    }
+
     private static void logConfigOnce(DbConfig config) {
         if (LOGGED_CONFIG.compareAndSet(false, true)) {
             System.out.println(

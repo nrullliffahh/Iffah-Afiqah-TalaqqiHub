@@ -24,7 +24,11 @@ See `.env.example` for a template.
 
 ### Database
 
-Import `db/talaqqihub_backup.sql` (or run migrations in `db/`) into your cloud MySQL instance before testing login.
+Import `db/talaqqihub_backup.sql` into your cloud MySQL instance before testing login.
+
+**Test student login (after import):** `hannah@gmail.com` / `hannah123`
+
+**Check database on production:** open `https://your-app-url/api/db-health` — should show `"ok":true` and `"studentCount"` > 0.
 
 ### Local development (XAMPP)
 

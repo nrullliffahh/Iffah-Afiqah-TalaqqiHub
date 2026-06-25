@@ -53,6 +53,10 @@ public class TeacherLoginServlet extends HttpServlet {
             }
 
             response.sendRedirect(contextPath + "/teacher/teacherdashboard");
+        } else if (!util.DBConnection.canConnect()) {
+            request.setAttribute("errorMessage",
+                "Database is unavailable. Check Kerocket DB settings and import db/talaqqihub_backup.sql.");
+            request.getRequestDispatcher("/WEB-INF/views/teacherLogin.jsp").forward(request, response);
         } else {
             request.setAttribute("errorMessage", "Invalid email or password");
             request.getRequestDispatcher("/WEB-INF/views/teacherLogin.jsp").forward(request, response);
