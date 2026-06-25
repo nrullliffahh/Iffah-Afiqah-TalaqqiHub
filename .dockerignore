@@ -3,14 +3,24 @@
 *.md
 *.txt
 *.bat
+*.ps1
 *.sql
 bin/
+build/
+target/
 .worktrees/
 **/.worktrees/
+node_modules/
+WEB-INF/classes/
 sources.txt
-.dockerignore
+agent-tools/
+.cursor/
+.classpath
+.project
+package-lock.json
 
-# Keep deployment files in the Docker build context
+# Keep deployment/build files in the Docker build context
 !Dockerfile
 !docker-entrypoint.sh
 !nixpacks.toml
+!pom.xml

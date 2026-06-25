@@ -54,7 +54,10 @@ public class ClassScheduleDAO {
     }
     
     public boolean insertAvailability(ClassSchedule schedule) {
-        if (availabilitySlotExists(schedule.getTeacherId(), schedule.getScheduleDate(), schedule.getStartTime())) {
+        if (availabilitySlotExists(
+                schedule.getTeacherId(),
+                schedule.getScheduleDate() != null ? schedule.getScheduleDate().toString() : null,
+                schedule.getStartTime())) {
             System.out.println("Duplicate availability slot rejected: " + schedule.getScheduleDate() + " " + schedule.getStartTime());
             return false;
         }

@@ -1,0 +1,35 @@
+# Build output
+target/
+build/
+bin/
+WEB-INF/classes/
+*.class
+
+# Node / frontend tooling
+node_modules/
+package-lock.json
+
+# IDE
+.classpath
+.project
+.settings/
+.idea/
+*.iml
+.vscode/
+
+# Environment / secrets
+.env
+.env.*
+*.pem
+*.key
+
+# OS / editor
+Thumbs.db
+.DS_Store
+*.swp
+*.swo
+sources.txt
+
+# Local logs / temp
+*.log
+agent-tools/

@@ -1,18 +1,22 @@
 # TalaqqiHub — Java Servlet/JSP (Tomcat 9).
-# Kerocket: set Build strategy to Dockerfile (not Nixpacks).
-# Required env in Kerocket Settings: DATABASE_URL or MYSQLHOST + MYSQLUSER + MYSQLPASSWORD + MYSQLDATABASE
+# Kerocket: uses Dockerfile build. Maven compiles sources; Tomcat serves ROOT.war.
+# Required env: DB_URL + DB_USER + DB_PASSWORD, or DATABASE_URL from attached MySQL.
+
+FROM maven:3.9-eclipse-temurin-17 AS build
+WORKDIR /app
+
+COPY pom.xml .
+COPY . .
+
+RUN mvn -B -DskipTests package \
+    && cp target/TalaqqiHub/WEB-INF/lib/mysql-connector-j-*.jar /tmp/mysql-connector-j.jar
 
 FROM tomcat:9.0-jdk17
 
 RUN rm -rf /usr/local/tomcat/webapps/*
 
-COPY . /usr/local/tomcat/webapps/ROOT
-
-# Tomcat already provides the Servlet API.
-RUN rm -f /usr/local/tomcat/webapps/ROOT/WEB-INF/lib/javax.servlet-api-*.jar
-
-# MySQL driver must be on Tomcat's classpath for JNDI DataSource wiring.
-RUN cp /usr/local/tomcat/webapps/ROOT/WEB-INF/lib/mysql-connector-j-*.jar /usr/local/tomcat/lib/
+COPY --from=build /app/target/TalaqqiHub.war /usr/local/tomcat/webapps/ROOT.war
+COPY --from=build /tmp/mysql-connector-j.jar /usr/local/tomcat/lib/mysql-connector-j.jar
 
 COPY docker-entrypoint.sh /usr/local/bin/docker-entrypoint.sh
 RUN sed -i 's/\r$//' /usr/local/bin/docker-entrypoint.sh \
@@ -23,3 +27,4 @@ ENV PORT=8080
 EXPOSE 8080
 
 ENTRYPOINT ["/usr/local/bin/docker-entrypoint.sh"]
+CMD ["catalina.sh", "run"]

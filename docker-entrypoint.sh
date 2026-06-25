@@ -89,4 +89,4 @@ else
   echo "No database environment variables found; skipping JNDI context generation."
 fi
 
-exec catalina.sh run
+exec "$@"
