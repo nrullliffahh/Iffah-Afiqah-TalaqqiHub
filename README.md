@@ -16,9 +16,12 @@ Kerocket must use **Docker build** (`kerocket.toml` → `Dockerfile`):
 | Variable | Purpose |
 |----------|---------|
 | `PORT` | HTTP port (Kerocket sets this) |
-| `DB_URL`, `DB_USER`, `DB_PASSWORD` | JDBC connection (preferred for Aiven) |
-| `DATABASE_URL` | Alternative from attached MySQL data service |
+| `DATABASE_URL` | **Preferred** — from attached MySQL data service (Aiven `avnadmin` credentials) |
+| `DB_URL` | Optional JDBC URL (database name/host); credentials come from `DATABASE_URL` if both set |
+| `DB_USER`, `DB_PASSWORD` | Only needed if `DATABASE_URL` is not attached |
 | `GEMINI_API_KEY` | AI assistant feature |
+
+**Note:** Kerocket may inject `DB_USER=kerocket` which is **not** the MySQL user. The app prefers credentials embedded in `DATABASE_URL` from the attached Aiven service.
 
 See `.env.example` for a template.
 

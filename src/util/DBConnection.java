@@ -199,6 +199,15 @@ public class DBConnection {
         List<DbConfig> configs = new ArrayList<>();
         Set<String> seen = new LinkedHashSet<>();
 
+        // DATABASE_URL from attached MySQL service has correct Aiven credentials (avnadmin).
+        // Kerocket manual DB_USER is often wrong (e.g. 'kerocket') — try service URL first.
+        String databaseUrl = firstNonEmpty(getenv("DATABASE_URL"), getProperty("DATABASE_URL"));
+        if (databaseUrl != null) {
+            addConfig(configs, seen, parseDatabaseUrl(databaseUrl));
+        }
+
+        addConfig(configs, seen, buildMergedDbUrlConfig(databaseUrl));
+
         addConfig(configs, seen, loadFromDeployCredentialFiles());
         addConfig(configs, seen, loadFromDeployPropertiesFile());
 
@@ -213,11 +222,6 @@ public class DBConnection {
                 true,
                 "env:DB_URL"
             ));
-        }
-
-        String databaseUrl = firstNonEmpty(getenv("DATABASE_URL"), getProperty("DATABASE_URL"));
-        if (databaseUrl != null) {
-            addConfig(configs, seen, parseDatabaseUrl(databaseUrl));
         }
 
         String mysqlHost = firstNonEmpty(
@@ -256,6 +260,25 @@ public class DBConnection {
         ));
 
         return configs;
+    }
+
+    /** DB_URL for database/host + DATABASE_URL for Aiven credentials (avnadmin). */
+    private static DbConfig buildMergedDbUrlConfig(String databaseUrl) {
+        String dbUrl = firstNonEmpty(getenv("DB_URL"), getProperty("DB_URL"));
+        if (dbUrl == null || databaseUrl == null) {
+            return null;
+        }
+        DbConfig service = parseDatabaseUrl(databaseUrl);
+        if (service == null || service.user == null || service.user.isEmpty()) {
+            return null;
+        }
+        return new DbConfig(
+            ensureJdbcParams(dbUrl),
+            service.user,
+            service.password != null ? service.password : "",
+            true,
+            "merged:DB_URL+DATABASE_URL"
+        );
     }
 
     private static void addConfig(List<DbConfig> configs, Set<String> seen, DbConfig config) {

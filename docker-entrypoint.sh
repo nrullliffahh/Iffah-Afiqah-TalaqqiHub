@@ -32,17 +32,45 @@ write_secret_file() {
   chmod 600 "${_path}"
 }
 
-parse_mysql_url_credentials() {
-  _raw="$1"
+# Parsed from attached MySQL service (DATABASE_URL) — authoritative Aiven credentials.
+SVC_USER=""
+SVC_PASSWORD=""
+SVC_JDBC_URL=""
+
+parse_database_url() {
+  _raw="${1:-}"
   case "${_raw}" in
     mysql://*|mariadb://*)
       _rest="${_raw#*://}"
       _userinfo="${_rest%%@*}"
+      _hostpart="${_rest#*@}"
       if [ "${_userinfo}" = "${_rest}" ]; then
         return 0
       fi
-      DB_USER="${_userinfo%%:*}"
-      DB_PASSWORD="${_userinfo#*:}"
+      SVC_USER="${_userinfo%%:*}"
+      SVC_PASSWORD="${_userinfo#*:}"
+      _host="${_hostpart%%/*}"
+      _path_and_query="${_hostpart#*/}"
+      _dbname="${_path_and_query%%\?*}"
+      _query_params="${_path_and_query#*\?}"
+      if [ "${_path_and_query}" = "${_dbname}" ]; then
+        _query_params=""
+      fi
+      _host_only="${_host%%:*}"
+      _port_part="${_host#*:}"
+      if [ "${_host}" = "${_host_only}" ]; then
+        _port_part="3306"
+      fi
+      if [ -n "${_query_params}" ]; then
+        _query_params="$(printf '%s' "${_query_params}" | sed 's/ssl-mode=/sslMode=/g')"
+        SVC_JDBC_URL="jdbc:mysql://${_host_only}:${_port_part}/${_dbname}?${_query_params}&serverTimezone=UTC&connectTimeout=5000&socketTimeout=10000&allowPublicKeyRetrieval=true"
+      else
+        SVC_JDBC_URL="jdbc:mysql://${_host_only}:${_port_part}/${_dbname}?sslMode=REQUIRED&serverTimezone=UTC&connectTimeout=5000&socketTimeout=10000&allowPublicKeyRetrieval=true"
+      fi
+      ;;
+    jdbc:*)
+      SVC_JDBC_URL="${_raw}"
+      parse_database_url "$(printf '%s' "${_raw}" | sed 's|^jdbc:mysql://|mysql://|')"
       ;;
   esac
 }
@@ -51,52 +79,26 @@ JDBC_URL=""
 DB_USER=""
 DB_PASSWORD=""
 
-echo "DB env at startup: DB_URL=$([ -n "${DB_URL:-}" ] && echo set || echo missing) DATABASE_URL=$([ -n "${DATABASE_URL:-}" ] && echo set || echo missing) DB_USER=$([ -n "${DB_USER:-}" ] && echo set || echo missing) DB_PASSWORD=$([ -n "${DB_PASSWORD:-}" ] && echo set || echo missing)"
+echo "DB env at startup: DB_URL=$([ -n "${DB_URL:-}" ] && echo set || echo missing) DATABASE_URL=$([ -n "${DATABASE_URL:-}" ] && echo set || echo missing) DB_USER=$([ -n "${DB_USER:-}" ] && echo set || echo missing)"
 
-if [ -n "${DB_URL:-}" ]; then
-  JDBC_URL="${DB_URL}"
-  DB_USER="${DB_USER:-${MYSQLUSER:-${MYSQL_USER:-}}}"
-  DB_PASSWORD="${DB_PASSWORD:-${MYSQLPASSWORD:-${MYSQL_PASSWORD:-}}}"
-  if [ -z "${DB_USER}" ] || [ -z "${DB_PASSWORD}" ]; then
-    parse_mysql_url_credentials "${DATABASE_URL:-}"
-  fi
-  DB_USER="${DB_USER:-root}"
+if [ -n "${DATABASE_URL:-}" ]; then
+  parse_database_url "${DATABASE_URL}"
 fi
 
-if [ -z "${JDBC_URL}" ] && [ -n "${DATABASE_URL:-}" ]; then
-  case "${DATABASE_URL}" in
-    jdbc:*)
-      JDBC_URL="${DATABASE_URL}"
-      DB_USER="${DB_USER:-${MYSQLUSER:-${MYSQL_USER:-}}}"
-      DB_PASSWORD="${DB_PASSWORD:-${MYSQLPASSWORD:-${MYSQL_PASSWORD:-}}}"
-      parse_mysql_url_credentials "${DATABASE_URL}"
-      ;;
-    mysql://*|mariadb://*)
-      REST="${DATABASE_URL#*://}"
-      USERINFO="${REST%%@*}"
-      HOSTPART="${REST#*@}"
-      DB_USER="${USERINFO%%:*}"
-      DB_PASSWORD="${USERINFO#*:}"
-      HOST="${HOSTPART%%/*}"
-      PATH_AND_QUERY="${HOSTPART#*/}"
-      DBNAME="${PATH_AND_QUERY%%\?*}"
-      QUERY_PARAMS="${PATH_AND_QUERY#*\?}"
-      if [ "${PATH_AND_QUERY}" = "${DBNAME}" ]; then
-        QUERY_PARAMS=""
-      fi
-      HOST_ONLY="${HOST%%:*}"
-      PORT_PART="${HOST#*:}"
-      if [ "${HOST}" = "${HOST_ONLY}" ]; then
-        PORT_PART="3306"
-      fi
-      if [ -n "${QUERY_PARAMS}" ]; then
-        QUERY_PARAMS="$(printf '%s' "${QUERY_PARAMS}" | sed 's/ssl-mode=/sslMode=/g')"
-        JDBC_URL="jdbc:mysql://${HOST_ONLY}:${PORT_PART}/${DBNAME}?${QUERY_PARAMS}&serverTimezone=UTC&connectTimeout=5000&socketTimeout=10000&allowPublicKeyRetrieval=true"
-      else
-        JDBC_URL="jdbc:mysql://${HOST_ONLY}:${PORT_PART}/${DBNAME}?sslMode=REQUIRED&serverTimezone=UTC&connectTimeout=5000&socketTimeout=10000&allowPublicKeyRetrieval=true"
-      fi
-      ;;
-  esac
+# JDBC URL: prefer explicit DB_URL (database name) but fall back to DATABASE_URL service URL.
+if [ -n "${DB_URL:-}" ]; then
+  JDBC_URL="${DB_URL}"
+elif [ -n "${SVC_JDBC_URL}" ]; then
+  JDBC_URL="${SVC_JDBC_URL}"
+fi
+
+# Credentials: prefer DATABASE_URL (Aiven avnadmin) — Kerocket DB_USER is often wrong (e.g. 'kerocket').
+if [ -n "${SVC_USER}" ]; then
+  DB_USER="${SVC_USER}"
+  DB_PASSWORD="${SVC_PASSWORD}"
+else
+  DB_USER="${DB_USER:-${MYSQLUSER:-${MYSQL_USER:-root}}}"
+  DB_PASSWORD="${DB_PASSWORD:-${MYSQLPASSWORD:-${MYSQL_PASSWORD:-}}}"
 fi
 
 if [ -z "${JDBC_URL}" ]; then
@@ -132,7 +134,7 @@ if [ -n "${JDBC_URL}" ]; then
             url="${URL_XML}"/>
 </Context>
 EOF
-  echo "Configured Tomcat JNDI datasource (user=${DB_USER:-<empty>})"
+  echo "Configured Tomcat JNDI datasource (user=${DB_USER:-<empty>}, from=$([ -n "${SVC_USER}" ] && echo DATABASE_URL || echo env))"
 
   write_secret_file "${CONF_DIR}/db.jdbc.url" "${JDBC_URL}"
   write_secret_file "${CONF_DIR}/db.jdbc.user" "${DB_USER}"
@@ -148,7 +150,7 @@ EOF
   echo "Wrote JDBC credential files under ${CONF_DIR}"
 else
   echo "ERROR: No database environment variables found."
-  echo "Set DB_URL+DB_USER+DB_PASSWORD or attach DATABASE_URL from Kerocket MySQL service."
+  echo "Attach DATABASE_URL from Kerocket MySQL service or set DB_URL+DB_USER+DB_PASSWORD."
 fi
 
 exec "$@"
