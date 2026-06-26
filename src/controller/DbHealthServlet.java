@@ -6,7 +6,6 @@ import java.sql.Connection;
 import java.sql.ResultSet;
 import java.sql.Statement;
 import javax.servlet.ServletException;
-import javax.servlet.annotation.WebServlet;
 import javax.servlet.http.HttpServlet;
 import javax.servlet.http.HttpServletRequest;
 import javax.servlet.http.HttpServletResponse;
@@ -14,9 +13,8 @@ import util.DBConnection;
 
 /**
  * Diagnostic endpoint for Kerocket/production — check DB connectivity without logging in.
- * GET /api/db-health or /health/db
+ * Mapped in WEB-INF/web.xml: /api/db-health and /health/db
  */
-@WebServlet(urlPatterns = {"/api/db-health", "/health/db"})
 public class DbHealthServlet extends HttpServlet {
 
     @Override
