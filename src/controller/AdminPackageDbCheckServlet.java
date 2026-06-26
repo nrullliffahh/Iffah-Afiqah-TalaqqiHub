@@ -26,6 +26,7 @@ public class AdminPackageDbCheckServlet extends HttpServlet {
 
         String source = DBConnection.getConfigSource();
         String host = DBConnection.getConfigHost();
+        String database = DBConnection.getConfigDatabase();
         boolean production = DBConnection.isProductionConfig();
 
         Connection conn = null;
@@ -37,7 +38,7 @@ public class AdminPackageDbCheckServlet extends HttpServlet {
         try {
             conn = DBConnection.getConnection();
             if (conn == null) {
-                writeJson(out, false, source, host, production, -1, false, null,
+                writeJson(out, false, source, host, database, production, -1, false, null,
                     DBConnection.getLastConnectionError().isEmpty()
                         ? "Database connection is null"
                         : DBConnection.getLastConnectionError());
@@ -79,7 +80,7 @@ public class AdminPackageDbCheckServlet extends HttpServlet {
                     studentCount = countRs.getInt("cnt");
                 }
             } catch (SQLException e) {
-                writeJson(out, false, source, host, production, -1, hasPopular, foundColumn,
+                writeJson(out, false, source, host, database, production, -1, hasPopular, foundColumn,
                     "Connected but student table missing or unreadable: " + e.getMessage());
                 return;
             }
@@ -87,7 +88,7 @@ public class AdminPackageDbCheckServlet extends HttpServlet {
             String message = studentCount == 0
                 ? "Connected but student table is empty — import db/talaqqihub_backup.sql"
                 : "OK";
-            writeJson(out, true, source, host, production, studentCount, hasPopular, foundColumn, message);
+            writeJson(out, true, source, host, database, production, studentCount, hasPopular, foundColumn, message);
 
         } finally {
             try {
@@ -108,6 +109,7 @@ public class AdminPackageDbCheckServlet extends HttpServlet {
         boolean ok,
         String source,
         String host,
+        String database,
         boolean production,
         int studentCount,
         boolean hasPopular,
@@ -120,6 +122,8 @@ public class AdminPackageDbCheckServlet extends HttpServlet {
         out.print(escapeJson(source));
         out.print("\",\"host\":\"");
         out.print(escapeJson(host));
+        out.print("\",\"database\":\"");
+        out.print(escapeJson(database));
         out.print("\",\"production\":");
         out.print(production);
         out.print(",\"studentCount\":");

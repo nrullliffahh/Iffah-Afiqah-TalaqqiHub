@@ -1,23 +1,23 @@
 package util;
 
-import java.nio.file.Files;
-import java.nio.file.Paths;
 import java.sql.Connection;
 import javax.servlet.ServletContextEvent;
 import javax.servlet.ServletContextListener;
 
 /**
  * Logs database connectivity when the webapp starts on Kerocket/Tomcat.
+ * Uses util.DBConnection — there is only ONE database connection class in this project.
  */
 public class DbStartupListener implements ServletContextListener {
 
     @Override
     public void contextInitialized(ServletContextEvent sce) {
-        boolean deployFiles = Files.isRegularFile(Paths.get("/usr/local/tomcat/conf/db.jdbc.url"));
+        boolean deployFiles = DBConnection.hasDeployCredentialFiles();
         System.out.println(
             "DbStartupListener: deployCredentialFiles=" + deployFiles
                 + ", configSource=" + DBConnection.getConfigSource()
                 + ", host=" + DBConnection.getConfigHost()
+                + ", database=" + DBConnection.getConfigDatabase()
                 + ", production=" + DBConnection.isProductionConfig()
         );
 

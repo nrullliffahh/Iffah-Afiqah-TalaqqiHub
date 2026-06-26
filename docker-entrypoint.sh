@@ -32,7 +32,34 @@ write_secret_file() {
   chmod 600 "${_path}"
 }
 
-# Parsed from attached MySQL service (DATABASE_URL) — authoritative Aiven credentials.
+is_internal_kerocket_db() {
+  case "${1:-}" in
+    *"://mysql:"*|*"://mysql/"*|*jdbc:mysql://mysql:*)
+      return 0
+      ;;
+    *)
+      return 1
+      ;;
+  esac
+}
+
+is_external_db_url() {
+  case "${1:-}" in
+    *aivencloud.com*|*aiven.io*)
+      return 0
+      ;;
+  esac
+  if is_internal_kerocket_db "${1}"; then
+    return 1
+  fi
+  case "${1:-}" in
+    *127.0.0.1*|*localhost*)
+      return 1
+      ;;
+  esac
+  return 0
+}
+
 SVC_USER=""
 SVC_PASSWORD=""
 SVC_JDBC_URL=""
@@ -79,26 +106,36 @@ JDBC_URL=""
 DB_USER=""
 DB_PASSWORD=""
 
-echo "DB env at startup: DB_URL=$([ -n "${DB_URL:-}" ] && echo set || echo missing) DATABASE_URL=$([ -n "${DATABASE_URL:-}" ] && echo set || echo missing) DB_USER=$([ -n "${DB_USER:-}" ] && echo set || echo missing)"
+echo "DB env at startup: DB_URL=$([ -n "${DB_URL:-}" ] && echo set || echo missing) DATABASE_URL=$([ -n "${DATABASE_URL:-}" ] && echo set || echo missing) DB_USER=$([ -n "${DB_USER:-}" ] && echo set || echo missing) MYSQLUSER=$([ -n "${MYSQLUSER:-}${MYSQL_USER:-}" ] && echo set || echo missing)"
 
 if [ -n "${DATABASE_URL:-}" ]; then
   parse_database_url "${DATABASE_URL}"
 fi
 
-# JDBC URL: prefer explicit DB_URL (database name) but fall back to DATABASE_URL service URL.
 if [ -n "${DB_URL:-}" ]; then
   JDBC_URL="${DB_URL}"
+  DB_USER="${DB_USER:-${MYSQLUSER:-${MYSQL_USER:-}}}"
+  DB_PASSWORD="${DB_PASSWORD:-${MYSQLPASSWORD:-${MYSQL_PASSWORD:-}}}"
+  if is_external_db_url "${DB_URL}"; then
+    # DB_URL is Aiven — do NOT use Kerocket internal mysql://kerocket@mysql/app credentials.
+    case "${DATABASE_URL:-}" in
+      *aivencloud.com*|*aiven.io*)
+        if [ -n "${SVC_USER}" ]; then
+          DB_USER="${SVC_USER}"
+          DB_PASSWORD="${SVC_PASSWORD}"
+        fi
+        ;;
+    esac
+  elif [ -z "${DB_USER}" ] || [ -z "${DB_PASSWORD}" ]; then
+    if [ -n "${SVC_USER}" ]; then
+      DB_USER="${SVC_USER}"
+      DB_PASSWORD="${SVC_PASSWORD}"
+    fi
+  fi
 elif [ -n "${SVC_JDBC_URL}" ]; then
   JDBC_URL="${SVC_JDBC_URL}"
-fi
-
-# Credentials: prefer DATABASE_URL (Aiven avnadmin) — Kerocket DB_USER is often wrong (e.g. 'kerocket').
-if [ -n "${SVC_USER}" ]; then
   DB_USER="${SVC_USER}"
   DB_PASSWORD="${SVC_PASSWORD}"
-else
-  DB_USER="${DB_USER:-${MYSQLUSER:-${MYSQL_USER:-root}}}"
-  DB_PASSWORD="${DB_PASSWORD:-${MYSQLPASSWORD:-${MYSQL_PASSWORD:-}}}"
 fi
 
 if [ -z "${JDBC_URL}" ]; then
@@ -134,7 +171,7 @@ if [ -n "${JDBC_URL}" ]; then
             url="${URL_XML}"/>
 </Context>
 EOF
-  echo "Configured Tomcat JNDI datasource (user=${DB_USER:-<empty>}, from=$([ -n "${SVC_USER}" ] && echo DATABASE_URL || echo env))"
+  echo "Configured Tomcat JNDI datasource (user=${DB_USER:-<empty>}, jdbcHost=$(printf '%s' "${JDBC_URL}" | sed 's|.*://||; s|/.*||'))"
 
   write_secret_file "${CONF_DIR}/db.jdbc.url" "${JDBC_URL}"
   write_secret_file "${CONF_DIR}/db.jdbc.user" "${DB_USER}"
@@ -150,7 +187,6 @@ EOF
   echo "Wrote JDBC credential files under ${CONF_DIR}"
 else
   echo "ERROR: No database environment variables found."
-  echo "Attach DATABASE_URL from Kerocket MySQL service or set DB_URL+DB_USER+DB_PASSWORD."
 fi
 
 exec "$@"

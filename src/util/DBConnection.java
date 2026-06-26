@@ -103,6 +103,11 @@ public class DBConnection {
         return configs.isEmpty() ? "(none)" : safeJdbcHost(configs.get(0).url);
     }
 
+    public static String getConfigDatabase() {
+        List<DbConfig> configs = resolveAllConfigs();
+        return configs.isEmpty() ? "(none)" : safeJdbcDatabase(configs.get(0).url);
+    }
+
     public static boolean isProductionConfig() {
         for (DbConfig config : resolveAllConfigs()) {
             if (config.production) {
@@ -127,6 +132,7 @@ public class DBConnection {
                     + ", production=" + config.production
                     + ", user=" + safeUser(config.user)
                     + ", jdbcHost=" + safeJdbcHost(config.url)
+                    + ", database=" + safeJdbcDatabase(config.url)
                     + ", deployFiles=" + hasDeployCredentialFiles()
             );
         }
@@ -199,29 +205,44 @@ public class DBConnection {
         List<DbConfig> configs = new ArrayList<>();
         Set<String> seen = new LinkedHashSet<>();
 
-        // DATABASE_URL from attached MySQL service has correct Aiven credentials (avnadmin).
-        // Kerocket manual DB_USER is often wrong (e.g. 'kerocket') — try service URL first.
-        String databaseUrl = firstNonEmpty(getenv("DATABASE_URL"), getProperty("DATABASE_URL"));
-        if (databaseUrl != null) {
-            addConfig(configs, seen, parseDatabaseUrl(databaseUrl));
-        }
-
-        addConfig(configs, seen, buildMergedDbUrlConfig(databaseUrl));
-
-        addConfig(configs, seen, loadFromDeployCredentialFiles());
-        addConfig(configs, seen, loadFromDeployPropertiesFile());
-
         String dbUrl = firstNonEmpty(getenv("DB_URL"), getProperty("DB_URL"));
+        String databaseUrl = firstNonEmpty(getenv("DATABASE_URL"), getProperty("DATABASE_URL"));
         String dbUser = credentialsUser();
         String dbPassword = credentialsPassword();
-        if (dbUrl != null) {
-            addConfig(configs, seen, new DbConfig(
-                ensureJdbcParams(dbUrl),
-                dbUser != null ? dbUser : "root",
-                dbPassword != null ? dbPassword : "",
-                true,
-                "env:DB_URL"
-            ));
+
+        // When DB_URL points to Aiven/external, use it FIRST — not Kerocket internal mysql:3306/app.
+        if (dbUrl != null && isExternalDatabaseUrl(dbUrl)) {
+            addConfig(configs, seen, buildMergedDbUrlConfig(databaseUrl, dbUrl, dbUser, dbPassword));
+            addConfig(configs, seen, loadFromDeployCredentialFiles());
+            addConfig(configs, seen, loadFromDeployPropertiesFile());
+            if (dbUser != null && !dbUser.isEmpty()) {
+                addConfig(configs, seen, new DbConfig(
+                    ensureJdbcParams(dbUrl),
+                    dbUser,
+                    dbPassword != null ? dbPassword : "",
+                    true,
+                    "env:DB_URL"
+                ));
+            }
+            if (databaseUrl != null && !isInternalKerocketDatabaseUrl(databaseUrl)) {
+                addConfig(configs, seen, parseDatabaseUrl(databaseUrl));
+            }
+        } else {
+            if (databaseUrl != null) {
+                addConfig(configs, seen, parseDatabaseUrl(databaseUrl));
+            }
+            addConfig(configs, seen, buildMergedDbUrlConfig(databaseUrl, dbUrl, dbUser, dbPassword));
+            addConfig(configs, seen, loadFromDeployCredentialFiles());
+            addConfig(configs, seen, loadFromDeployPropertiesFile());
+            if (dbUrl != null) {
+                addConfig(configs, seen, new DbConfig(
+                    ensureJdbcParams(dbUrl),
+                    dbUser != null ? dbUser : "root",
+                    dbPassword != null ? dbPassword : "",
+                    true,
+                    "env:DB_URL"
+                ));
+            }
         }
 
         String mysqlHost = firstNonEmpty(
@@ -262,23 +283,57 @@ public class DBConnection {
         return configs;
     }
 
-    /** DB_URL for database/host + DATABASE_URL for Aiven credentials (avnadmin). */
-    private static DbConfig buildMergedDbUrlConfig(String databaseUrl) {
-        String dbUrl = firstNonEmpty(getenv("DB_URL"), getProperty("DB_URL"));
-        if (dbUrl == null || databaseUrl == null) {
+    /** DB_URL (Aiven host/db) + credentials from env or external DATABASE_URL only. */
+    private static DbConfig buildMergedDbUrlConfig(
+        String databaseUrl, String dbUrl, String dbUser, String dbPassword
+    ) {
+        if (dbUrl == null) {
             return null;
         }
-        DbConfig service = parseDatabaseUrl(databaseUrl);
-        if (service == null || service.user == null || service.user.isEmpty()) {
+
+        String user = dbUser;
+        String password = dbPassword != null ? dbPassword : "";
+
+        if ((user == null || user.isEmpty()) && databaseUrl != null
+                && !isInternalKerocketDatabaseUrl(databaseUrl)) {
+            DbConfig service = parseDatabaseUrl(databaseUrl);
+            if (service != null && service.user != null && !service.user.isEmpty()) {
+                user = service.user;
+                password = service.password != null ? service.password : "";
+            }
+        }
+
+        if (user == null || user.isEmpty()) {
             return null;
         }
+
         return new DbConfig(
             ensureJdbcParams(dbUrl),
-            service.user,
-            service.password != null ? service.password : "",
+            user,
+            password,
             true,
-            "merged:DB_URL+DATABASE_URL"
+            "merged:DB_URL+credentials"
         );
+    }
+
+    private static boolean isInternalKerocketDatabaseUrl(String url) {
+        if (url == null) {
+            return false;
+        }
+        String lower = url.toLowerCase();
+        return lower.contains("mysql://mysql:") || lower.contains("mysql://mysql/")
+            || lower.contains("jdbc:mysql://mysql:") || lower.contains("jdbc:mysql://mysql/");
+    }
+
+    private static boolean isExternalDatabaseUrl(String url) {
+        if (url == null) {
+            return false;
+        }
+        if (url.contains("aivencloud.com") || url.contains("aiven.io")) {
+            return true;
+        }
+        return !isInternalKerocketDatabaseUrl(url)
+            && !url.contains("127.0.0.1") && !url.contains("localhost");
     }
 
     private static void addConfig(List<DbConfig> configs, Set<String> seen, DbConfig config) {
@@ -533,6 +588,28 @@ public class DBConnection {
             String hostPort = slash >= 0 ? rest.substring(0, slash) : rest;
             int at = hostPort.lastIndexOf('@');
             return at >= 0 ? hostPort.substring(at + 1) : hostPort;
+        } catch (Exception e) {
+            return "(unparsed)";
+        }
+    }
+
+    private static String safeJdbcDatabase(String jdbcUrl) {
+        if (jdbcUrl == null) {
+            return "(none)";
+        }
+        try {
+            int start = jdbcUrl.indexOf("://");
+            if (start < 0) {
+                return "(unparsed)";
+            }
+            String rest = jdbcUrl.substring(start + 3);
+            int slash = rest.indexOf('/');
+            if (slash < 0) {
+                return "(none)";
+            }
+            String dbPart = rest.substring(slash + 1);
+            int query = dbPart.indexOf('?');
+            return query >= 0 ? dbPart.substring(0, query) : dbPart;
         } catch (Exception e) {
             return "(unparsed)";
         }

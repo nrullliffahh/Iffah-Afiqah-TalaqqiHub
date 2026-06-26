@@ -21,7 +21,15 @@ Kerocket must use **Docker build** (`kerocket.toml` → `Dockerfile`):
 | `DB_USER`, `DB_PASSWORD` | Only needed if `DATABASE_URL` is not attached |
 | `GEMINI_API_KEY` | AI assistant feature |
 
-**Note:** Kerocket may inject `DB_USER=kerocket` which is **not** the MySQL user. The app prefers credentials embedded in `DATABASE_URL` from the attached Aiven service.
+**Note:** Kerocket injects two different things:
+- `DATABASE_URL` → often internal `mysql:3306/app` (empty, no student table)
+- `DB_URL` → your Aiven URL with `talaqqihub_db` (where you import SQL)
+
+When both exist, the app uses **`DB_URL` (Aiven)** first. You must also set:
+```
+DB_USER=avnadmin
+DB_PASSWORD=<your Aiven password>
+```
 
 See `.env.example` for a template.
 
