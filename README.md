@@ -39,4 +39,4 @@ Should return JSON with `"ok":true` and `"studentCount"` > 0.
 
 Deploy the exploded WAR to Tomcat `webapps/TalaqqiHub` or run `mvn package` and copy the WAR.
 
-Tailwind CSS tooling (optional): `tools/package.json` — CSS is pre-built in `css/tailwind.min.css`.
+CSS is pre-built in `css/tailwind.min.css` — no Node.js/npm required for deployment.

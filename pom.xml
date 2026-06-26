@@ -90,7 +90,7 @@
                         .gitignore,
                         .classpath,
                         .project,
-                        tools/package.json,
+                        tools/**,
                         package-lock.json,
                         sources.txt,
                         agent-tools/**

@@ -10,11 +10,11 @@ WEB-INF/lib/*.jar
 uploads/*
 !uploads/.gitkeep
 
-# Node / frontend tooling (optional dev-only under tools/)
+# Node (not used for deployment — Java/Tomcat via Dockerfile only)
 node_modules/
 tools/node_modules/
+package.json
 package-lock.json
-tools/package-lock.json
 
 # Dev/test scratch (not shipped in production WAR or Docker image)
 *.bat

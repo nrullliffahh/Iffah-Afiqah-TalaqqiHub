@@ -1,6 +1,7 @@
-# Kerocket — Java Servlet/JSP on Tomcat (NOT Node.js).
-# Build: Dockerfile only. No root package.json — not a Node app.
-# Optional Tailwind dev tooling: tools/package.json (CSS pre-built in css/).
+# TalaqqiHub — Java Servlet/JSP on Apache Tomcat 9 (NOT Node.js).
+#
+# IMPORTANT: No root package.json — this is intentional.
+# Kerocket MUST use Docker build only (do not use Nixpacks Node.js detection).
 #
 # Deploy tab env vars:
 #   DB_URL, DB_USER, DB_PASSWORD, DATABASE_URL, GEMINI_API_KEY, PORT
@@ -9,11 +10,15 @@
 name = "TalaqqiHub"
 language = "java"
 runtime = "tomcat"
+stack = "docker"
 
 [build]
 builder = "docker"
+method = "dockerfile"
 dockerfile = "Dockerfile"
+# Do not run Nixpacks — Dockerfile builds Maven WAR + Tomcat 9.
 
 [runtime]
 type = "docker"
 start = "/usr/local/bin/docker-entrypoint.sh catalina.sh run"
+port = 8080

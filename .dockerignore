@@ -27,6 +27,7 @@ agent-tools/
 .classpath
 .project
 package-lock.json
+tools/
 docs/
 scripts/
 kerocket.toml
@@ -44,7 +45,6 @@ beautiful_page.html
 # Keep deployment/build files in the Docker build context
 !Dockerfile
 !docker-entrypoint.sh
-!nixpacks.toml
 !pom.xml
 !README.md
 !.env.example
