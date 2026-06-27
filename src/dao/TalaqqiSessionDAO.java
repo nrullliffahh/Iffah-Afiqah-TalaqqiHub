@@ -130,7 +130,7 @@ public class TalaqqiSessionDAO {
                 : "INSERT INTO talaqqisession (sessionId, sessionType, sessionDate, scheduleId) VALUES (?, 'Live Talaqqi', ?, ?)";
 
             conn.setAutoCommit(false);
-            try (PreparedStatement missingPs = conn.prepareStatement(util.TalaqqiSchemaUtil.sql(missingSql, conn)) {
+            try (PreparedStatement missingPs = conn.prepareStatement(util.TalaqqiSchemaUtil.sql(missingSql, conn))) {
                 missingPs.setString(1, teacherId);
                 try (ResultSet rs = missingPs.executeQuery()) {
                     while (rs.next()) {
@@ -163,7 +163,7 @@ public class TalaqqiSessionDAO {
         boolean inserted = false;
         for (int attempt = 0; !inserted && attempt < 3; attempt++) {
             String sessionId = generateNextSessionId(conn);
-            try (PreparedStatement insertPs = conn.prepareStatement(util.TalaqqiSchemaUtil.sql(insertSql, conn)) {
+            try (PreparedStatement insertPs = conn.prepareStatement(util.TalaqqiSchemaUtil.sql(insertSql, conn))) {
                 insertPs.setString(1, sessionId);
                 insertPs.setDate(2, sessionDate);
                 insertPs.setString(3, linkValue);
@@ -250,7 +250,7 @@ public class TalaqqiSessionDAO {
                 : "INSERT INTO talaqqisession (sessionId, sessionType, sessionDate, scheduleId) VALUES (?, 'Live Talaqqi', ?, ?)";
 
             conn.setAutoCommit(false);
-            try (PreparedStatement missingPs = conn.prepareStatement(util.TalaqqiSchemaUtil.sql(missingSql, conn)) {
+            try (PreparedStatement missingPs = conn.prepareStatement(util.TalaqqiSchemaUtil.sql(missingSql, conn))) {
                 missingPs.setString(1, studentId);
                 try (ResultSet rs = missingPs.executeQuery()) {
                     while (rs.next()) {
@@ -1466,7 +1466,7 @@ public class TalaqqiSessionDAO {
                     "  studentId, teacherId, scheduleId, markAutoAttendance) " +
                     "VALUES (?, ?, 'Absent', ?, ?, ?, true)";
 
-                try (PreparedStatement insertPs = conn.prepareStatement(util.TalaqqiSchemaUtil.sql(insertAbsentSql, conn)) {
+                try (PreparedStatement insertPs = conn.prepareStatement(util.TalaqqiSchemaUtil.sql(insertAbsentSql, conn))) {
                     insertPs.setString(1, attendanceId);
                     insertPs.setDate(2, today);
                     insertPs.setString(3, studentId);
