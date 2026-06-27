@@ -4,6 +4,8 @@ import dao.TalaqqiSessionDAO;
 import dao.TeacherDAO;
 import model.TalaqqiSession;
 import model.Teacher;
+import util.JaasJwtGenerator;
+import util.JitsiConfig;
 import util.SessionRoleUtil;
 
 import javax.servlet.ServletException;
@@ -102,6 +104,7 @@ public class TeacherTalaqqiSessionServlet extends HttpServlet {
         request.setAttribute("teacherInitials", teacherInitials);
         request.setAttribute("isSessionActive", isSessionActive);
         request.setAttribute("teacherId",       teacherId);
+        request.setAttribute("teacherJitsiJwt",  resolveTeacherJwt(teacher, teacherId, teacherName, session));
 
         request.getRequestDispatcher(VIEW_PATH).forward(request, response);
     }
@@ -162,11 +165,20 @@ public class TeacherTalaqqiSessionServlet extends HttpServlet {
                 httpSession.setAttribute(SESSION_KEY, sessionId);
 
                 String roomName = ts.generateRoomName();
-                sendJson(response, 200,
-                    "{\"success\":true," +
-                    "\"roomName\":\"" + escapeJson(roomName) + "\"," +
-                    "\"sessionId\":\"" + escapeJson(sessionId) + "\"," +
-                    "\"message\":\"Session started\"}");
+                Teacher teacher = teacherDAO.getTeacherById(teacherId);
+                String teacherName = teacher != null ? teacher.getFullName() : "Teacher";
+                String teacherEmail = teacher != null ? teacher.getEmail() : "";
+                String jwt = resolveTeacherJwt(teacher, teacherId, teacherName, ts);
+
+                StringBuilder json = new StringBuilder();
+                json.append("{\"success\":true,");
+                json.append("\"roomName\":\"").append(escapeJson(roomName)).append("\",");
+                json.append("\"sessionId\":\"").append(escapeJson(sessionId)).append("\"");
+                if (jwt != null && !jwt.isEmpty()) {
+                    json.append(",\"jwt\":\"").append(escapeJson(jwt)).append("\"");
+                }
+                json.append(",\"message\":\"Session started\"}");
+                sendJson(response, 200, json.toString());
                 break;
             }
 
@@ -292,6 +304,17 @@ public class TeacherTalaqqiSessionServlet extends HttpServlet {
     // ══════════════════════════════════════════════════════════════════════════
     //  Utility helpers
     // ══════════════════════════════════════════════════════════════════════════
+
+    private String resolveTeacherJwt(Teacher teacher, String teacherId, String teacherName,
+                                     TalaqqiSession session) {
+        if (session == null) return JitsiConfig.getJwt();
+
+        String roomSlug = JitsiConfig.buildRoomSlug(session.getTeacherId(), session.getSessionId());
+        String email = teacher != null ? teacher.getEmail() : "";
+        String jwt = JaasJwtGenerator.createModeratorToken(teacherId, teacherName, email, roomSlug);
+        if (jwt != null && !jwt.isEmpty()) return jwt;
+        return JitsiConfig.getJwt();
+    }
 
     private boolean isAuthenticated(HttpSession s) {
         return SessionRoleUtil.isTeacherLoggedIn(s);

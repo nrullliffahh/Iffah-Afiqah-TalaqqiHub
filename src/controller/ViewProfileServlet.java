@@ -4,6 +4,7 @@ import dao.PackageDAO;
 import dao.StudentDAO;
 import model.Package;
 import model.Student;
+import util.StudentProfilePicUtil;
 
 import javax.servlet.ServletException;
 import javax.servlet.http.HttpServlet;
@@ -84,6 +85,7 @@ public class ViewProfileServlet extends HttpServlet {
         request.setAttribute("initials", initials);
         request.setAttribute("selectedPackage", selectedPackage);
         request.setAttribute("accountStatus", accountStatus);
+        StudentProfilePicUtil.bindToSession(session, getServletContext(), studentId);
 
         request.getRequestDispatcher("/WEB-INF/views/viewProfile.jsp").forward(request, response);
     }

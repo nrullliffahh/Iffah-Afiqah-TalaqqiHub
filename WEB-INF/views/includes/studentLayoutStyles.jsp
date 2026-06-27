@@ -35,6 +35,7 @@
     .navbar-title { font-size: 24px; font-weight: 700; color: var(--student-text); }
     .navbar-right { display: flex; align-items: center; gap: 20px; }
     .user-avatar { width: 40px; height: 40px; border-radius: 50%; background: var(--student-green-dark); display: flex; align-items: center; justify-content: center; color: white; font-weight: 700; font-size: 14px; flex-shrink: 0; }
+    .user-avatar-img { object-fit: cover; display: block; background: transparent; }
     .user-info { display: flex; align-items: center; gap: 12px; position: relative; }
     .user-name { font-size: 14px; font-weight: 600; color: var(--student-text); margin: 0; }
     .user-role { font-size: 12px; color: var(--student-text-muted); margin: 0; }

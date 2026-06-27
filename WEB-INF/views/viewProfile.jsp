@@ -42,7 +42,7 @@
               <div class="relative">
                 <c:choose>
                   <c:when test="${not empty sessionScope.profilePicPath}">
-                    <img src="${pageContext.request.contextPath}${sessionScope.profilePicPath}" alt="avatar" class="w-28 h-28 rounded-full object-cover" />
+                    <img src="${pageContext.request.contextPath}${sessionScope.profilePicPath}?t=${pageContext.request.requestTime}" alt="avatar" class="w-28 h-28 rounded-full object-cover" />
                   </c:when>
                   <c:otherwise>
                     <div class="w-28 h-28 rounded-full flex items-center justify-center text-white text-2xl font-bold" style="background: linear-gradient(180deg,#2fbf9b,#2d9f81);">

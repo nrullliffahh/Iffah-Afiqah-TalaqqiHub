@@ -44,11 +44,30 @@ public final class JitsiConfig {
         return "https://meet.jit.si/external_api.js";
     }
 
-    /** Optional JWT for teacher/moderator (empty if not configured). */
+    /** Optional static JWT fallback (prefer {@link JaasJwtGenerator} for JaaS). */
     public static String getJwt() {
         String jwt = getProperty("jitsi.jwt", null);
         if (jwt == null || jwt.trim().isEmpty()) return null;
         return jwt.trim();
+    }
+
+    /** API Key ID (kid) from 8x8 Developer Console. Env: {@code JITSI_API_KEY}. */
+    public static String getApiKeyId() {
+        return getProperty("jitsi.api.key", "");
+    }
+
+    /** Inline PEM private key. Env: {@code JITSI_PRIVATE_KEY} (use {@code \\n} for newlines). */
+    public static String getPrivateKeyPem() {
+        return getProperty("jitsi.private.key", null);
+    }
+
+    /** Path to PKCS#8 private key file under WEB-INF. Env: {@code JITSI_PRIVATE_KEY_PATH}. */
+    public static String getPrivateKeyPath() {
+        return getProperty("jitsi.private.key.path", "");
+    }
+
+    public static boolean isSigningConfigured() {
+        return JaasJwtGenerator.isConfigured();
     }
 
     /**
@@ -124,6 +143,7 @@ public final class JitsiConfig {
     public static void logStartupConfig() {
         System.out.println("JitsiConfig: provider=" + getProvider()
             + ", domain=" + getDomain()
-            + ", scriptUrl=" + getScriptUrl());
+            + ", scriptUrl=" + getScriptUrl()
+            + ", jaasSigning=" + (isJaas() ? isSigningConfigured() : "n/a"));
     }
 }

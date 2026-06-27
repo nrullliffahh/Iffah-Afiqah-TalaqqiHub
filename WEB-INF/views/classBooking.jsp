@@ -1237,7 +1237,7 @@
                 const entry = btn.closest('.booking-entry');
                 if (!entry) return;
                 const status = (entry.dataset.bookingStatus || '').toLowerCase();
-                if (status && status !== 'upcoming') {
+                if (status === 'completed' || status === 'cancelled') {
                     btn.style.display = 'none';
                     return;
                 }

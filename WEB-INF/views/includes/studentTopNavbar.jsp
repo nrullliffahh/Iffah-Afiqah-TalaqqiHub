@@ -1,4 +1,5 @@
 <%@ page contentType="text/html; charset=UTF-8" pageEncoding="UTF-8"%>
+<%@ page import="util.StudentProfilePicUtil" %>
 <%
     String navbarTitle = request.getParameter("pageTitle");
     if (navbarTitle == null) navbarTitle = "Student Portal";
@@ -9,6 +10,14 @@
 
     String studentId = (String) session.getAttribute("studentId");
     if (studentId == null) studentId = (String) request.getAttribute("studentId");
+
+    String profilePicPath = (String) session.getAttribute("profilePicPath");
+    if (profilePicPath == null && studentId != null) {
+        profilePicPath = StudentProfilePicUtil.resolveWebPath(application, studentId);
+        if (profilePicPath != null) {
+            session.setAttribute("profilePicPath", profilePicPath);
+        }
+    }
 
     String initials = "S";
     if (studentName != null && !studentName.trim().isEmpty()) {
@@ -38,7 +47,11 @@
         </jsp:include>
         <div class="user-info" id="studentProfileWrap">
             <button type="button" class="profile-trigger" onclick="document.getElementById('studentProfileDropdown').classList.toggle('open')">
+                <% if (profilePicPath != null && !profilePicPath.isEmpty()) { %>
+                <img src="<%= ctx + profilePicPath %>?t=<%= System.currentTimeMillis() %>" alt="" class="user-avatar user-avatar-img" />
+                <% } else { %>
                 <div class="user-avatar"><%= initials %></div>
+                <% } %>
                 <div class="user-text">
                     <p class="user-name"><%= studentName %></p>
                     <p class="user-role"><%= studentId != null ? "Student ID: " + studentId : "Student" %></p>

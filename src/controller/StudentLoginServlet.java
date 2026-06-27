@@ -3,6 +3,7 @@ package controller;
 import dao.StudentDAO;
 import model.Student;
 import util.SessionRoleUtil;
+import util.StudentProfilePicUtil;
 import java.io.IOException;
 import javax.servlet.ServletException;
 import javax.servlet.http.HttpServlet;
@@ -38,6 +39,7 @@ public class StudentLoginServlet extends HttpServlet {
         if (student != null) {
             HttpSession session = request.getSession();
             SessionRoleUtil.bindStudent(session, student, student.getStudentId(), student.getName());
+            StudentProfilePicUtil.bindToSession(session, getServletContext(), student.getStudentId());
             response.sendRedirect(request.getContextPath() + "/student/dashboard");
         } else if (!util.DBConnection.canConnect()) {
             request.setAttribute("errorMessage",

@@ -1422,8 +1422,8 @@ public class TalaqqiSessionDAO {
                     + "      SELECT 1 FROM attendance a "
                     + "      WHERE a.scheduleId = cb.scheduleId "
                     + "        AND a.studentId = cb.studentId "
-                    + "        AND a.attendanceDate = ts.sessionDate "
-                    + "        AND (a.attendanceStatus IN ('Present', 'Late') OR a.joinTime IS NOT NULL)"
+                    + "        AND a.attendanceDate = COALESCE(ts.sessionDate, CURDATE()) "
+                    + "        AND a.attendanceStatus IN ('Present', 'Late')"
                     + "  )"
                 : "SELECT DISTINCT cb.studentId, cb.scheduleId, cs.teacherId, ts.sessionDate "
                     + "FROM talaqqisession ts "
@@ -1437,8 +1437,8 @@ public class TalaqqiSessionDAO {
                     + "      SELECT 1 FROM attendance a "
                     + "      WHERE a.scheduleId = cb.scheduleId "
                     + "        AND a.studentId = cb.studentId "
-                    + "        AND a.attendanceDate = ts.sessionDate "
-                    + "        AND (a.attendanceStatus IN ('Present', 'Late') OR a.joinTime IS NOT NULL)"
+                    + "        AND a.attendanceDate = COALESCE(ts.sessionDate, CURDATE()) "
+                    + "        AND a.attendanceStatus IN ('Present', 'Late')"
                     + "  )";
 
             ps = conn.prepareStatement(util.TalaqqiSchemaUtil.sql(findMissingStudentsSql, conn));
@@ -1478,6 +1478,18 @@ public class TalaqqiSessionDAO {
             }
 
             conn.commit();
+
+            if (markedCount == 0) {
+                TalaqqiSession session = getSessionBySessionId(sessionId, teacherId);
+                if (session != null && session.getStudentId() != null) {
+                    String scheduleId = getScheduleIdBySessionId(sessionId);
+                    if (scheduleId != null
+                            && recordAttendance(sessionId, session.getStudentId(), teacherId, "Absent", null, true)) {
+                        markedCount = 1;
+                    }
+                }
+            }
+
             System.out.println("[TalaqqiSessionDAO] Marked " + markedCount + " students as ABSENT for session " + sessionId);
 
         } catch (SQLException e) {
@@ -1498,9 +1510,8 @@ public class TalaqqiSessionDAO {
     }
 
     /**
-     * Marks a student as LATE if they joined more than 5 minutes after the
-     * scheduled class start (classschedule.startTime on session/schedule date).
-     * Uses MySQL TIMESTAMPDIFF so clock/timezone matches the database server.
+     * Present if student joins within 5 minutes of the teacher starting the live session.
+     * Falls back to scheduled class start when sessionStartTime is not recorded yet.
      */
     public String determineAttendanceStatus(String sessionId, String studentId) {
         Connection conn = null;
@@ -1510,17 +1521,20 @@ public class TalaqqiSessionDAO {
             conn = DBConnection.getConnection();
             if (conn == null) return "Present";
 
+            boolean timing = hasSessionTimingColumns(conn);
+            String startExpr = timing
+                ? "CASE WHEN ts.sessionStartTime IS NOT NULL "
+                    + "THEN TIMESTAMP(COALESCE(ts.sessionDate, cs.scheduleDate, CURDATE()), ts.sessionStartTime) "
+                    + "ELSE TIMESTAMP(COALESCE(ts.sessionDate, cs.scheduleDate, CURDATE()), cs.startTime) END"
+                : "TIMESTAMP(COALESCE(ts.sessionDate, cs.scheduleDate, CURDATE()), cs.startTime)";
+
             String sql = usesBookingIdLink(conn)
-                ? "SELECT TIMESTAMPDIFF(SECOND, "
-                    + "  TIMESTAMP(COALESCE(ts.sessionDate, cs.scheduleDate), cs.startTime), "
-                    + "  NOW()) AS secondsLate "
+                ? "SELECT TIMESTAMPDIFF(SECOND, " + startExpr + ", NOW()) AS secondsLate "
                     + "FROM talaqqisession ts "
                     + "JOIN classbooking cb ON ts.bookingId = cb.bookingId "
                     + "JOIN classschedule cs ON cb.scheduleId = cs.scheduleId "
                     + "WHERE ts.sessionId = ? LIMIT 1"
-                : "SELECT TIMESTAMPDIFF(SECOND, "
-                    + "  TIMESTAMP(COALESCE(ts.sessionDate, cs.scheduleDate), cs.startTime), "
-                    + "  NOW()) AS secondsLate "
+                : "SELECT TIMESTAMPDIFF(SECOND, " + startExpr + ", NOW()) AS secondsLate "
                     + "FROM talaqqisession ts "
                     + "JOIN classschedule cs ON ts.scheduleId = cs.scheduleId "
                     + "WHERE ts.sessionId = ? LIMIT 1";
@@ -1538,7 +1552,6 @@ public class TalaqqiSessionDAO {
                 return "Present";
             }
 
-            // Joined before scheduled start → on time
             if (secondsLate <= 0) {
                 return "Present";
             }
@@ -1546,12 +1559,12 @@ public class TalaqqiSessionDAO {
             if (secondsLate > LATE_THRESHOLD_SECONDS) {
                 long minutesLate = secondsLate / 60;
                 System.out.println("[TalaqqiSessionDAO] Student " + studentId
-                        + " joined " + minutesLate + " min (" + secondsLate + "s) after scheduled start — Late");
+                        + " joined " + minutesLate + " min after session start — Late");
                 return "Late";
             }
 
             System.out.println("[TalaqqiSessionDAO] Student " + studentId
-                    + " joined " + (secondsLate / 60) + " min after scheduled start — Present");
+                    + " joined within 5 min of session start — Present");
             return "Present";
         } catch (SQLException e) {
             System.err.println("[TalaqqiSessionDAO] determineAttendanceStatus: " + e.getMessage());

@@ -1,5 +1,7 @@
 package controller;
 
+import util.StudentProfilePicUtil;
+
 import javax.servlet.ServletException;
 import javax.servlet.annotation.MultipartConfig;
 import javax.servlet.http.HttpServlet;
@@ -28,19 +30,32 @@ public class UploadProfilePicServlet extends HttpServlet {
         try {
             filePart = request.getPart("photo");
         } catch (Exception e) {
-            response.sendRedirect(request.getContextPath() + "/student/profile");
+            response.sendRedirect(request.getContextPath() + "/student/edit-profile");
             return;
         }
 
         if (filePart != null && filePart.getSize() > 0) {
             String submitted = filePart.getSubmittedFileName();
             String ext = "";
-            int i = submitted.lastIndexOf('.');
-            if (i > 0) ext = submitted.substring(i);
+            if (submitted != null) {
+                int i = submitted.lastIndexOf('.');
+                if (i > 0) {
+                    ext = submitted.substring(i).toLowerCase();
+                }
+            }
+            if (!ext.equals(".jpg") && !ext.equals(".jpeg") && !ext.equals(".png") && !ext.equals(".webp")) {
+                ext = ".jpg";
+            }
 
             String profilesDir = getServletContext().getRealPath("/images/profiles");
             File dir = new File(profilesDir);
             if (!dir.exists()) dir.mkdirs();
+
+            // Remove previous extensions so only one avatar file remains
+            for (String oldExt : new String[] { ".jpg", ".jpeg", ".png", ".webp", ".gif" }) {
+                File old = new File(dir, "p_" + studentId + oldExt);
+                if (old.isFile()) old.delete();
+            }
 
             String filename = "p_" + studentId + ext;
             File out = new File(dir, filename);
@@ -48,11 +63,9 @@ public class UploadProfilePicServlet extends HttpServlet {
                 Files.copy(in, out.toPath(), java.nio.file.StandardCopyOption.REPLACE_EXISTING);
             }
 
-            // store web path to image in session for display
-            String webPath = "/images/profiles/" + filename;
-            session.setAttribute("profilePicPath", webPath);
+            StudentProfilePicUtil.bindToSession(session, getServletContext(), studentId);
         }
 
-        response.sendRedirect(request.getContextPath() + "/student/profile");
+        response.sendRedirect(request.getContextPath() + "/student/edit-profile?photoUpdated=1");
     }
 }

@@ -416,17 +416,46 @@
 
         jitsiContainer.classList.remove('hidden');
 
-        if (!attendanceRecorded) {
-            attendanceRecorded = true;
-            recordSessionEvent('joinSession');
-        }
+        const sessionId = jitsiContainer.getAttribute('data-session-id') || '';
+        const body = new URLSearchParams();
+        body.append('action', 'joinSession');
+        body.append('sessionId', sessionId);
 
+        fetch('<c:out value="${contextPath}" />/student/sessions', {
+            method: 'POST',
+            credentials: 'same-origin',
+            headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+            body: body.toString()
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (!data || !data.success) {
+                throw new Error((data && data.error) ? data.error : 'Could not join session');
+            }
+            attendanceRecorded = true;
+            if (data.status === 'Late') {
+                alert('You joined more than 5 minutes after the teacher started. Attendance marked as Late.');
+            }
+            startJitsiMeet(data.jwt || null);
+        })
+        .catch(error => {
+            console.error('Join session failed:', error);
+            alert(error.message || 'Failed to join session. Please try again.');
+            if (joinButton) {
+                joinButton.disabled = false;
+                joinButton.classList.remove('opacity-50', 'cursor-not-allowed');
+            }
+            jitsiContainer.classList.add('hidden');
+            if (sessionNotStarted) {
+                sessionNotStarted.classList.remove('hidden');
+            }
+        });
+    }
+
+    function startJitsiMeet(jwt) {
         const roomName = jitsiContainer.getAttribute('data-room-name') || 'TalaqqiHub-' + Date.now();
         const jitsiDomain = jitsiContainer.getAttribute('data-jitsi-domain') || 'meet.jit.si';
-        const sessionId = jitsiContainer.getAttribute('data-session-id');
-        const teacherId = jitsiContainer.getAttribute('data-teacher-id');
 
-        // Initialize Jitsi Meet (public meet.jit.si)
         const options = {
             roomName: roomName,
             width: '100%',
@@ -447,21 +476,18 @@
             }
         };
 
+        if (jwt) {
+            options.jwt = jwt;
+        }
+
         try {
             jitsiApi = new JitsiMeetExternalAPI(jitsiDomain, options);
 
-            // Listen for join event
             jitsiApi.addEventListener('videoConferenceJoined', () => {
                 isSessionActive = true;
                 console.log('Student joined Jitsi session');
-                // Backup: record if button click didn't fire the API
-                if (!attendanceRecorded) {
-                    recordSessionEvent('joinSession');
-                    attendanceRecorded = true;
-                }
             });
 
-            // Listen for leave/hangup event
             jitsiApi.addEventListener('videoConferenceLeft', () => {
                 isSessionActive = false;
                 console.log('Student left Jitsi session');
@@ -474,6 +500,10 @@
             jitsiContainer.classList.add('hidden');
             if (sessionNotStarted) {
                 sessionNotStarted.classList.remove('hidden');
+            }
+            if (joinButton) {
+                joinButton.disabled = false;
+                joinButton.classList.remove('opacity-50', 'cursor-not-allowed');
             }
         }
     }

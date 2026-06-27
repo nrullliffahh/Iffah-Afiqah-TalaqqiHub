@@ -61,6 +61,7 @@ test_hash.jsp
 !.env.example
 *.pem
 *.key
+WEB-INF/jaas-private.pk
 
 # OS / editor
 Thumbs.db

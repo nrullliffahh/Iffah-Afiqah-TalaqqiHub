@@ -1,11 +1,13 @@
 package controller;
 
 import dao.TalaqqiSessionDAO;
-import util.SessionRoleUtil;
 import dao.QuranDAO;
-import model.TalaqqiSession;
 import model.Student;
+import model.TalaqqiSession;
 import model.QuranVerse;
+import util.JaasJwtGenerator;
+import util.JitsiConfig;
+import util.SessionRoleUtil;
 
 import javax.servlet.ServletException;
 import javax.servlet.http.HttpServlet;
@@ -185,11 +187,22 @@ public class StudentTalaqqiSessionServlet extends HttpServlet {
                     sessionId, studentId, session.getTeacherId(), attendanceStatus, joinTime, true);
 
                 if (recorded) {
-                    response.getWriter().write(
-                        "{\"success\": true, " +
-                        "\"message\": \"Joined session as " + attendanceStatus + "\", " +
-                        "\"status\": \"" + attendanceStatus + "\"}"
-                    );
+                    String studentName = stringAttr(httpSession, "studentName");
+                    String studentEmail = resolveStudentEmail(httpSession);
+                    String roomSlug = JitsiConfig.buildRoomSlug(
+                            session.getTeacherId(), session.getSessionId());
+                    String jwt = JaasJwtGenerator.createParticipantToken(
+                            studentId, studentName, studentEmail, roomSlug);
+
+                    StringBuilder json = new StringBuilder();
+                    json.append("{\"success\": true, ");
+                    json.append("\"message\": \"Joined session as ").append(attendanceStatus).append("\", ");
+                    json.append("\"status\": \"").append(attendanceStatus).append("\"");
+                    if (jwt != null && !jwt.isEmpty()) {
+                        json.append(", \"jwt\": \"").append(escapeJson(jwt)).append("\"");
+                    }
+                    json.append("}");
+                    response.getWriter().write(json.toString());
                 } else {
                     sendJsonError(response, "Failed to record attendance");
                 }
@@ -316,6 +329,26 @@ public class StudentTalaqqiSessionServlet extends HttpServlet {
         }
 
         return result;
+    }
+
+    private String resolveStudentEmail(HttpSession httpSession) {
+        if (httpSession == null) return "";
+        Object studentObj = httpSession.getAttribute("student");
+        if (studentObj instanceof Student) {
+            Student student = (Student) studentObj;
+            String email = student.getEmail();
+            if (email == null || email.isEmpty()) {
+                email = student.getStudentEmail();
+            }
+            return email != null ? email : "";
+        }
+        return "";
+    }
+
+    private String stringAttr(HttpSession httpSession, String key) {
+        if (httpSession == null) return "";
+        Object value = httpSession.getAttribute(key);
+        return value != null ? value.toString() : "";
     }
 
     /**

@@ -419,10 +419,13 @@
 
     var cfg = document.getElementById("talaqqi-config").dataset;
     var JITSI_DOMAIN = cfg.jitsiDomain || "meet.jit.si";
-    var JITSI_JWT = <%=
-        JitsiConfig.getJwt() != null
-            ? "\"" + JitsiConfig.getJwt().replace("\\", "\\\\").replace("\"", "\\\"").replace("\n", "") + "\""
-            : "null"
+    var JITSI_JWT = <%
+        String teacherJwt = (String) request.getAttribute("teacherJitsiJwt");
+        if (teacherJwt != null && !teacherJwt.isEmpty()) {
+            out.print("\"" + teacherJwt.replace("\\", "\\\\").replace("\"", "\\\"").replace("\n", "") + "\"");
+        } else {
+            out.print("null");
+        }
     %>;
     var CTX = cfg.ctx || "";
     var SESSION_ID = cfg.sessionId || "";
@@ -527,7 +530,7 @@
         }
 
         if (SessionModel.isActive) {
-            startJitsi(cfg.roomName, cfg.teacherName);
+            startJitsi(cfg.roomName, cfg.teacherName, JITSI_JWT);
             startTimer();
             setJoinButton(true);
         }
@@ -556,7 +559,7 @@
             }
             SessionModel.isActive = true;
             setJoinButton(true);
-            startJitsi(data.roomName || cfg.roomName, cfg.teacherName);
+            startJitsi(data.roomName || cfg.roomName, cfg.teacherName, data.jwt || JITSI_JWT);
             startTimer();
             toast("Live session started", "success");
         }).catch(function () {
@@ -603,7 +606,7 @@
         setStudentStatus("waiting");
     }
 
-    function startJitsi(room, teacherName) {
+    function startJitsi(room, teacherName, jwt) {
         if (typeof JitsiMeetExternalAPI === "undefined") return;
         if (jitsiContainer) jitsiContainer.classList.remove("hidden");
         if (placeholder) placeholder.classList.add("hidden");
@@ -625,8 +628,9 @@
                 TOOLBAR_BUTTONS: ["microphone", "camera", "chat", "hangup", "raisehand", "tileview"]
             }
         };
-        if (JITSI_JWT) {
-            jitsiOpts.jwt = JITSI_JWT;
+        var token = jwt || JITSI_JWT;
+        if (token) {
+            jitsiOpts.jwt = token;
         }
         jitsiApi = new JitsiMeetExternalAPI(JITSI_DOMAIN, jitsiOpts);
 

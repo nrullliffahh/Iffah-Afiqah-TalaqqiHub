@@ -2,6 +2,7 @@ package controller;
 
 import dao.StudentDAO;
 import model.Student;
+import util.StudentProfilePicUtil;
 
 import javax.servlet.ServletException;
 import javax.servlet.http.HttpServlet;
@@ -41,6 +42,7 @@ public class EditProfileServlet extends HttpServlet {
 
         request.setAttribute("student", student);
         request.setAttribute("initials", initials);
+        StudentProfilePicUtil.bindToSession(session, getServletContext(), studentId);
         request.getRequestDispatcher("/WEB-INF/views/editProfile.jsp").forward(request, response);
     }
 
