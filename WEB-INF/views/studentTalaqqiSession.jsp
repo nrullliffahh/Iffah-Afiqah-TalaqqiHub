@@ -360,8 +360,8 @@
 <!--  JAVASCRIPT                                                            -->
 <!-- ══════════════════════════════════════════════════════════════════════ -->
 <script>
-    // Configuration
-    const API_BASE = 'https://api.alquran.cloud/v1';
+    // Configuration — verse text via server proxy to Al-Quran Cloud (same as teacher portal)
+    const QURAN_API = '<c:out value="${contextPath}" />/teacher/quran-api';
     let jitsiApi = null;
     let isSessionActive = false;
     let attendanceRecorded = false;
@@ -615,7 +615,7 @@
      */
     async function loadSurahInfo(surahNo) {
         try {
-            const response = await fetch('<c:out value="${contextPath}" />/teacher/quran-api?action=surahInfo&surah=' + surahNo);
+            const response = await fetch(QURAN_API + '?action=surahInfo&surah=' + surahNo);
             if (!response.ok) throw new Error('API call failed');
             
             const data = await response.json();
@@ -738,6 +738,38 @@
     }
 
     /**
+     * Fetch one ayah (Arabic + English) via server proxy to Al-Quran Cloud.
+     */
+    async function fetchAyahFromApi(surah, ayah) {
+        const response = await fetch(QURAN_API + '?action=ayah&surah=' + surah + '&ayah=' + ayah);
+        if (!response.ok) {
+            throw new Error('Ayah fetch failed: ' + surah + ':' + ayah);
+        }
+        const json = await response.json();
+        if (!json || !json.data) {
+            return null;
+        }
+        let arabicText = '';
+        let translation = '';
+        if (Array.isArray(json.data)) {
+            json.data.forEach(function (edition) {
+                if (edition.edition && edition.edition.language === 'ar') {
+                    arabicText = edition.text || '';
+                } else if (edition.edition && edition.edition.language === 'en') {
+                    translation = edition.text || '';
+                }
+            });
+        }
+        return {
+            surah: surah,
+            ayahNumber: ayah,
+            arabicText: arabicText || 'تعذر جلب النص',
+            translation: translation || 'Translation not available',
+            transliteration: 'N/A'
+        };
+    }
+
+    /**
      * Fetch verses for the given Quran reference and update the DOM.
      */
     async function updateVersesDisplay(surah, startAyah, endAyah) {
@@ -750,51 +782,15 @@
             }
             const count = Math.min(end - start + 1, 50);
             const verses = [];
-            let currentSurah = surah;
-            let currentAyah = start;
 
-            for (let i = 0; i < count && currentSurah <= 114; i++) {
+            for (let ayah = start; ayah < start + count && ayah <= 286; ayah++) {
                 try {
-                    const url = API_BASE + '/ayah/' + currentSurah + ':' + currentAyah + '/editions/quran-uthmani,en.sahih';
-                    const verseResponse = await fetch(url);
-                    
-                    if (!verseResponse.ok) {
-                        console.warn('Failed to fetch ' + currentSurah + ':' + currentAyah);
-                        break;
-                    }
-
-                    const verseData = await verseResponse.json();
-                    if (verseData.data) {
-                        // Extract data for each edition
-                        let arabicText = '';
-                        let transliteration = '';
-                        let translation = '';
-
-                        if (Array.isArray(verseData.data)) {
-                            verseData.data.forEach(edition => {
-                                if (edition.edition && edition.edition.language === 'ar') {
-                                    arabicText = edition.text;
-                                } else if (edition.edition && edition.edition.language === 'en') {
-                                    translation = edition.text;
-                                }
-                            });
-                        }
-
-                        verses.push({
-                            surah: currentSurah,
-                            ayahNumber: currentAyah,
-                            arabicText: arabicText || 'تعذر جلب النص',
-                            translation: translation || 'Translation not available',
-                            transliteration: transliteration || 'N/A'
-                        });
-
-                        currentAyah++;
-                        if (currentAyah > 300) { // Safety limit
-                            break;
-                        }
+                    const verse = await fetchAyahFromApi(surah, ayah);
+                    if (verse) {
+                        verses.push(verse);
                     }
                 } catch (e) {
-                    console.error('Error fetching verse ' + currentSurah + ':' + currentAyah + ':', e);
+                    console.error('Error fetching verse ' + surah + ':' + ayah + ':', e);
                     break;
                 }
             }
