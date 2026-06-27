@@ -957,7 +957,7 @@
                 comments:       card.getAttribute('data-comments') || '',
                 areasImprovement: card.getAttribute('data-areas-improvement') || '',
                 suggestions:    card.getAttribute('data-suggestions') || '',
-                nextTarget:     card.getAttribute('data-next-target') || '',
+                nextTarget:     normalizeAsciiDash(card.getAttribute('data-next-target') || ''),
                 teacherComments: card.getAttribute('data-teacher-comments') || '',
                 performanceTag: card.getAttribute('data-performance-tag') || ''
             };
@@ -1064,6 +1064,15 @@
         function escHtml(str) {
             if (!str) return '';
             return String(str).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+        }
+
+        function normalizeAsciiDash(str) {
+            if (!str) return '';
+            let value = String(str)
+                .replace(/\u2013|\u2014|\u2212/g, '-')
+                .replace(/\u00e2\u0080[\u0093\u0094]/g, '-')
+                .replace(/\u00c3\u00a2[\u00c2\u0080\u0093\u00a2]{1,6}/g, '-');
+            return value.replace(/(\d)\s*[^0-9A-Za-z.\s]{1,8}\s*(\d)/g, '$1-$2').replace(/-{2,}/g, '-').trim();
         }
 
         function getSurahNameFromNumber(surahNumber) {
@@ -1329,6 +1338,11 @@
                 e.preventDefault();
                 updateOverallFromScores();
 
+                const nextTargetInput = form.querySelector('[name="nextTarget"]');
+                if (nextTargetInput) {
+                    nextTargetInput.value = normalizeAsciiDash(nextTargetInput.value);
+                }
+
                 const studentId = document.getElementById('evalStudentId').value || '';
                 const sessionId = document.getElementById('evalSessionId').value || '';
                 if (!studentId.trim()) {
@@ -1354,7 +1368,7 @@
                     body: urlEncoded,
                     credentials: 'same-origin',
                     headers: {
-                        'Content-Type': 'application/x-www-form-urlencoded',
+                        'Content-Type': 'application/x-www-form-urlencoded; charset=UTF-8',
                         'X-Requested-With': 'XMLHttpRequest'
                     }
                 }).then(response => {

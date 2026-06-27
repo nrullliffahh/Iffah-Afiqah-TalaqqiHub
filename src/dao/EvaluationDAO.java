@@ -3,6 +3,7 @@ package dao;
 import model.Evaluation;
 import util.DBConnection;
 import util.TalaqqiSchemaUtil;
+import util.TextEncodingUtil;
 import java.sql.*;
 import java.util.*;
 
@@ -899,7 +900,7 @@ public class EvaluationDAO {
         e.setStrengths(rs.getString("strength"));
         e.setImprovements(rs.getString("weakness"));
         e.setSuggestions(rs.getString("studentImprovements"));
-        e.setNextTarget(rs.getString("nextTarget"));
+        e.setNextTarget(TextEncodingUtil.normalizeAsciiDash(rs.getString("nextTarget")));
         e.setComments(rs.getString("comments"));
 
         e.setTeacherName(rs.getString("teacherName"));

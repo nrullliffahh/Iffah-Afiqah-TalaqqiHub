@@ -9,6 +9,7 @@ import java.util.*;
 import javax.servlet.*;
 import javax.servlet.http.*;
 import util.DBConnection;
+import util.TextEncodingUtil;
 
 /**
  * TeacherEvaluationServlet
@@ -115,6 +116,8 @@ public class TeacherEvaluationServlet extends HttpServlet {
     @Override
     protected void doPost(HttpServletRequest request, HttpServletResponse response)
             throws ServletException, IOException {
+
+        request.setCharacterEncoding("UTF-8");
         
         HttpSession session = request.getSession(false);
         
@@ -295,7 +298,7 @@ public class TeacherEvaluationServlet extends HttpServlet {
         evaluation.setComments(request.getParameter("comments"));
         evaluation.setAreasForImprovement(request.getParameter("areasForImprovement"));
         evaluation.setPerformanceTag(request.getParameter("performanceTag"));
-        evaluation.setNextTarget(request.getParameter("nextTarget"));
+        evaluation.setNextTarget(TextEncodingUtil.normalizeAsciiDash(request.getParameter("nextTarget")));
         evaluation.setSuggestions(request.getParameter("suggestions"));
         evaluation.setTeacherComments(request.getParameter("teacherComments"));
         evaluation.setStatus(request.getParameter("status"));

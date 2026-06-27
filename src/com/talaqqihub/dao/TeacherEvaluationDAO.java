@@ -2,6 +2,7 @@ package com.talaqqihub.dao;
 
 import com.talaqqihub.model.Evaluation;
 import util.TalaqqiSchemaUtil;
+import util.TextEncodingUtil;
 import java.sql.*;
 import java.util.*;
 
@@ -930,13 +931,13 @@ public class TeacherEvaluationDAO {
         sqlAdd(parts, "strength", truncate(evaluation.getComments(), 255));
         sqlAdd(parts, "areas_for_improvement", nullToEmpty(evaluation.getAreasForImprovement()));
         sqlAdd(parts, "performance_tag", nullToEmpty(evaluation.getPerformanceTag()));
-        sqlAdd(parts, "next_target_surah", nullToEmpty(evaluation.getNextTarget()));
+        sqlAdd(parts, "next_target_surah", nullToEmpty(TextEncodingUtil.normalizeAsciiDash(evaluation.getNextTarget())));
         sqlAdd(parts, "suggestions", nullToEmpty(evaluation.getSuggestions()));
         sqlAdd(parts, "teacher_comments", nullToEmpty(evaluation.getTeacherComments()));
         sqlAdd(parts, "status", resolvedEvalStatus(evaluation));
         sqlAdd(parts, "weakness", truncate(evaluation.getAreasForImprovement(), 255));
         sqlAdd(parts, "studentImprovements", nullToEmpty(evaluation.getSuggestions()));
-        sqlAdd(parts, "nextTarget", nullToEmpty(evaluation.getNextTarget()));
+        sqlAdd(parts, "nextTarget", nullToEmpty(TextEncodingUtil.normalizeAsciiDash(evaluation.getNextTarget())));
         sqlAdd(parts, "comments", nullToEmpty(evaluation.getComments()));
         if (TalaqqiSchemaUtil.hasColumn(connection, "studentevaluation", "createdAt")) {
             parts.addExpression("createdAt", "NOW()");
@@ -962,7 +963,7 @@ public class TeacherEvaluationDAO {
         sqlAdd(parts, "strength", truncate(evaluation.getComments(), 255));
         sqlAdd(parts, "weakness", truncate(evaluation.getAreasForImprovement(), 255));
         sqlAdd(parts, "studentImprovements", nullToEmpty(evaluation.getSuggestions()));
-        sqlAdd(parts, "nextTarget", nullToEmpty(evaluation.getNextTarget()));
+        sqlAdd(parts, "nextTarget", nullToEmpty(TextEncodingUtil.normalizeAsciiDash(evaluation.getNextTarget())));
         sqlAdd(parts, "comments", nullToEmpty(evaluation.getComments()));
         sqlAdd(parts, "status", resolvedEvalStatus(evaluation));
 
@@ -1118,7 +1119,8 @@ public class TeacherEvaluationDAO {
             helper.addSet("performance_tag", nullToEmpty(evaluation.getPerformanceTag()), setClause, params);
         }
         if (hasEvalColumn("next_target_surah")) {
-            helper.addSet("next_target_surah", nullToEmpty(evaluation.getNextTarget()), setClause, params);
+            helper.addSet("next_target_surah",
+                nullToEmpty(TextEncodingUtil.normalizeAsciiDash(evaluation.getNextTarget())), setClause, params);
         }
         if (hasEvalColumn("suggestions")) {
             helper.addSet("suggestions", nullToEmpty(evaluation.getSuggestions()), setClause, params);
@@ -1136,7 +1138,8 @@ public class TeacherEvaluationDAO {
             helper.addSet("studentImprovements", nullToEmpty(evaluation.getSuggestions()), setClause, params);
         }
         if (hasEvalColumn("nextTarget")) {
-            helper.addSet("nextTarget", nullToEmpty(evaluation.getNextTarget()), setClause, params);
+            helper.addSet("nextTarget",
+                nullToEmpty(TextEncodingUtil.normalizeAsciiDash(evaluation.getNextTarget())), setClause, params);
         }
         if (hasEvalColumn("comments")) {
             helper.addSet("comments", nullToEmpty(evaluation.getComments()), setClause, params);
@@ -2170,6 +2173,21 @@ public class TeacherEvaluationDAO {
         return "0".equals(trimmed) || "0-0".equals(trimmed);
     }
 
+    private String normalizeNextTargetFromResultSet(ResultSet rs) throws SQLException {
+        String value = null;
+        try {
+            value = rs.getString("nextTarget");
+        } catch (SQLException ignored) {
+        }
+        if (value == null || value.trim().isEmpty()) {
+            try {
+                value = rs.getString("next_target_surah");
+            } catch (SQLException ignored) {
+            }
+        }
+        return TextEncodingUtil.normalizeAsciiDash(value);
+    }
+
     private String getSurahName(int surahNumber) {
         String[] surahNames = {
             "",
@@ -2365,7 +2383,7 @@ public class TeacherEvaluationDAO {
         }
         
         try {
-            evaluation.setNextTarget(rs.getString("next_target_surah"));
+            evaluation.setNextTarget(normalizeNextTargetFromResultSet(rs));
         } catch (SQLException e) {
             evaluation.setNextTarget("");
         }
