@@ -260,7 +260,7 @@ public class ClassScheduleServlet extends HttpServlet {
                           "cb.bookingId, cb.bookingStatus " +
                           "FROM classschedule cs " +
                           "LEFT JOIN classbooking cb ON cs.scheduleId = cb.scheduleId " +
-                          "    AND (cb.bookingStatus = 'Upcoming' OR cb.bookingStatus = 'Confirmed' OR cb.bookingStatus = 'Approved') " +
+                          "    AND cb.bookingStatus IN " + util.BookingStatus.SQL_ACTIVE + " " +
                           "LEFT JOIN student s2 ON cb.studentId = s2.studentId " +
                           "LEFT JOIN student s1 ON cs.studentId = s1.studentId " +
                           "WHERE cs.teacherId=? " +

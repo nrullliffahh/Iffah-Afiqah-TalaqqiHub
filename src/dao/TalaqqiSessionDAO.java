@@ -70,7 +70,7 @@ public class TalaqqiSessionDAO {
             "FROM classbooking cb " +
             "JOIN classschedule cs ON cb.scheduleId = cs.scheduleId " +
             "WHERE cs.teacherId = ? " +
-            "  AND cb.bookingStatus = 'Upcoming' " +
+            "  AND cb.bookingStatus IN " + util.BookingStatus.SQL_ACTIVE + " " +
             "  AND NOT EXISTS (" +
             "      SELECT 1 FROM talaqqisession ts2 WHERE ts2.bookingId = cb.bookingId" +
             "  ) " +
@@ -193,7 +193,7 @@ public class TalaqqiSessionDAO {
             "FROM classbooking cb " +
             "JOIN classschedule cs ON cb.scheduleId = cs.scheduleId " +
             "WHERE cb.studentId = ? " +
-            "  AND cb.bookingStatus = 'Upcoming' " +
+            "  AND cb.bookingStatus IN " + util.BookingStatus.SQL_ACTIVE + " " +
             "  AND NOT EXISTS (" +
             "      SELECT 1 FROM talaqqisession ts2 WHERE ts2.bookingId = cb.bookingId" +
             "  ) " +

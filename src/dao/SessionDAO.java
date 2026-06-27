@@ -292,7 +292,7 @@ public class SessionDAO {
                         "cs.studentId AS assignedStudentId, s1.studentName AS assignedStudentName " +
                         "FROM classschedule cs " +
                             "LEFT JOIN classbooking cb ON cb.scheduleId = cs.scheduleId " +
-                            "    AND cb.bookingDate = cs.scheduleDate AND (cb.bookingStatus = 'Upcoming' OR cb.bookingStatus = 'Confirmed' OR cb.bookingStatus = 'Approved') " +
+                            "    AND cb.bookingDate = cs.scheduleDate AND cb.bookingStatus IN " + util.BookingStatus.SQL_ACTIVE + " " +
                         "LEFT JOIN student s2 ON cb.studentId = s2.studentId " +
                         "LEFT JOIN student s1 ON cs.studentId = s1.studentId " +
                         "WHERE cs.teacherId = ? " +
