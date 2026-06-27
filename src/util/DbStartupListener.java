@@ -5,16 +5,14 @@ import javax.servlet.ServletContextEvent;
 import javax.servlet.ServletContextListener;
 
 /**
- * Logs database connectivity when the webapp starts on Kerocket/Tomcat.
- * Uses util.DBConnection — there is only ONE database connection class in this project.
+ * Startup diagnostic — delegates to {@link JdbcCredentialLoader} + {@link DBConnection}.
  */
 public class DbStartupListener implements ServletContextListener {
 
     @Override
     public void contextInitialized(ServletContextEvent sce) {
-        boolean deployFiles = DBConnection.hasDeployCredentialFiles();
         System.out.println(
-            "DbStartupListener: deployCredentialFiles=" + deployFiles
+            "DbStartupListener: deployCredentialFiles=" + JdbcCredentialLoader.hasDeployCredentialFiles()
                 + ", configSource=" + DBConnection.getConfigSource()
                 + ", host=" + DBConnection.getConfigHost()
                 + ", database=" + DBConnection.getConfigDatabase()
@@ -27,8 +25,9 @@ public class DbStartupListener implements ServletContextListener {
             DBConnection.closeConnection(conn);
         } else {
             System.err.println(
-                "DbStartupListener: database connection FAILED at startup. lastError="
+                "DbStartupListener: database connection FAILED. lastError="
                     + DBConnection.getLastConnectionError()
+                    + " — set DB_USER=avnadmin and DB_PASSWORD in Kerocket Deploy tab."
             );
         }
     }

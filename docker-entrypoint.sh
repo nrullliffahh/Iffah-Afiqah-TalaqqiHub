@@ -34,13 +34,20 @@ write_secret_file() {
 
 is_internal_kerocket_db() {
   case "${1:-}" in
-    *"://mysql:"*|*"://mysql/"*|*jdbc:mysql://mysql:*)
+    *aivencloud.com*|*aiven.io*)
+      return 1
+      ;;
+    *@mysql:*|*@mysql/*|*mysql://mysql:*|*mysql://mysql/*|*jdbc:mysql://mysql:*)
       return 0
       ;;
     *)
       return 1
       ;;
   esac
+}
+
+is_kerocket_user() {
+  [ "${1:-}" = "kerocket" ]
 }
 
 is_external_db_url() {
@@ -117,15 +124,19 @@ if [ -n "${DB_URL:-}" ]; then
   DB_USER="${DB_USER:-${MYSQLUSER:-${MYSQL_USER:-}}}"
   DB_PASSWORD="${DB_PASSWORD:-${MYSQLPASSWORD:-${MYSQL_PASSWORD:-}}}"
   if is_external_db_url "${DB_URL}"; then
-    # DB_URL is Aiven — do NOT use Kerocket internal mysql://kerocket@mysql/app credentials.
+    # Aiven DB_URL — never use kerocket user from internal DATABASE_URL.
     case "${DATABASE_URL:-}" in
       *aivencloud.com*|*aiven.io*)
-        if [ -n "${SVC_USER}" ]; then
+        if [ -n "${SVC_USER}" ] && ! is_kerocket_user "${SVC_USER}"; then
           DB_USER="${SVC_USER}"
           DB_PASSWORD="${SVC_PASSWORD}"
         fi
         ;;
     esac
+    if is_kerocket_user "${DB_USER}"; then
+      DB_USER=""
+      DB_PASSWORD=""
+    fi
   elif [ -z "${DB_USER}" ] || [ -z "${DB_PASSWORD}" ]; then
     if [ -n "${SVC_USER}" ]; then
       DB_USER="${SVC_USER}"
@@ -149,7 +160,7 @@ if [ -z "${JDBC_URL}" ]; then
   fi
 fi
 
-if [ -n "${JDBC_URL}" ]; then
+if [ -n "${JDBC_URL}" ] && [ -n "${DB_USER}" ] && [ -n "${DB_PASSWORD}" ]; then
   U="$(escape_xml_attr "$(printf '%s' "${DB_USER}")")"
   P="$(escape_xml_attr "$(printf '%s' "${DB_PASSWORD}")")"
   URL_XML="$(escape_xml_attr "$(printf '%s' "${JDBC_URL}")")"
@@ -186,7 +197,11 @@ EOF
   chmod 600 "${PROPFILE}"
   echo "Wrote JDBC credential files under ${CONF_DIR}"
 else
-  echo "ERROR: No database environment variables found."
+  if [ -n "${JDBC_URL}" ]; then
+    echo "ERROR: JDBC URL set but DB_USER/DB_PASSWORD missing — set DB_USER=avnadmin and DB_PASSWORD in Kerocket Deploy tab."
+  else
+    echo "ERROR: No database environment variables found."
+  fi
 fi
 
 exec "$@"

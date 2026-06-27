@@ -1,65 +1,30 @@
 package util;
 
-import java.io.Reader;
-import java.net.URI;
-import java.net.URLDecoder;
-import java.nio.charset.StandardCharsets;
-import java.nio.file.Files;
-import java.nio.file.Path;
-import java.nio.file.Paths;
 import java.sql.Connection;
 import java.sql.DriverManager;
 import java.sql.SQLException;
-import java.util.ArrayList;
-import java.util.Base64;
-import java.util.LinkedHashSet;
 import java.util.List;
-import java.util.Properties;
-import java.util.Set;
 import java.util.concurrent.atomic.AtomicBoolean;
 import javax.naming.InitialContext;
 import javax.naming.NamingException;
 import javax.sql.DataSource;
+import util.JdbcCredentialLoader.CredentialConfig;
 
 /**
- * Database connections for TalaqqiHub (student, teacher, admin).
+ * Opens JDBC connections using configs from {@link JdbcCredentialLoader}.
  */
 public class DBConnection {
 
     private static final String DB_DRIVER = "com.mysql.cj.jdbc.Driver";
     private static final String JNDI_NAME = "java:comp/env/jdbc/TalaqqiHubDB";
-    private static final Path DEPLOY_PROPERTIES = Paths.get("/usr/local/tomcat/conf/talaqqihub-db.properties");
-    private static final Path DEPLOY_URL_FILE = Paths.get("/usr/local/tomcat/conf/db.jdbc.url");
-    private static final Path DEPLOY_USER_FILE = Paths.get("/usr/local/tomcat/conf/db.jdbc.user");
-    private static final Path DEPLOY_PASSWORD_FILE = Paths.get("/usr/local/tomcat/conf/db.jdbc.password");
     private static final AtomicBoolean LOGGED_CONFIG = new AtomicBoolean(false);
     private static volatile String lastConnectionError = "";
-
-    private static final class DbConfig {
-        final String url;
-        final String user;
-        final String password;
-        final boolean production;
-        final String source;
-
-        DbConfig(String url, String user, String password, boolean production, String source) {
-            this.url = url;
-            this.user = user != null ? user : "";
-            this.password = password != null ? password : "";
-            this.production = production;
-            this.source = source;
-        }
-
-        String key() {
-            return source + "|" + url + "|" + user;
-        }
-    }
 
     public static Connection getConnection() {
         lastConnectionError = "";
         boolean anyProduction = false;
 
-        for (DbConfig config : resolveAllConfigs()) {
+        for (CredentialConfig config : JdbcCredentialLoader.loadAll()) {
             anyProduction = anyProduction || config.production;
             logConfigOnce(config);
             Connection connection = tryDirectConnection(config);
@@ -94,22 +59,22 @@ public class DBConnection {
     }
 
     public static String getConfigSource() {
-        List<DbConfig> configs = resolveAllConfigs();
+        List<CredentialConfig> configs = JdbcCredentialLoader.loadAll();
         return configs.isEmpty() ? "none" : configs.get(0).source;
     }
 
     public static String getConfigHost() {
-        List<DbConfig> configs = resolveAllConfigs();
-        return configs.isEmpty() ? "(none)" : safeJdbcHost(configs.get(0).url);
+        List<CredentialConfig> configs = JdbcCredentialLoader.loadAll();
+        return configs.isEmpty() ? "(none)" : JdbcCredentialLoader.safeJdbcHost(configs.get(0).url);
     }
 
     public static String getConfigDatabase() {
-        List<DbConfig> configs = resolveAllConfigs();
-        return configs.isEmpty() ? "(none)" : safeJdbcDatabase(configs.get(0).url);
+        List<CredentialConfig> configs = JdbcCredentialLoader.loadAll();
+        return configs.isEmpty() ? "(none)" : JdbcCredentialLoader.safeJdbcDatabase(configs.get(0).url);
     }
 
     public static boolean isProductionConfig() {
-        for (DbConfig config : resolveAllConfigs()) {
+        for (CredentialConfig config : JdbcCredentialLoader.loadAll()) {
             if (config.production) {
                 return true;
             }
@@ -122,23 +87,23 @@ public class DBConnection {
     }
 
     public static boolean hasDeployCredentialFiles() {
-        return Files.isRegularFile(DEPLOY_URL_FILE);
+        return JdbcCredentialLoader.hasDeployCredentialFiles();
     }
 
-    private static void logConfigOnce(DbConfig config) {
+    private static void logConfigOnce(CredentialConfig config) {
         if (LOGGED_CONFIG.compareAndSet(false, true)) {
             System.out.println(
                 "DBConnection initialized: source=" + config.source
                     + ", production=" + config.production
                     + ", user=" + safeUser(config.user)
-                    + ", jdbcHost=" + safeJdbcHost(config.url)
-                    + ", database=" + safeJdbcDatabase(config.url)
+                    + ", jdbcHost=" + JdbcCredentialLoader.safeJdbcHost(config.url)
+                    + ", database=" + JdbcCredentialLoader.safeJdbcDatabase(config.url)
                     + ", deployFiles=" + hasDeployCredentialFiles()
             );
         }
     }
 
-    private static Connection tryDirectConnection(DbConfig config) {
+    private static Connection tryDirectConnection(CredentialConfig config) {
         if (config.url == null || config.url.isEmpty()) {
             lastConnectionError = "JDBC URL is empty for " + config.source;
             return null;
@@ -154,7 +119,11 @@ public class DBConnection {
         } catch (SQLException e) {
             lastConnectionError = config.source + ": " + e.getMessage();
             System.err.println("Database connection failed (" + config.source + "): " + e.getMessage());
-            System.err.println("JDBC user=" + safeUser(config.user) + ", url host=" + safeJdbcHost(config.url));
+            System.err.println(
+                "JDBC user=" + safeUser(config.user)
+                    + ", url host=" + JdbcCredentialLoader.safeJdbcHost(config.url)
+                    + ", database=" + JdbcCredentialLoader.safeJdbcDatabase(config.url)
+            );
         }
         return null;
     }
@@ -180,7 +149,6 @@ public class DBConnection {
     private static Connection tryLocalDevFallback() {
         String localUrl = "jdbc:mysql://127.0.0.1:3306/talaqqihub_db"
             + "?useSSL=false&serverTimezone=UTC&connectTimeout=5000&socketTimeout=10000&allowPublicKeyRetrieval=true";
-
         try {
             Connection connection = DriverManager.getConnection(localUrl, "root", "admin");
             System.out.println("Database connection established using local XAMPP fallback (root/admin).");
@@ -188,7 +156,6 @@ public class DBConnection {
         } catch (SQLException firstEx) {
             System.err.println("Local fallback (root/admin) failed: " + firstEx.getMessage());
         }
-
         try {
             Connection connection = DriverManager.getConnection(localUrl, "root", "");
             System.out.println("Database connection established using local XAMPP fallback (root/empty).");
@@ -197,464 +164,11 @@ public class DBConnection {
             lastConnectionError = "local fallback: " + secondEx.getMessage();
             System.err.println("Local fallback (root/empty) failed: " + secondEx.getMessage());
         }
-
         return null;
-    }
-
-    private static List<DbConfig> resolveAllConfigs() {
-        List<DbConfig> configs = new ArrayList<>();
-        Set<String> seen = new LinkedHashSet<>();
-
-        String dbUrl = firstNonEmpty(getenv("DB_URL"), getProperty("DB_URL"));
-        String databaseUrl = firstNonEmpty(getenv("DATABASE_URL"), getProperty("DATABASE_URL"));
-        String dbUser = credentialsUser();
-        String dbPassword = credentialsPassword();
-
-        // When DB_URL points to Aiven/external, use it FIRST — not Kerocket internal mysql:3306/app.
-        if (dbUrl != null && isExternalDatabaseUrl(dbUrl)) {
-            addConfig(configs, seen, buildMergedDbUrlConfig(databaseUrl, dbUrl, dbUser, dbPassword));
-            addConfig(configs, seen, loadFromDeployCredentialFiles());
-            addConfig(configs, seen, loadFromDeployPropertiesFile());
-            if (dbUser != null && !dbUser.isEmpty()) {
-                addConfig(configs, seen, new DbConfig(
-                    ensureJdbcParams(dbUrl),
-                    dbUser,
-                    dbPassword != null ? dbPassword : "",
-                    true,
-                    "env:DB_URL"
-                ));
-            }
-            if (databaseUrl != null && !isInternalKerocketDatabaseUrl(databaseUrl)) {
-                addConfig(configs, seen, parseDatabaseUrl(databaseUrl));
-            }
-        } else {
-            if (databaseUrl != null) {
-                addConfig(configs, seen, parseDatabaseUrl(databaseUrl));
-            }
-            addConfig(configs, seen, buildMergedDbUrlConfig(databaseUrl, dbUrl, dbUser, dbPassword));
-            addConfig(configs, seen, loadFromDeployCredentialFiles());
-            addConfig(configs, seen, loadFromDeployPropertiesFile());
-            if (dbUrl != null) {
-                addConfig(configs, seen, new DbConfig(
-                    ensureJdbcParams(dbUrl),
-                    dbUser != null ? dbUser : "root",
-                    dbPassword != null ? dbPassword : "",
-                    true,
-                    "env:DB_URL"
-                ));
-            }
-        }
-
-        String mysqlHost = firstNonEmpty(
-            getenv("MYSQLHOST"), getProperty("MYSQLHOST"),
-            getenv("MYSQL_HOST"), getProperty("MYSQL_HOST")
-        );
-        if (mysqlHost != null) {
-            String mysqlDatabase = firstNonEmpty(
-                getenv("MYSQLDATABASE"), getProperty("MYSQLDATABASE"),
-                getenv("MYSQL_DATABASE"), getProperty("MYSQL_DATABASE"),
-                "talaqqihub_db"
-            );
-            String port = firstNonEmpty(
-                getenv("MYSQLPORT"), getProperty("MYSQLPORT"),
-                getenv("MYSQL_PORT"), getProperty("MYSQL_PORT"),
-                "3306"
-            );
-            String url = "jdbc:mysql://" + mysqlHost + ":" + port + "/" + mysqlDatabase
-                + "?sslMode=REQUIRED&serverTimezone=UTC&connectTimeout=5000&socketTimeout=10000&allowPublicKeyRetrieval=true";
-            addConfig(configs, seen, new DbConfig(
-                url,
-                dbUser != null ? dbUser : "root",
-                dbPassword != null ? dbPassword : "",
-                true,
-                "env:MYSQLHOST"
-            ));
-        }
-
-        addConfig(configs, seen, new DbConfig(
-            "jdbc:mysql://127.0.0.1:3306/talaqqihub_db"
-                + "?useSSL=false&serverTimezone=UTC&connectTimeout=5000&socketTimeout=10000&allowPublicKeyRetrieval=true",
-            "root",
-            "admin",
-            false,
-            "local-default"
-        ));
-
-        return configs;
-    }
-
-    /** DB_URL (Aiven host/db) + credentials from env or external DATABASE_URL only. */
-    private static DbConfig buildMergedDbUrlConfig(
-        String databaseUrl, String dbUrl, String dbUser, String dbPassword
-    ) {
-        if (dbUrl == null) {
-            return null;
-        }
-
-        String user = dbUser;
-        String password = dbPassword != null ? dbPassword : "";
-
-        if ((user == null || user.isEmpty()) && databaseUrl != null
-                && !isInternalKerocketDatabaseUrl(databaseUrl)) {
-            DbConfig service = parseDatabaseUrl(databaseUrl);
-            if (service != null && service.user != null && !service.user.isEmpty()) {
-                user = service.user;
-                password = service.password != null ? service.password : "";
-            }
-        }
-
-        if (user == null || user.isEmpty()) {
-            return null;
-        }
-
-        return new DbConfig(
-            ensureJdbcParams(dbUrl),
-            user,
-            password,
-            true,
-            "merged:DB_URL+credentials"
-        );
-    }
-
-    private static boolean isInternalKerocketDatabaseUrl(String url) {
-        if (url == null) {
-            return false;
-        }
-        String lower = url.toLowerCase();
-        return lower.contains("mysql://mysql:") || lower.contains("mysql://mysql/")
-            || lower.contains("jdbc:mysql://mysql:") || lower.contains("jdbc:mysql://mysql/");
-    }
-
-    private static boolean isExternalDatabaseUrl(String url) {
-        if (url == null) {
-            return false;
-        }
-        if (url.contains("aivencloud.com") || url.contains("aiven.io")) {
-            return true;
-        }
-        return !isInternalKerocketDatabaseUrl(url)
-            && !url.contains("127.0.0.1") && !url.contains("localhost");
-    }
-
-    private static void addConfig(List<DbConfig> configs, Set<String> seen, DbConfig config) {
-        if (config == null || config.url == null || config.url.isEmpty()) {
-            return;
-        }
-        String key = config.key();
-        if (seen.add(key)) {
-            configs.add(config);
-        }
-    }
-
-    private static DbConfig loadFromDeployCredentialFiles() {
-        if (!Files.isRegularFile(DEPLOY_URL_FILE)) {
-            return null;
-        }
-        try {
-            String url = readSecretFile(DEPLOY_URL_FILE);
-            if (url == null || url.isEmpty()) {
-                return null;
-            }
-            String user = readSecretFile(DEPLOY_USER_FILE);
-            String password = readSecretFile(DEPLOY_PASSWORD_FILE);
-            return new DbConfig(
-                ensureJdbcParams(url),
-                user != null ? user : "",
-                password != null ? password : "",
-                true,
-                "file:jdbc-credentials"
-            );
-        } catch (Exception e) {
-            System.err.println("Failed to read deploy JDBC credential files: " + e.getMessage());
-            return null;
-        }
-    }
-
-    private static String readSecretFile(Path path) throws Exception {
-        if (!Files.isRegularFile(path)) {
-            return "";
-        }
-        return Files.readString(path, StandardCharsets.UTF_8).trim();
-    }
-
-    private static DbConfig loadFromDeployPropertiesFile() {
-        if (!Files.isRegularFile(DEPLOY_PROPERTIES)) {
-            return null;
-        }
-        try {
-            Properties props = new Properties();
-            try (Reader reader = Files.newBufferedReader(DEPLOY_PROPERTIES, StandardCharsets.UTF_8)) {
-                props.load(reader);
-            }
-
-            String url = decodePropertyValue(props, "db.url.b64", "db.url");
-            if (url == null || url.isEmpty()) {
-                return null;
-            }
-
-            String user = decodePropertyValue(props, "db.user.b64", "db.user");
-            String password = decodePropertyValue(props, "db.password.b64", "db.password");
-            return new DbConfig(
-                ensureJdbcParams(url),
-                user != null ? user : "",
-                password != null ? password : "",
-                true,
-                "file:properties"
-            );
-        } catch (Exception e) {
-            System.err.println("Failed to read deploy DB properties: " + e.getMessage());
-            return null;
-        }
-    }
-
-    private static String decodePropertyValue(Properties props, String b64Key, String plainKey) {
-        String b64 = props.getProperty(b64Key);
-        if (b64 != null && !b64.trim().isEmpty()) {
-            try {
-                return new String(Base64.getDecoder().decode(b64.trim()), StandardCharsets.UTF_8);
-            } catch (IllegalArgumentException ignored) {
-                // Fall through to plain key.
-            }
-        }
-        return props.getProperty(plainKey);
-    }
-
-    private static String credentialsUser() {
-        return firstNonEmpty(
-            getenv("DB_USER"), getProperty("DB_USER"),
-            getenv("MYSQLUSER"), getProperty("MYSQLUSER"),
-            getenv("MYSQL_USER"), getProperty("MYSQL_USER")
-        );
-    }
-
-    private static String credentialsPassword() {
-        return firstNonEmpty(
-            getenv("DB_PASSWORD"), getProperty("DB_PASSWORD"),
-            getenv("MYSQLPASSWORD"), getProperty("MYSQLPASSWORD"),
-            getenv("MYSQL_PASSWORD"), getProperty("MYSQL_PASSWORD")
-        );
-    }
-
-    private static DbConfig parseDatabaseUrl(String databaseUrl) {
-        String raw = databaseUrl.trim();
-        if (raw.isEmpty()) {
-            return null;
-        }
-
-        if (raw.startsWith("jdbc:mysql://") || raw.startsWith("jdbc:mariadb://")) {
-            ParsedUrl parsed = parseJdbcUrl(raw);
-            if (parsed == null) {
-                return null;
-            }
-            String user = firstNonEmpty(parsed.user, credentialsUser());
-            String password = firstNonEmpty(parsed.password, credentialsPassword());
-            return new DbConfig(ensureJdbcParams(parsed.jdbcUrl), user, password, true, "env:DATABASE_URL(jdbc)");
-        }
-
-        if (raw.startsWith("mysql://") || raw.startsWith("mariadb://")) {
-            ParsedUrl parsed = parseMySqlSchemeUrl(raw);
-            if (parsed == null) {
-                return null;
-            }
-            return new DbConfig(
-                ensureJdbcParams(parsed.jdbcUrl),
-                parsed.user,
-                parsed.password,
-                true,
-                "env:DATABASE_URL(mysql)"
-            );
-        }
-
-        return null;
-    }
-
-    private static ParsedUrl parseMySqlSchemeUrl(String raw) {
-        try {
-            URI uri = URI.create(raw.replaceFirst("^mysql://", "http://").replaceFirst("^mariadb://", "http://"));
-            String userInfo = uri.getUserInfo();
-            String user = null;
-            String password = null;
-            if (userInfo != null && !userInfo.isEmpty()) {
-                int split = userInfo.indexOf(':');
-                if (split >= 0) {
-                    user = decode(userInfo.substring(0, split));
-                    password = decode(userInfo.substring(split + 1));
-                } else {
-                    user = decode(userInfo);
-                }
-            }
-
-            String host = uri.getHost();
-            int port = uri.getPort() > 0 ? uri.getPort() : 3306;
-            String path = uri.getPath();
-            String database = (path != null && path.length() > 1) ? path.substring(1) : "talaqqihub_db";
-            String query = uri.getQuery();
-            String jdbcUrl = "jdbc:mysql://" + host + ":" + port + "/" + database;
-            if (query != null && !query.isEmpty()) {
-                query = query.replace("ssl-mode=", "sslMode=");
-                jdbcUrl += "?" + query;
-            }
-            return new ParsedUrl(jdbcUrl, user, password);
-        } catch (Exception e) {
-            System.err.println("Failed to parse DATABASE_URL: " + e.getMessage());
-            return null;
-        }
-    }
-
-    private static ParsedUrl parseJdbcUrl(String raw) {
-        try {
-            int schemeEnd = raw.indexOf("://");
-            if (schemeEnd < 0) {
-                return null;
-            }
-            int at = raw.indexOf('@', schemeEnd + 3);
-            if (at < 0) {
-                return new ParsedUrl(raw, null, null);
-            }
-
-            String userInfo = raw.substring(schemeEnd + 3, at);
-            String remainder = raw.substring(at + 1);
-            String user = null;
-            String password = null;
-            int split = userInfo.indexOf(':');
-            if (split >= 0) {
-                user = decode(userInfo.substring(0, split));
-                password = decode(userInfo.substring(split + 1));
-            } else {
-                user = decode(userInfo);
-            }
-
-            String jdbcUrl = raw.substring(0, schemeEnd + 3) + remainder;
-            return new ParsedUrl(jdbcUrl, user, password);
-        } catch (Exception e) {
-            System.err.println("Failed to parse JDBC DATABASE_URL: " + e.getMessage());
-            return null;
-        }
-    }
-
-    private static String ensureJdbcParams(String jdbcUrl) {
-        StringBuilder sb = new StringBuilder(jdbcUrl);
-        String sep = jdbcUrl.contains("?") ? "&" : "?";
-
-        if (!jdbcUrl.contains("serverTimezone=")) {
-            sb.append(sep).append("serverTimezone=UTC");
-            sep = "&";
-        }
-        if (!jdbcUrl.contains("connectTimeout=")) {
-            sb.append(sep).append("connectTimeout=5000");
-            sep = "&";
-        }
-        if (!jdbcUrl.contains("socketTimeout=")) {
-            sb.append(sep).append("socketTimeout=10000");
-            sep = "&";
-        }
-        if (!jdbcUrl.contains("allowPublicKeyRetrieval=")) {
-            sb.append(sep).append("allowPublicKeyRetrieval=true");
-            sep = "&";
-        }
-        if (!jdbcUrl.contains("sslMode=") && !jdbcUrl.contains("useSSL=")) {
-            if (jdbcUrl.contains("127.0.0.1") || jdbcUrl.contains("localhost")) {
-                sb.append(sep).append("useSSL=false");
-            } else {
-                sb.append(sep).append("sslMode=REQUIRED");
-            }
-        }
-        return sb.toString();
-    }
-
-    private static String decode(String value) {
-        try {
-            return URLDecoder.decode(value, StandardCharsets.UTF_8.name());
-        } catch (Exception e) {
-            return value;
-        }
     }
 
     private static String safeUser(String user) {
         return user == null || user.isEmpty() ? "(empty)" : user;
-    }
-
-    private static String safeJdbcHost(String jdbcUrl) {
-        if (jdbcUrl == null) {
-            return "(none)";
-        }
-        try {
-            int start = jdbcUrl.indexOf("://");
-            if (start < 0) {
-                return "(unparsed)";
-            }
-            String rest = jdbcUrl.substring(start + 3);
-            int slash = rest.indexOf('/');
-            String hostPort = slash >= 0 ? rest.substring(0, slash) : rest;
-            int at = hostPort.lastIndexOf('@');
-            return at >= 0 ? hostPort.substring(at + 1) : hostPort;
-        } catch (Exception e) {
-            return "(unparsed)";
-        }
-    }
-
-    private static String safeJdbcDatabase(String jdbcUrl) {
-        if (jdbcUrl == null) {
-            return "(none)";
-        }
-        try {
-            int start = jdbcUrl.indexOf("://");
-            if (start < 0) {
-                return "(unparsed)";
-            }
-            String rest = jdbcUrl.substring(start + 3);
-            int slash = rest.indexOf('/');
-            if (slash < 0) {
-                return "(none)";
-            }
-            String dbPart = rest.substring(slash + 1);
-            int query = dbPart.indexOf('?');
-            return query >= 0 ? dbPart.substring(0, query) : dbPart;
-        } catch (Exception e) {
-            return "(unparsed)";
-        }
-    }
-
-    private static String getenv(String key) {
-        String value = System.getenv(key);
-        if (value == null) {
-            return null;
-        }
-        value = value.trim();
-        return value.isEmpty() ? null : value;
-    }
-
-    private static String getProperty(String key) {
-        String value = System.getProperty(key);
-        if (value == null) {
-            return null;
-        }
-        value = value.trim();
-        return value.isEmpty() ? null : value;
-    }
-
-    private static String firstNonEmpty(String... values) {
-        if (values == null) {
-            return null;
-        }
-        for (String value : values) {
-            if (value != null && !value.trim().isEmpty()) {
-                return value.trim();
-            }
-        }
-        return null;
-    }
-
-    private static final class ParsedUrl {
-        final String jdbcUrl;
-        final String user;
-        final String password;
-
-        ParsedUrl(String jdbcUrl, String user, String password) {
-            this.jdbcUrl = jdbcUrl;
-            this.user = user;
-            this.password = password;
-        }
     }
 
     public static void closeConnection(Connection connection) {
