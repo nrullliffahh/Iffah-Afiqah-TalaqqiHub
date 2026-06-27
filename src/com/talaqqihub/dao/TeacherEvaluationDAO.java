@@ -446,9 +446,11 @@ public class TeacherEvaluationDAO {
      */
     public List<Evaluation> getCompletedEvaluations(String teacherId, String searchTerm, String filterClass, String sortBy) {
         List<Evaluation> evaluations = new ArrayList<>();
+        List<String> teacherIds = teacherIdVariants(teacherId);
+        String teacherClause = teacherIdMatchClause("se.teacherId", teacherIds);
 
         StringBuilder query = new StringBuilder(buildEvaluationListSelectSql());
-        query.append("WHERE se.teacherId = ? AND ").append(evalCompletedPredicate("se"));
+        query.append("WHERE ").append(teacherClause).append(" AND ").append(evalCompletedPredicate("se"));
 
         // Add search filter
         if (searchTerm != null && !searchTerm.trim().isEmpty()) {
@@ -480,8 +482,7 @@ public class TeacherEvaluationDAO {
         }
 
         try (PreparedStatement stmt = connection.prepareStatement(query.toString())) {
-            int paramIndex = 1;
-            stmt.setString(paramIndex++, teacherId);
+            int paramIndex = bindTeacherIdVariants(stmt, 1, teacherId);
 
             if (searchTerm != null && !searchTerm.trim().isEmpty()) {
                 String searchPattern = "%" + searchTerm + "%";
@@ -504,6 +505,10 @@ public class TeacherEvaluationDAO {
             }
         } catch (SQLException e) {
             setError("Unable to load completed evaluations", e);
+            evaluations.addAll(getCompletedEvaluationsFallback(teacherId, searchTerm, filterClass, sortBy));
+        }
+
+        if (evaluations.isEmpty()) {
             evaluations.addAll(getCompletedEvaluationsFallback(teacherId, searchTerm, filterClass, sortBy));
         }
 
@@ -545,7 +550,8 @@ public class TeacherEvaluationDAO {
             + "FROM studentevaluation se "
             + "LEFT JOIN student s ON se.studentId = s.studentId "
             + "LEFT JOIN teacher t ON se.teacherId = t.teacherId "
-            + "WHERE se.teacherId = ? AND " + evalCompletedPredicate("se")
+            + "WHERE " + teacherIdMatchClause("se.teacherId", teacherIdVariants(teacherId))
+            + " AND " + evalCompletedPredicate("se")
         );
 
         if (searchTerm != null && !searchTerm.trim().isEmpty()) {
@@ -562,8 +568,7 @@ public class TeacherEvaluationDAO {
         }
 
         try (PreparedStatement stmt = connection.prepareStatement(query.toString())) {
-            int paramIndex = 1;
-            stmt.setString(paramIndex++, teacherId);
+            int paramIndex = bindTeacherIdVariants(stmt, 1, teacherId);
             if (searchTerm != null && !searchTerm.trim().isEmpty()) {
                 stmt.setString(paramIndex++, "%" + searchTerm + "%");
             }
@@ -639,6 +644,37 @@ public class TeacherEvaluationDAO {
     private void sqlAdd(EvalSqlParts parts, String column, Object value) {
         if (hasEvalColumn(column)) {
             parts.add(column, value);
+        }
+    }
+
+    private void sqlAddNullable(EvalSqlParts parts, String column, String value) {
+        if (hasEvalColumn(column)) {
+            parts.add(column, isBlank(value) ? null : value.trim());
+        }
+    }
+
+    private void addSetNullable(EvalSqlParts helper, String column, String value,
+                                StringBuilder setClause, List<Object> params) {
+        if (setClause.length() > 0) {
+            setClause.append(", ");
+        }
+        if (isBlank(value)) {
+            setClause.append(column).append(" = NULL");
+        } else {
+            setClause.append(column).append(" = ?");
+            params.add(value.trim());
+        }
+    }
+
+    private void bindJdbcParam(PreparedStatement stmt, int index, Object value) throws SQLException {
+        if (value instanceof Float) {
+            stmt.setFloat(index, (Float) value);
+        } else if (value instanceof Integer) {
+            stmt.setInt(index, (Integer) value);
+        } else if (value == null) {
+            stmt.setNull(index, Types.VARCHAR);
+        } else {
+            stmt.setString(index, String.valueOf(value));
         }
     }
 
@@ -755,24 +791,22 @@ public class TeacherEvaluationDAO {
 
     private void bindParams(PreparedStatement stmt, List<Object> values) throws SQLException {
         for (int i = 0; i < values.size(); i++) {
-            Object value = values.get(i);
-            int index = i + 1;
-            if (value instanceof Float) {
-                stmt.setFloat(index, (Float) value);
-            } else if (value instanceof Integer) {
-                stmt.setInt(index, (Integer) value);
-            } else {
-                stmt.setString(index, value != null ? String.valueOf(value) : "");
-            }
+            bindJdbcParam(stmt, i + 1, values.get(i));
         }
     }
 
     private String resolvedEvalStatus(Evaluation evaluation) {
         String status = evaluation.getStatus();
-        if (status == null || status.trim().isEmpty()) {
-            return evaluation.getOverallScore() > 0 ? "COMPLETED" : "PENDING";
+        if (status != null && !status.trim().isEmpty()) {
+            return status.trim();
         }
-        return status.trim();
+        if (evaluation.getOverallScore() > 0
+                || evaluation.getTajweedScore() > 0
+                || evaluation.getFluencyScore() > 0
+                || evaluation.getAccuracyScore() > 0) {
+            return "COMPLETED";
+        }
+        return "PENDING";
     }
 
     private EvalSqlParts buildEvaluationInsertParts(Evaluation evaluation) {
@@ -786,9 +820,9 @@ public class TeacherEvaluationDAO {
         sqlAdd(parts, "class_name", nullToEmpty(evaluation.getClassName()));
         sqlAdd(parts, "surah", nullToEmpty(evaluation.getSurah()));
         sqlAdd(parts, "ayah_range", nullToEmpty(evaluation.getAyahRange()));
-        sqlAdd(parts, "session_date", nullToEmpty(evaluation.getSessionDate()));
-        sqlAdd(parts, "start_time", nullToEmpty(evaluation.getStartTime()));
-        sqlAdd(parts, "end_time", nullToEmpty(evaluation.getEndTime()));
+        sqlAddNullable(parts, "session_date", evaluation.getSessionDate());
+        sqlAddNullable(parts, "start_time", evaluation.getStartTime());
+        sqlAddNullable(parts, "end_time", evaluation.getEndTime());
         sqlAdd(parts, "tajweedScore", evaluation.getTajweedScore());
         sqlAdd(parts, "fluencyScore", evaluation.getFluencyScore());
         sqlAdd(parts, "accuracyScore", evaluation.getAccuracyScore());
@@ -933,13 +967,13 @@ public class TeacherEvaluationDAO {
             helper.addSet("ayah_range", nullToEmpty(evaluation.getAyahRange()), setClause, params);
         }
         if (hasEvalColumn("session_date")) {
-            helper.addSet("session_date", nullToEmpty(evaluation.getSessionDate()), setClause, params);
+            addSetNullable(helper, "session_date", evaluation.getSessionDate(), setClause, params);
         }
         if (hasEvalColumn("start_time")) {
-            helper.addSet("start_time", nullToEmpty(evaluation.getStartTime()), setClause, params);
+            addSetNullable(helper, "start_time", evaluation.getStartTime(), setClause, params);
         }
         if (hasEvalColumn("end_time")) {
-            helper.addSet("end_time", nullToEmpty(evaluation.getEndTime()), setClause, params);
+            addSetNullable(helper, "end_time", evaluation.getEndTime(), setClause, params);
         }
         if (hasEvalColumn("tajweedScore")) {
             helper.addSet("tajweedScore", evaluation.getTajweedScore(), setClause, params);
@@ -1004,13 +1038,7 @@ public class TeacherEvaluationDAO {
         try (PreparedStatement stmt = connection.prepareStatement(query)) {
             int index = 1;
             for (Object param : params) {
-                if (param instanceof Float) {
-                    stmt.setFloat(index++, (Float) param);
-                } else if (param instanceof Integer) {
-                    stmt.setInt(index++, (Integer) param);
-                } else {
-                    stmt.setString(index++, param != null ? String.valueOf(param) : "");
-                }
+                bindJdbcParam(stmt, index++, param);
             }
             stmt.setString(index++, evalIdStr);
             stmt.setString(index, teacherIdStr);
