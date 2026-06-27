@@ -8,8 +8,6 @@ import java.sql.*;
 import java.util.*;
 import javax.servlet.*;
 import javax.servlet.http.*;
-import javax.sql.DataSource;
-import javax.naming.InitialContext;
 import util.DBConnection;
 
 /**
@@ -18,27 +16,8 @@ import util.DBConnection;
  */
 public class TeacherEvaluationServlet extends HttpServlet {
     private static final long serialVersionUID = 1L;
-    private DataSource dataSource;
-
-    @Override
-    public void init() throws ServletException {
-        try {
-            InitialContext ctx = new InitialContext();
-            dataSource = (DataSource) ctx.lookup("java:comp/env/jdbc/TalaqqiHubDB");
-            System.out.println("TeacherEvaluationServlet: JNDI DataSource ready");
-        } catch (Exception e) {
-            System.out.println("TeacherEvaluationServlet: JNDI unavailable, using DBConnection fallback");
-        }
-    }
 
     private Connection getConnection() throws SQLException {
-        if (dataSource != null) {
-            try {
-                return dataSource.getConnection();
-            } catch (SQLException e) {
-                System.err.println("TeacherEvaluationServlet: DataSource failed: " + e.getMessage());
-            }
-        }
         Connection conn = DBConnection.getConnection();
         if (conn == null) {
             throw new SQLException("Unable to obtain database connection");
@@ -75,14 +54,22 @@ public class TeacherEvaluationServlet extends HttpServlet {
         
         try (Connection connection = getConnection()) {
             TeacherEvaluationDAO dao = new TeacherEvaluationDAO(connection);
+            dao.ensureStudentEvaluationSchema();
 
             // Get dashboard summary
             Map<String, Object> dashboardSummary = dao.getDashboardSummary(teacherId);
             request.setAttribute("dashboardSummary", dashboardSummary);
 
-            // Get pending evaluations (DB records + completed sessions not yet evaluated)
-            List<Evaluation> pendingEvaluations = dao.getPendingEvaluations(teacherId);
+            // Backfill PENDING rows for completed sessions, then load pending list
             List<Evaluation> pendingSessions = dao.getPendingSessionsNeedingEvaluation(teacherId);
+            for (Evaluation pendingSession : pendingSessions) {
+                if (pendingSession.getSessionId() != null && !pendingSession.getSessionId().trim().isEmpty()) {
+                    dao.ensurePendingEvaluationForSession(pendingSession.getSessionId(), teacherId);
+                }
+            }
+
+            List<Evaluation> pendingEvaluations = dao.getPendingEvaluations(teacherId);
+            pendingSessions = dao.getPendingSessionsNeedingEvaluation(teacherId);
             for (Evaluation pendingSession : pendingSessions) {
                 boolean exists = false;
                 for (Evaluation existing : pendingEvaluations) {

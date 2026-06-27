@@ -122,9 +122,9 @@ public final class TalaqqiSchemaUtil {
 
     public static String innerSessionBookingSchedule(Connection conn) {
         String t = sessionTable(conn);
-        if (usesBookingIdLink(conn)) {
+        if (hasColumn(conn, t, "bookingId")) {
             return "FROM " + t + " ts "
-                + "JOIN classbooking cb ON ts.bookingId = cb.bookingId "
+                + "JOIN classbooking cb ON " + sessionToBookingOnClause(t)
                 + "JOIN classschedule cs ON cb.scheduleId = cs.scheduleId ";
         }
         return "FROM " + t + " ts "
@@ -134,9 +134,9 @@ public final class TalaqqiSchemaUtil {
 
     public static String leftJoinSessionFromFeedback(Connection conn) {
         String t = sessionTable(conn);
-        if (usesBookingIdLink(conn)) {
+        if (hasColumn(conn, t, "bookingId")) {
             return "LEFT JOIN " + t + " ts ON sf.sessionId = ts.sessionId "
-                + "LEFT JOIN classbooking cb ON ts.bookingId = cb.bookingId "
+                + "LEFT JOIN classbooking cb ON " + sessionToBookingOnClause(t)
                 + "LEFT JOIN classschedule cs ON cb.scheduleId = cs.scheduleId ";
         }
         return "LEFT JOIN " + t + " ts ON sf.sessionId = ts.sessionId "
@@ -146,9 +146,9 @@ public final class TalaqqiSchemaUtil {
 
     public static String leftJoinSessionFromEvaluation(Connection conn) {
         String t = sessionTable(conn);
-        if (usesBookingIdLink(conn)) {
+        if (hasColumn(conn, t, "bookingId")) {
             return "LEFT JOIN " + t + " ts ON se.sessionId = ts.sessionId "
-                + "LEFT JOIN classbooking cb ON ts.bookingId = cb.bookingId "
+                + "LEFT JOIN classbooking cb ON " + sessionToBookingOnClause(t)
                 + "LEFT JOIN classschedule cs ON cb.scheduleId = cs.scheduleId ";
         }
         return "LEFT JOIN " + t + " ts ON se.sessionId = ts.sessionId "
@@ -158,16 +158,31 @@ public final class TalaqqiSchemaUtil {
 
     public static String joinSessionToBooking(Connection conn) {
         String t = sessionTable(conn);
-        return usesBookingIdLink(conn)
-            ? "JOIN " + t + " ts ON ts.bookingId = cb.bookingId "
-            : "JOIN " + t + " ts ON ts.scheduleId = cb.scheduleId ";
+        if (hasColumn(conn, t, "bookingId")) {
+            return "JOIN " + t + " ts ON " + sessionToBookingOnClause(t);
+        }
+        return "JOIN " + t + " ts ON ts.scheduleId = cb.scheduleId ";
     }
 
     public static String leftJoinSessionToBooking(Connection conn) {
         String t = sessionTable(conn);
-        return usesBookingIdLink(conn)
-            ? "LEFT JOIN " + t + " ts ON ts.bookingId = cb.bookingId "
-            : "LEFT JOIN " + t + " ts ON ts.scheduleId = cb.scheduleId ";
+        if (hasColumn(conn, t, "bookingId")) {
+            return "LEFT JOIN " + t + " ts ON " + sessionToBookingOnClause(t);
+        }
+        return "LEFT JOIN " + t + " ts ON ts.scheduleId = cb.scheduleId ";
+    }
+
+    /**
+     * Match session rows to bookings when production has {@code bookingId} column but legacy rows
+     * still link via {@code scheduleId} only.
+     */
+    private static String sessionToBookingOnClause(String sessionTableAlias) {
+        return "(" + sessionTableAlias + ".bookingId IS NOT NULL AND "
+            + sessionTableAlias + ".bookingId <> '' AND "
+            + sessionTableAlias + ".bookingId = cb.bookingId) OR (("
+            + sessionTableAlias + ".bookingId IS NULL OR "
+            + sessionTableAlias + ".bookingId = '') AND "
+            + sessionTableAlias + ".scheduleId = cb.scheduleId)";
     }
 
     public static String adminSessionFromJoin(Connection conn) {

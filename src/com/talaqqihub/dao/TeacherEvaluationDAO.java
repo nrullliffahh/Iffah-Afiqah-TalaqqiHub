@@ -22,6 +22,53 @@ public class TeacherEvaluationDAO {
         return lastError != null ? lastError : "";
     }
 
+    /**
+     * Ensure studentevaluation table exists with columns required by the teacher portal.
+     */
+    public void ensureStudentEvaluationSchema() {
+        String ddl =
+            "CREATE TABLE IF NOT EXISTS studentevaluation ("
+            + "studentEvaluationId VARCHAR(10) NOT NULL PRIMARY KEY, "
+            + "studentId VARCHAR(50) NOT NULL, "
+            + "teacherId VARCHAR(50) NOT NULL, "
+            + "sessionId VARCHAR(50) DEFAULT NULL, "
+            + "class_name VARCHAR(100) DEFAULT NULL, "
+            + "surah VARCHAR(100) DEFAULT NULL, "
+            + "ayah_range VARCHAR(50) DEFAULT NULL, "
+            + "session_date DATE DEFAULT NULL, "
+            + "start_time TIME DEFAULT NULL, "
+            + "end_time TIME DEFAULT NULL, "
+            + "tajweedScore FLOAT DEFAULT 0, "
+            + "fluencyScore FLOAT DEFAULT 0, "
+            + "accuracyScore FLOAT DEFAULT 0, "
+            + "overall_score FLOAT DEFAULT 0, "
+            + "rating INT DEFAULT 0, "
+            + "strength TEXT, "
+            + "areas_for_improvement TEXT, "
+            + "performance_tag VARCHAR(50) DEFAULT NULL, "
+            + "next_target_surah VARCHAR(100) DEFAULT NULL, "
+            + "suggestions TEXT, "
+            + "teacher_comments TEXT, "
+            + "status VARCHAR(20) DEFAULT 'PENDING', "
+            + "weakness TEXT, "
+            + "studentImprovements TEXT, "
+            + "nextTarget VARCHAR(255) DEFAULT NULL, "
+            + "comments TEXT, "
+            + "createdAt TIMESTAMP DEFAULT CURRENT_TIMESTAMP, "
+            + "updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP, "
+            + "KEY idx_teacherId (teacherId), "
+            + "KEY idx_studentId (studentId), "
+            + "KEY idx_sessionId (sessionId), "
+            + "KEY idx_status (status)"
+            + ") ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci";
+
+        try (Statement stmt = connection.createStatement()) {
+            stmt.execute(ddl);
+        } catch (SQLException e) {
+            setError("Unable to ensure studentevaluation schema", e);
+        }
+    }
+
     private void clearError() {
         lastError = null;
     }
@@ -271,11 +318,13 @@ public class TeacherEvaluationDAO {
             return false;
         }
 
+        String createdColumn = TalaqqiSchemaUtil.hasColumn(connection, "studentevaluation", "createdAt")
+            ? "createdAt" : "created_at";
         String query = "INSERT INTO studentevaluation " +
             "(studentEvaluationId, studentId, teacherId, sessionId, class_name, surah, ayah_range, session_date, " +
             "start_time, end_time, tajweedScore, fluencyScore, accuracyScore, overall_score, rating, strength, " +
             "areas_for_improvement, performance_tag, next_target_surah, suggestions, teacher_comments, status, " +
-            "weakness, studentImprovements, nextTarget, comments, createdAt) " +
+            "weakness, studentImprovements, nextTarget, comments, " + createdColumn + ") " +
             "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW())";
 
         try (PreparedStatement stmt = connection.prepareStatement(query)) {
@@ -433,7 +482,7 @@ public class TeacherEvaluationDAO {
         List<Evaluation> evaluations = new ArrayList<>();
         String ayahRange = TalaqqiSchemaUtil.ayahRangeExpr(connection);
         String query =
-            "SELECT ts.sessionId, cb.studentId, s.studentName AS student_name, " +
+            "SELECT DISTINCT cb.bookingId, ts.sessionId, cb.studentId, s.studentName AS student_name, " +
             "cs.className AS class_name, cs.classSurah AS surah, " +
             ayahRange + " AS ayah_range, " +
             "DATE_FORMAT(cs.scheduleDate,'%Y-%m-%d') AS session_date, " +
@@ -475,6 +524,63 @@ public class TeacherEvaluationDAO {
             }
         } catch (SQLException e) {
             setError("Unable to load completed sessions needing evaluation", e);
+            evaluations.addAll(getPendingSessionsFallback(teacherId));
+        }
+        if (evaluations.isEmpty()) {
+            evaluations.addAll(getPendingSessionsFallback(teacherId));
+        }
+        return evaluations;
+    }
+
+    /** Completed bookings without evaluation — does not require talaqqisession join. */
+    private List<Evaluation> getPendingSessionsFallback(String teacherId) {
+        List<Evaluation> evaluations = new ArrayList<>();
+        String ayahRange = TalaqqiSchemaUtil.ayahRangeExpr(connection);
+        String sessionLookup = TalaqqiSchemaUtil.sql(
+            "(SELECT ts2.sessionId FROM talaqqisession ts2 "
+                + "WHERE (ts2.bookingId IS NOT NULL AND ts2.bookingId <> '' AND ts2.bookingId = cb.bookingId) "
+                + "   OR ((ts2.bookingId IS NULL OR ts2.bookingId = '') AND ts2.scheduleId = cb.scheduleId) "
+                + "LIMIT 1)",
+            connection);
+        String query =
+            "SELECT cb.bookingId, " + sessionLookup + " AS sessionId, cb.studentId, "
+            + "s.studentName AS student_name, cs.className AS class_name, cs.classSurah AS surah, "
+            + ayahRange + " AS ayah_range, "
+            + "DATE_FORMAT(cs.scheduleDate,'%Y-%m-%d') AS session_date, "
+            + "DATE_FORMAT(cs.startTime,'%H:%i:%s') AS start_time, "
+            + "DATE_FORMAT(cs.endTime,'%H:%i:%s') AS end_time, cs.teacherId "
+            + "FROM classbooking cb "
+            + "JOIN classschedule cs ON cb.scheduleId = cs.scheduleId "
+            + "JOIN student s ON cb.studentId = s.studentId "
+            + "WHERE cs.teacherId = ? AND LOWER(cb.bookingStatus) = 'completed' "
+            + "AND NOT EXISTS ( "
+            + "  SELECT 1 FROM studentevaluation se "
+            + "  WHERE se.teacherId = cs.teacherId AND se.studentId = cb.studentId "
+            + "  AND UPPER(COALESCE(se.status, '')) = 'COMPLETED' "
+            + ") "
+            + "ORDER BY cs.scheduleDate DESC, cs.startTime DESC";
+
+        try (PreparedStatement stmt = connection.prepareStatement(query)) {
+            stmt.setString(1, teacherId);
+            try (ResultSet rs = stmt.executeQuery()) {
+                while (rs.next()) {
+                    Evaluation evaluation = new Evaluation();
+                    evaluation.setSessionId(rs.getString("sessionId"));
+                    evaluation.setStudentId(rs.getString("studentId"));
+                    evaluation.setStudentName(rs.getString("student_name"));
+                    evaluation.setClassName(rs.getString("class_name"));
+                    evaluation.setSurah(resolveSurahDisplay(rs.getString("surah")));
+                    evaluation.setAyahRange(rs.getString("ayah_range"));
+                    evaluation.setSessionDate(rs.getString("session_date"));
+                    evaluation.setStartTime(rs.getString("start_time"));
+                    evaluation.setEndTime(rs.getString("end_time"));
+                    evaluation.setTeacherId(rs.getString("teacherId"));
+                    evaluation.setStatus("PENDING");
+                    evaluations.add(evaluation);
+                }
+            }
+        } catch (SQLException e) {
+            setError("Fallback pending session query failed", e);
         }
         return evaluations;
     }
