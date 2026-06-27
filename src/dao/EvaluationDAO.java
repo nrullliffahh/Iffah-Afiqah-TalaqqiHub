@@ -315,12 +315,16 @@ public class EvaluationDAO {
             if (conn == null) {
                 return list;
             }
+            ensureFeedbackTableExists();
             list = queryCompletedSessionsForStudent(conn, studentId, true);
             if (list.isEmpty()) {
                 list = queryCompletedSessionsForStudent(conn, studentId, false);
             }
             if (list.isEmpty()) {
                 list = queryCompletedSessionsBookingOnly(conn, studentId);
+            }
+            if (list.isEmpty()) {
+                list = queryCompletedSessionsFromEndedSessions(conn, studentId);
             }
         } catch (SQLException ex) {
             System.err.println("EvaluationDAO.getCompletedSessionsForStudent: " + ex.getMessage());
@@ -415,7 +419,7 @@ public class EvaluationDAO {
             + "JOIN classschedule cs ON cb.scheduleId = cs.scheduleId "
             + "LEFT JOIN teacher t ON cs.teacherId = t.teacherId "
             + "WHERE cb.studentId = ? "
-            + "  AND UPPER(TRIM(cb.bookingStatus)) IN ('COMPLETED', 'COMPLETE', 'DONE') "
+            + "  AND UPPER(TRIM(COALESCE(cb.bookingStatus, ''))) IN ('COMPLETED', 'COMPLETE', 'DONE') "
             + "  AND NOT EXISTS ( "
             + "      SELECT 1 FROM studentfeedback sf "
             + "      WHERE sf.studentId = cb.studentId "
@@ -442,6 +446,55 @@ public class EvaluationDAO {
             }
         } catch (SQLException e) {
             System.err.println("EvaluationDAO.queryCompletedSessionsBookingOnly: " + e.getMessage());
+        }
+        return list;
+    }
+
+    /** Ended talaqqi sessions even when classbooking was not marked Completed. */
+    private List<Evaluation> queryCompletedSessionsFromEndedSessions(Connection conn, String studentId) {
+        List<Evaluation> list = new ArrayList<>();
+        String sessionTable = TalaqqiSchemaUtil.sessionTable(conn);
+        String ayahRange = TalaqqiSchemaUtil.ayahRangeExpr(conn);
+        String bookingLink = TalaqqiSchemaUtil.hasColumn(conn, sessionTable, "bookingId")
+            ? "((ts.bookingId IS NOT NULL AND ts.bookingId <> '' AND ts.bookingId = cb.bookingId) "
+                + "OR ((ts.bookingId IS NULL OR ts.bookingId = '') AND ts.scheduleId = cb.scheduleId))"
+            : "ts.scheduleId = cb.scheduleId";
+        String sql =
+            "SELECT ts.sessionId, cb.scheduleId, cs.teacherId, t.teacherName, "
+            + "DATE_FORMAT(COALESCE(ts.sessionDate, cs.scheduleDate),'%b %d, %Y') AS sessionDate, "
+            + "DATE_FORMAT(cs.startTime,'%I:%i %p') AS startTime, "
+            + "DATE_FORMAT(cs.endTime,'%I:%i %p') AS endTime, "
+            + "CAST(cs.classSurah AS CHAR) AS surahName, "
+            + "CAST(" + ayahRange + " AS CHAR) AS ayahRange "
+            + "FROM " + sessionTable + " ts "
+            + "JOIN classschedule cs ON ts.scheduleId = cs.scheduleId "
+            + "JOIN classbooking cb ON cb.studentId = ? AND " + bookingLink + " "
+            + "LEFT JOIN teacher t ON cs.teacherId = t.teacherId "
+            + "WHERE ts.sessionDate IS NOT NULL "
+            + "  AND NOT EXISTS ( "
+            + "      SELECT 1 FROM studentfeedback sf "
+            + "      WHERE sf.studentId = cb.studentId AND sf.sessionId = ts.sessionId "
+            + "  ) "
+            + "ORDER BY ts.sessionDate DESC, cs.startTime DESC";
+        try (PreparedStatement ps = conn.prepareStatement(sql)) {
+            ps.setString(1, studentId);
+            try (ResultSet rs = ps.executeQuery()) {
+                while (rs.next()) {
+                    Evaluation e = new Evaluation();
+                    e.setSessionId(rs.getString("sessionId"));
+                    e.setScheduleId(rs.getString("scheduleId"));
+                    e.setTeacherId(rs.getString("teacherId"));
+                    e.setTeacherName(rs.getString("teacherName"));
+                    e.setSessionDate(rs.getString("sessionDate"));
+                    e.setStartTime(rs.getString("startTime"));
+                    e.setEndTime(rs.getString("endTime"));
+                    e.setSurahName(resolveSurahDisplay(rs.getString("surahName")));
+                    e.setAyahRange(rs.getString("ayahRange"));
+                    list.add(e);
+                }
+            }
+        } catch (SQLException e) {
+            System.err.println("EvaluationDAO.queryCompletedSessionsFromEndedSessions: " + e.getMessage());
         }
         return list;
     }

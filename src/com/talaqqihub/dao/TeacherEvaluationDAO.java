@@ -199,15 +199,74 @@ public class TeacherEvaluationDAO {
     }
 
     private String evalNotExistsBlocksPending() {
+        String sessionLookup = TalaqqiSchemaUtil.sessionIdForBookingSubquery(connection);
         if (hasEvalColumn("sessionId")) {
-            return evalCompletedPredicate("se")
-                + " OR (ts.sessionId IS NOT NULL AND se.sessionId = ts.sessionId)";
+            return "se.sessionId = " + sessionLookup
+                + " OR (" + sessionLookup + " IS NULL AND " + evalCompletedPredicate("se") + ")";
         }
         return evalCompletedPredicate("se");
     }
 
     private String evalNotExistsBlocksPendingFallback() {
+        String sessionLookup = TalaqqiSchemaUtil.sessionIdForBookingSubquery(connection);
+        if (hasEvalColumn("sessionId")) {
+            return "se.sessionId = " + sessionLookup
+                + " OR (" + sessionLookup + " IS NULL AND " + evalCompletedPredicate("se") + ")";
+        }
         return evalCompletedPredicate("se");
+    }
+
+    private List<String> teacherIdVariants(String teacherId) {
+        List<String> ids = new ArrayList<>();
+        if (teacherId == null || teacherId.trim().isEmpty()) {
+            return ids;
+        }
+        String trimmed = teacherId.trim();
+        ids.add(trimmed);
+        String digits = trimmed.replaceAll("[^0-9]", "");
+        if (!digits.isEmpty()) {
+            int n = Integer.parseInt(digits);
+            String formatted = "T" + String.format("%03d", n);
+            String plain = String.valueOf(n);
+            if (!ids.contains(formatted)) {
+                ids.add(formatted);
+            }
+            if (!ids.contains(plain)) {
+                ids.add(plain);
+            }
+        }
+        return ids;
+    }
+
+    private String teacherIdMatchClause(String column, List<String> variants) {
+        if (variants == null || variants.isEmpty()) {
+            return column + " = ?";
+        }
+        if (variants.size() == 1) {
+            return column + " = ?";
+        }
+        StringBuilder clause = new StringBuilder(column).append(" IN (");
+        for (int i = 0; i < variants.size(); i++) {
+            if (i > 0) {
+                clause.append(", ");
+            }
+            clause.append("?");
+        }
+        clause.append(")");
+        return clause.toString();
+    }
+
+    private int bindTeacherIdVariants(PreparedStatement stmt, int index, String teacherId)
+            throws SQLException {
+        List<String> variants = teacherIdVariants(teacherId);
+        if (variants.isEmpty()) {
+            stmt.setString(index++, teacherId);
+            return index;
+        }
+        for (String id : variants) {
+            stmt.setString(index++, id);
+        }
+        return index;
     }
 
     private void clearError() {
@@ -350,14 +409,16 @@ public class TeacherEvaluationDAO {
      */
     public List<Evaluation> getPendingEvaluations(String teacherId) {
         List<Evaluation> evaluations = new ArrayList<>();
+        List<String> teacherIds = teacherIdVariants(teacherId);
         String createdCol = TalaqqiSchemaUtil.studentEvalCreatedColumn(connection, "se");
         String orderCol = hasEvalColumn("session_date") ? "se.session_date" : createdCol;
+        String teacherClause = teacherIdMatchClause("se.teacherId", teacherIds);
         String query = buildEvaluationListSelectSql() +
-            "WHERE se.teacherId = ? AND " + evalPendingPredicate("se") + " " +
+            "WHERE " + teacherClause + " AND " + evalPendingPredicate("se") + " " +
             "ORDER BY " + orderCol + " DESC, " + createdCol + " DESC";
 
         try (PreparedStatement stmt = connection.prepareStatement(query)) {
-            stmt.setString(1, teacherId);
+            bindTeacherIdVariants(stmt, 1, teacherId);
             ResultSet rs = stmt.executeQuery();
 
             while (rs.next()) {
@@ -365,7 +426,11 @@ public class TeacherEvaluationDAO {
             }
         } catch (SQLException e) {
             setError("Unable to load pending evaluations", e);
-            evaluations.addAll(getPendingEvaluationsFallback(teacherId));
+            tryLegacyPendingEvaluationsFallback(teacherId, evaluations);
+        }
+
+        if (evaluations.isEmpty()) {
+            tryLegacyPendingEvaluationsFallback(teacherId, evaluations);
         }
 
         return evaluations;
@@ -1001,7 +1066,9 @@ public class TeacherEvaluationDAO {
      */
     public List<Evaluation> getPendingSessionsNeedingEvaluation(String teacherId) {
         List<Evaluation> evaluations = new ArrayList<>();
+        List<String> teacherIds = teacherIdVariants(teacherId);
         String ayahRange = TalaqqiSchemaUtil.ayahRangeExpr(connection);
+        String teacherClause = teacherIdMatchClause("cs.teacherId", teacherIds);
         String query =
             "SELECT DISTINCT cb.bookingId, ts.sessionId, cb.studentId, s.studentName AS student_name, " +
             "cs.className AS class_name, cs.classSurah AS surah, " +
@@ -1014,7 +1081,8 @@ public class TeacherEvaluationDAO {
             "JOIN classschedule cs ON cb.scheduleId = cs.scheduleId " +
             "JOIN student s ON cb.studentId = s.studentId " +
             TalaqqiSchemaUtil.leftJoinSessionToBooking(connection) +
-            "WHERE cs.teacherId = ? AND LOWER(cb.bookingStatus) = 'completed' " +
+            "WHERE " + teacherClause + " "
+            + "AND UPPER(TRIM(COALESCE(cb.bookingStatus, ''))) IN ('COMPLETED', 'COMPLETE', 'DONE') " +
             "AND NOT EXISTS ( " +
             "  SELECT 1 FROM studentevaluation se " +
             "  WHERE se.teacherId = cs.teacherId AND se.studentId = cb.studentId " +
@@ -1023,7 +1091,7 @@ public class TeacherEvaluationDAO {
             "ORDER BY cs.scheduleDate DESC, cs.startTime DESC";
 
         try (PreparedStatement stmt = connection.prepareStatement(query)) {
-            stmt.setString(1, teacherId);
+            bindTeacherIdVariants(stmt, 1, teacherId);
             ResultSet rs = stmt.executeQuery();
             while (rs.next()) {
                 Evaluation evaluation = new Evaluation();
@@ -1046,6 +1114,7 @@ public class TeacherEvaluationDAO {
         }
         if (evaluations.isEmpty()) {
             evaluations.addAll(getPendingSessionsFallback(teacherId));
+            evaluations.addAll(getPendingSessionsFromEndedOnly(teacherId));
         }
         return evaluations;
     }
@@ -1053,8 +1122,10 @@ public class TeacherEvaluationDAO {
     /** Completed bookings without evaluation — does not require talaqqisession join. */
     private List<Evaluation> getPendingSessionsFallback(String teacherId) {
         List<Evaluation> evaluations = new ArrayList<>();
+        List<String> teacherIds = teacherIdVariants(teacherId);
         String ayahRange = TalaqqiSchemaUtil.ayahRangeExpr(connection);
         String sessionLookup = TalaqqiSchemaUtil.sessionIdForBookingSubquery(connection);
+        String teacherClause = teacherIdMatchClause("cs.teacherId", teacherIds);
         String query =
             "SELECT cb.bookingId, " + sessionLookup + " AS sessionId, cb.studentId, "
             + "s.studentName AS student_name, cs.className AS class_name, cs.classSurah AS surah, "
@@ -1065,7 +1136,8 @@ public class TeacherEvaluationDAO {
             + "FROM classbooking cb "
             + "JOIN classschedule cs ON cb.scheduleId = cs.scheduleId "
             + "JOIN student s ON cb.studentId = s.studentId "
-            + "WHERE cs.teacherId = ? AND LOWER(cb.bookingStatus) = 'completed' "
+            + "WHERE " + teacherClause + " "
+            + "AND UPPER(TRIM(COALESCE(cb.bookingStatus, ''))) IN ('COMPLETED', 'COMPLETE', 'DONE') "
             + "AND NOT EXISTS ( "
             + "  SELECT 1 FROM studentevaluation se "
             + "  WHERE se.teacherId = cs.teacherId AND se.studentId = cb.studentId "
@@ -1074,7 +1146,7 @@ public class TeacherEvaluationDAO {
             + "ORDER BY cs.scheduleDate DESC, cs.startTime DESC";
 
         try (PreparedStatement stmt = connection.prepareStatement(query)) {
-            stmt.setString(1, teacherId);
+            bindTeacherIdVariants(stmt, 1, teacherId);
             try (ResultSet rs = stmt.executeQuery()) {
                 while (rs.next()) {
                     Evaluation evaluation = new Evaluation();
@@ -1094,6 +1166,61 @@ public class TeacherEvaluationDAO {
             }
         } catch (SQLException e) {
             setError("Fallback pending session query failed", e);
+        }
+        return evaluations;
+    }
+
+    /** Sessions with sessionDate set but booking not marked Completed. */
+    private List<Evaluation> getPendingSessionsFromEndedOnly(String teacherId) {
+        List<Evaluation> evaluations = new ArrayList<>();
+        List<String> teacherIds = teacherIdVariants(teacherId);
+        String sessionTable = TalaqqiSchemaUtil.sessionTable(connection);
+        String ayahRange = TalaqqiSchemaUtil.ayahRangeExpr(connection);
+        String bookingLink = TalaqqiSchemaUtil.hasColumn(connection, sessionTable, "bookingId")
+            ? "((ts.bookingId IS NOT NULL AND ts.bookingId <> '' AND ts.bookingId = cb.bookingId) "
+                + "OR ((ts.bookingId IS NULL OR ts.bookingId = '') AND ts.scheduleId = cb.scheduleId))"
+            : "ts.scheduleId = cb.scheduleId";
+        String teacherClause = teacherIdMatchClause("cs.teacherId", teacherIds);
+        String sessionLookup = "ts.sessionId";
+        String query =
+            "SELECT cb.bookingId, ts.sessionId, cb.studentId, s.studentName AS student_name, "
+            + "cs.className AS class_name, cs.classSurah AS surah, "
+            + ayahRange + " AS ayah_range, "
+            + "DATE_FORMAT(COALESCE(ts.sessionDate, cs.scheduleDate),'%Y-%m-%d') AS session_date, "
+            + "DATE_FORMAT(cs.startTime,'%H:%i:%s') AS start_time, "
+            + "DATE_FORMAT(cs.endTime,'%H:%i:%s') AS end_time, cs.teacherId "
+            + "FROM " + sessionTable + " ts "
+            + "JOIN classschedule cs ON ts.scheduleId = cs.scheduleId "
+            + "JOIN classbooking cb ON " + bookingLink + " "
+            + "JOIN student s ON cb.studentId = s.studentId "
+            + "WHERE " + teacherClause + " AND ts.sessionDate IS NOT NULL "
+            + "AND NOT EXISTS ( "
+            + "  SELECT 1 FROM studentevaluation se "
+            + "  WHERE se.teacherId = cs.teacherId AND se.studentId = cb.studentId "
+            + "  AND se.sessionId = " + sessionLookup
+            + ") "
+            + "ORDER BY ts.sessionDate DESC, cs.startTime DESC";
+        try (PreparedStatement stmt = connection.prepareStatement(query)) {
+            bindTeacherIdVariants(stmt, 1, teacherId);
+            try (ResultSet rs = stmt.executeQuery()) {
+                while (rs.next()) {
+                    Evaluation evaluation = new Evaluation();
+                    evaluation.setSessionId(rs.getString("sessionId"));
+                    evaluation.setStudentId(rs.getString("studentId"));
+                    evaluation.setStudentName(rs.getString("student_name"));
+                    evaluation.setClassName(rs.getString("class_name"));
+                    evaluation.setSurah(resolveSurahDisplay(rs.getString("surah")));
+                    evaluation.setAyahRange(rs.getString("ayah_range"));
+                    evaluation.setSessionDate(rs.getString("session_date"));
+                    evaluation.setStartTime(rs.getString("start_time"));
+                    evaluation.setEndTime(rs.getString("end_time"));
+                    evaluation.setTeacherId(rs.getString("teacherId"));
+                    evaluation.setStatus("PENDING");
+                    evaluations.add(evaluation);
+                }
+            }
+        } catch (SQLException e) {
+            setError("Ended-session pending query failed", e);
         }
         return evaluations;
     }
@@ -1129,7 +1256,7 @@ public class TeacherEvaluationDAO {
             stmt.setString(2, teacherId.trim());
             try (ResultSet rs = stmt.executeQuery()) {
                 if (!rs.next()) {
-                    return false;
+                    return ensurePendingEvaluationFromSessionFallback(sessionId.trim(), teacherId.trim());
                 }
 
                 Evaluation evaluation = new Evaluation();
@@ -1155,6 +1282,62 @@ public class TeacherEvaluationDAO {
             }
         } catch (SQLException e) {
             setError("Unable to create pending evaluation for session " + sessionId, e);
+            return ensurePendingEvaluationFromSessionFallback(sessionId.trim(), teacherId.trim());
+        }
+    }
+
+    private boolean ensurePendingEvaluationFromSessionFallback(String sessionId, String teacherId) {
+        String sessionTable = TalaqqiSchemaUtil.sessionTable(connection);
+        String ayahRange = TalaqqiSchemaUtil.ayahRangeExpr(connection);
+        String bookingLink = TalaqqiSchemaUtil.hasColumn(connection, sessionTable, "bookingId")
+            ? "((ts.bookingId IS NOT NULL AND ts.bookingId <> '' AND ts.bookingId = cb.bookingId) "
+                + "OR ((ts.bookingId IS NULL OR ts.bookingId = '') AND ts.scheduleId = cb.scheduleId))"
+            : "ts.scheduleId = cb.scheduleId";
+        List<String> teacherIds = teacherIdVariants(teacherId);
+        String teacherClause = teacherIdMatchClause("cs.teacherId", teacherIds);
+        String query =
+            "SELECT ts.sessionId, cb.scheduleId, cb.studentId, cs.teacherId, cs.className, "
+            + "CAST(cs.classSurah AS CHAR) AS surah, " + ayahRange + " AS ayah_range, "
+            + "DATE_FORMAT(COALESCE(ts.sessionDate, cs.scheduleDate),'%Y-%m-%d') AS session_date, "
+            + "DATE_FORMAT(cs.startTime,'%H:%i:%s') AS start_time, "
+            + "DATE_FORMAT(cs.endTime,'%H:%i:%s') AS end_time, "
+            + "s.studentName AS student_name "
+            + "FROM " + sessionTable + " ts "
+            + "JOIN classschedule cs ON ts.scheduleId = cs.scheduleId "
+            + "JOIN classbooking cb ON " + bookingLink + " "
+            + "LEFT JOIN student s ON cb.studentId = s.studentId "
+            + "WHERE ts.sessionId = ? AND " + teacherClause + " "
+            + "LIMIT 1";
+        try (PreparedStatement stmt = connection.prepareStatement(query)) {
+            stmt.setString(1, sessionId);
+            bindTeacherIdVariants(stmt, 2, teacherId);
+            try (ResultSet rs = stmt.executeQuery()) {
+                if (!rs.next()) {
+                    return false;
+                }
+                Evaluation evaluation = new Evaluation();
+                evaluation.setSessionId(rs.getString("sessionId"));
+                String scheduleId = readScheduleIdColumn(rs);
+                if (scheduleId != null) {
+                    evaluation.setScheduleId(scheduleId);
+                }
+                evaluation.setStudentId(rs.getString("studentId"));
+                evaluation.setTeacherId(rs.getString("teacherId"));
+                evaluation.setStudentName(rs.getString("student_name"));
+                evaluation.setClassName(rs.getString("className"));
+                evaluation.setSurah(resolveSurahDisplay(rs.getString("surah")));
+                evaluation.setAyahRange(rs.getString("ayah_range"));
+                evaluation.setSessionDate(rs.getString("session_date"));
+                evaluation.setStartTime(rs.getString("start_time"));
+                evaluation.setEndTime(rs.getString("end_time"));
+                evaluation.setStatus("PENDING");
+                if (insertEvaluation(evaluation)) {
+                    return true;
+                }
+                return insertMinimalPendingEvaluation(evaluation);
+            }
+        } catch (SQLException e) {
+            setError("Fallback pending evaluation for session " + sessionId, e);
             return false;
         }
     }
@@ -1294,10 +1477,11 @@ public class TeacherEvaluationDAO {
             + "NULL AS createdAt, NULL AS updated_at "
             + "FROM studentevaluation se "
             + "LEFT JOIN student s ON se.studentId = s.studentId "
-            + "WHERE se.teacherId = ? AND " + evalPendingPredicate("se");
+            + "WHERE " + teacherIdMatchClause("se.teacherId", teacherIdVariants(teacherId))
+            + " AND " + evalPendingPredicate("se");
 
         try (PreparedStatement stmt = connection.prepareStatement(query)) {
-            stmt.setString(1, teacherId);
+            bindTeacherIdVariants(stmt, 1, teacherId);
             try (ResultSet rs = stmt.executeQuery()) {
                 while (rs.next()) {
                     evaluations.add(mapResultSetToEvaluation(rs));
