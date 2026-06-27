@@ -19,6 +19,7 @@ public final class TalaqqiSchemaUtil {
     private static volatile Boolean sessionTimingColumns;
     private static volatile Boolean classAyahEndColumn;
     private static volatile Boolean announcementTable;
+    private static volatile Boolean quranDisplayTable;
 
     private TalaqqiSchemaUtil() {
     }
@@ -232,6 +233,50 @@ public final class TalaqqiSchemaUtil {
                 + "LEFT JOIN teacher t ON cs.teacherId = t.teacherId ";
         }
         return sql(sql, conn);
+    }
+
+    public static boolean hasColumn(Connection conn, String table, String column) {
+        return columnExists(probe(conn), table, column);
+    }
+
+    public static boolean hasQuranDisplayTable(Connection conn) {
+        if (quranDisplayTable != null) {
+            return quranDisplayTable;
+        }
+        synchronized (TalaqqiSchemaUtil.class) {
+            if (quranDisplayTable != null) {
+                return quranDisplayTable;
+            }
+            Connection probe = probe(conn);
+            try {
+                quranDisplayTable = tableExists(probe, "qurandisplay");
+            } finally {
+                closeIfOwned(probe, conn);
+            }
+            return quranDisplayTable;
+        }
+    }
+
+    /** {@code se.createdAt} or {@code se.created_at}, whichever exists. */
+    public static String studentEvalCreatedColumn(Connection conn, String alias) {
+        if (hasColumn(conn, "studentevaluation", "createdAt")) {
+            return alias + ".createdAt";
+        }
+        if (hasColumn(conn, "studentevaluation", "created_at")) {
+            return alias + ".created_at";
+        }
+        return "NOW()";
+    }
+
+    /** {@code se.updated_at} or {@code se.updatedAt}, whichever exists. */
+    public static String studentEvalUpdatedColumn(Connection conn, String alias) {
+        if (hasColumn(conn, "studentevaluation", "updated_at")) {
+            return alias + ".updated_at";
+        }
+        if (hasColumn(conn, "studentevaluation", "updatedAt")) {
+            return alias + ".updatedAt";
+        }
+        return "NULL";
     }
 
     public static boolean isTableMissing(SQLException e) {

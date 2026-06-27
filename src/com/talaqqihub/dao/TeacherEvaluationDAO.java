@@ -103,6 +103,13 @@ public class TeacherEvaluationDAO {
      */
     public Map<String, Object> getDashboardSummary(String teacherId) {
         Map<String, Object> summary = new HashMap<>();
+        summary.put("totalStudentsEvaluated", 0);
+        summary.put("totalSessionsEvaluated", 0);
+        summary.put("avgOverallScore", 0.0);
+        summary.put("avgTajweedScore", 0.0);
+        summary.put("avgFluencyScore", 0.0);
+        summary.put("avgAccuracyScore", 0.0);
+
         String query = "SELECT " +
             "COUNT(DISTINCT studentId) as total_students_evaluated, " +
             "COUNT(*) as total_sessions_evaluated, " +
@@ -111,7 +118,7 @@ public class TeacherEvaluationDAO {
             "AVG(fluencyScore) as avg_fluency_score, " +
             "AVG(accuracyScore) as avg_accuracy_score " +
             "FROM studentevaluation " +
-            "WHERE teacherId = ? AND status = 'COMPLETED'";
+            "WHERE teacherId = ? AND UPPER(COALESCE(status, '')) = 'COMPLETED'";
 
         try (PreparedStatement stmt = connection.prepareStatement(query)) {
             stmt.setString(1, teacherId);
@@ -126,7 +133,7 @@ public class TeacherEvaluationDAO {
                 summary.put("avgAccuracyScore", Math.round(rs.getDouble("avg_accuracy_score") * 100.0) / 100.0);
             }
         } catch (SQLException e) {
-            e.printStackTrace();
+            setError("Unable to load evaluation summary", e);
         }
 
         return summary;
@@ -140,40 +147,11 @@ public class TeacherEvaluationDAO {
      */
     public List<Evaluation> getPendingEvaluations(String teacherId) {
         List<Evaluation> evaluations = new ArrayList<>();
-        String query = "SELECT " +
-            "se.studentEvaluationId, " +
-            "se.studentId, " +
-            "COALESCE(s.studentName, '') AS student_name, " +
-            "COALESCE(NULLIF(se.class_name, ''), cs.className, '') AS class_name, " +
-            "COALESCE(NULLIF(se.surah, ''), CAST(qd.currentSurah AS CHAR), CAST(cs.classSurah AS CHAR), '') AS surah, " +
-            "COALESCE(NULLIF(se.ayah_range, ''), " +
-            "    CASE WHEN qd.currentAyah IS NOT NULL AND qd.currentAyah > 0 THEN CAST(qd.currentAyah AS CHAR) " +
-            "         WHEN cs.classAyah IS NULL OR cs.classAyah <= 0 THEN '' " +
-            "         WHEN cs.classAyahEnd IS NULL OR cs.classAyahEnd <= 0 OR cs.classAyahEnd = cs.classAyah THEN CAST(cs.classAyah AS CHAR) " +
-            "         ELSE CONCAT(cs.classAyah, '-', cs.classAyahEnd) END, " +
-            "    CASE " +
-            "        WHEN cs.classAyah IS NULL OR cs.classAyah <= 0 THEN '' " +
-            "        WHEN cs.classAyahEnd IS NULL OR cs.classAyahEnd <= 0 OR cs.classAyahEnd = cs.classAyah THEN CAST(cs.classAyah AS CHAR) " +
-            "        ELSE CONCAT(cs.classAyah, '-', cs.classAyahEnd) " +
-            "    END, '') AS ayah_range, " +
-            "COALESCE(NULLIF(se.session_date, ''), DATE_FORMAT(ts.sessionDate, '%Y-%m-%d'), DATE_FORMAT(cs.scheduleDate, '%Y-%m-%d'), '') AS session_date, " +
-            "COALESCE(NULLIF(se.start_time, ''), cs.startTime, '') AS start_time, " +
-            "COALESCE(NULLIF(se.end_time, ''), cs.endTime, '') AS end_time, " +
-            "COALESCE(qd.currentSurah, cs.classSurah, 0) AS quran_surah_number, " +
-            "COALESCE(qd.currentAyah, cs.classAyah, 0) AS quran_ayah_number, " +
-            "COALESCE(NULLIF(se.teacherId, ''), cs.teacherId, '') AS teacherId, " +
-            "COALESCE(NULLIF(t.teacherName, ''), '') AS teacher_name, " +
-            "se.sessionId, se.tajweedScore, se.fluencyScore, se.accuracyScore, se.overall_score, se.rating, " +
-            "se.strength, se.areas_for_improvement, se.performance_tag, se.next_target_surah, se.suggestions, " +
-            "se.teacher_comments, se.status, se.weakness, se.studentImprovements, se.nextTarget, se.comments, " +
-            "se.createdAt, se.updated_at " +
-            "FROM studentevaluation se " +
-            "LEFT JOIN student s ON se.studentId = s.studentId " +
-            TalaqqiSchemaUtil.leftJoinSessionFromEvaluation(connection) +
-            "LEFT JOIN qurandisplay qd ON ts.sessionId = qd.sessionId " +
-            "LEFT JOIN teacher t ON COALESCE(NULLIF(se.teacherId, ''), cs.teacherId) = t.teacherId " +
-            "WHERE se.teacherId = ? AND se.status = 'PENDING' " +
-            "ORDER BY COALESCE(NULLIF(se.session_date, ''), DATE_FORMAT(ts.sessionDate, '%Y-%m-%d'), DATE_FORMAT(cs.scheduleDate, '%Y-%m-%d'), '') DESC, se.createdAt DESC";
+        String createdCol = TalaqqiSchemaUtil.studentEvalCreatedColumn(connection, "se");
+        String query = buildEvaluationListSelectSql() +
+            "WHERE se.teacherId = ? AND UPPER(COALESCE(se.status, 'PENDING')) = 'PENDING' " +
+            "ORDER BY COALESCE(NULLIF(se.session_date, ''), DATE_FORMAT(ts.sessionDate, '%Y-%m-%d'), DATE_FORMAT(cs.scheduleDate, '%Y-%m-%d'), '') DESC, " +
+            createdCol + " DESC";
 
         try (PreparedStatement stmt = connection.prepareStatement(query)) {
             stmt.setString(1, teacherId);
@@ -183,8 +161,8 @@ public class TeacherEvaluationDAO {
                 evaluations.add(mapResultSetToEvaluation(rs));
             }
         } catch (SQLException e) {
-            System.err.println("Error in getPendingEvaluations: " + e.getMessage());
-            e.printStackTrace();
+            setError("Unable to load pending evaluations", e);
+            evaluations.addAll(getPendingEvaluationsFallback(teacherId));
         }
 
         return evaluations;
@@ -200,42 +178,9 @@ public class TeacherEvaluationDAO {
      */
     public List<Evaluation> getCompletedEvaluations(String teacherId, String searchTerm, String filterClass, String sortBy) {
         List<Evaluation> evaluations = new ArrayList<>();
-        
-        StringBuilder query = new StringBuilder(
-            "SELECT " +
-            "se.studentEvaluationId, " +
-            "se.studentId, " +
-            "COALESCE(s.studentName, '') AS student_name, " +
-            "COALESCE(NULLIF(se.class_name, ''), cs.className, '') AS class_name, " +
-            "COALESCE(NULLIF(se.surah, ''), CAST(qd.currentSurah AS CHAR), CAST(cs.classSurah AS CHAR), '') AS surah, " +
-            "COALESCE(NULLIF(se.ayah_range, ''), " +
-            "    CASE WHEN qd.currentAyah IS NOT NULL AND qd.currentAyah > 0 THEN CAST(qd.currentAyah AS CHAR) " +
-            "         WHEN cs.classAyah IS NULL OR cs.classAyah <= 0 THEN '' " +
-            "         WHEN cs.classAyahEnd IS NULL OR cs.classAyahEnd <= 0 OR cs.classAyahEnd = cs.classAyah THEN CAST(cs.classAyah AS CHAR) " +
-            "         ELSE CONCAT(cs.classAyah, '-', cs.classAyahEnd) END, " +
-            "    CASE " +
-            "        WHEN cs.classAyah IS NULL OR cs.classAyah <= 0 THEN '' " +
-            "        WHEN cs.classAyahEnd IS NULL OR cs.classAyahEnd <= 0 OR cs.classAyahEnd = cs.classAyah THEN CAST(cs.classAyah AS CHAR) " +
-            "        ELSE CONCAT(cs.classAyah, '-', cs.classAyahEnd) " +
-            "    END, '') AS ayah_range, " +
-            "COALESCE(NULLIF(se.session_date, ''), DATE_FORMAT(ts.sessionDate, '%Y-%m-%d'), DATE_FORMAT(cs.scheduleDate, '%Y-%m-%d'), '') AS session_date, " +
-            "COALESCE(NULLIF(se.start_time, ''), cs.startTime, '') AS start_time, " +
-            "COALESCE(NULLIF(se.end_time, ''), cs.endTime, '') AS end_time, " +
-            "COALESCE(qd.currentSurah, cs.classSurah, 0) AS quran_surah_number, " +
-            "COALESCE(qd.currentAyah, cs.classAyah, 0) AS quran_ayah_number, " +
-            "COALESCE(NULLIF(se.teacherId, ''), cs.teacherId, '') AS teacherId, " +
-            "COALESCE(NULLIF(t.teacherName, ''), '') AS teacher_name, " +
-            "se.sessionId, se.tajweedScore, se.fluencyScore, se.accuracyScore, se.overall_score, se.rating, " +
-            "se.strength, se.areas_for_improvement, se.performance_tag, se.next_target_surah, se.suggestions, " +
-            "se.teacher_comments, se.status, se.weakness, se.studentImprovements, se.nextTarget, se.comments, " +
-            "se.createdAt, se.updated_at " +
-            "FROM studentevaluation se " +
-            "LEFT JOIN student s ON se.studentId = s.studentId " +
-            TalaqqiSchemaUtil.leftJoinSessionFromEvaluation(connection) +
-            "LEFT JOIN qurandisplay qd ON ts.sessionId = qd.sessionId " +
-            "LEFT JOIN teacher t ON COALESCE(NULLIF(se.teacherId, ''), cs.teacherId) = t.teacherId " +
-            "WHERE se.teacherId = ? AND se.status = 'COMPLETED'"
-        );
+
+        StringBuilder query = new StringBuilder(buildEvaluationListSelectSql());
+        query.append("WHERE se.teacherId = ? AND UPPER(COALESCE(se.status, '')) = 'COMPLETED'");
 
         // Add search filter
         if (searchTerm != null && !searchTerm.trim().isEmpty()) {
@@ -282,8 +227,7 @@ public class TeacherEvaluationDAO {
                 }
             }
         } catch (SQLException e) {
-            System.err.println("Error in getCompletedEvaluations: " + e.getMessage());
-            e.printStackTrace();
+            setError("Unable to load completed evaluations", e);
         }
 
         return evaluations;
@@ -500,9 +444,15 @@ public class TeacherEvaluationDAO {
             "JOIN classschedule cs ON cb.scheduleId = cs.scheduleId " +
             "JOIN student s ON cb.studentId = s.studentId " +
             TalaqqiSchemaUtil.leftJoinSessionToBooking(connection) +
-            "LEFT JOIN studentevaluation se ON se.sessionId = ts.sessionId AND se.teacherId = cs.teacherId " +
             "WHERE cs.teacherId = ? AND LOWER(cb.bookingStatus) = 'completed' " +
-            "AND se.studentEvaluationId IS NULL " +
+            "AND NOT EXISTS ( " +
+            "  SELECT 1 FROM studentevaluation se " +
+            "  WHERE se.teacherId = cs.teacherId AND se.studentId = cb.studentId " +
+            "  AND ( " +
+            "    UPPER(COALESCE(se.status, '')) = 'COMPLETED' " +
+            "    OR (ts.sessionId IS NOT NULL AND se.sessionId = ts.sessionId) " +
+            "  ) " +
+            ") " +
             "ORDER BY cs.scheduleDate DESC, cs.startTime DESC";
 
         try (PreparedStatement stmt = connection.prepareStatement(query)) {
@@ -524,8 +474,126 @@ public class TeacherEvaluationDAO {
                 evaluations.add(evaluation);
             }
         } catch (SQLException e) {
-            System.err.println("Error in getPendingSessionsNeedingEvaluation: " + e.getMessage());
-            e.printStackTrace();
+            setError("Unable to load completed sessions needing evaluation", e);
+        }
+        return evaluations;
+    }
+
+    /**
+     * Create a PENDING evaluation row when a teacher ends a Talaqqi session (if none exists yet).
+     */
+    public boolean ensurePendingEvaluationForSession(String sessionId, String teacherId) {
+        if (sessionId == null || sessionId.trim().isEmpty()
+                || teacherId == null || teacherId.trim().isEmpty()) {
+            return false;
+        }
+
+        Evaluation existing = findBySessionAndTeacher(sessionId.trim(), teacherId.trim());
+        if (existing != null) {
+            return true;
+        }
+
+        String ayahRange = TalaqqiSchemaUtil.ayahRangeExpr(connection);
+        String query =
+            "SELECT ts.sessionId, cb.studentId, cs.teacherId, cs.className, " +
+            "CAST(cs.classSurah AS CHAR) AS surah, " + ayahRange + " AS ayah_range, " +
+            "DATE_FORMAT(cs.scheduleDate,'%Y-%m-%d') AS session_date, " +
+            "DATE_FORMAT(cs.startTime,'%H:%i:%s') AS start_time, " +
+            "DATE_FORMAT(cs.endTime,'%H:%i:%s') AS end_time, " +
+            "s.studentName AS student_name " +
+            TalaqqiSchemaUtil.innerSessionBookingSchedule(connection) +
+            "LEFT JOIN student s ON cb.studentId = s.studentId " +
+            "WHERE ts.sessionId = ? AND cs.teacherId = ?";
+
+        try (PreparedStatement stmt = connection.prepareStatement(query)) {
+            stmt.setString(1, sessionId.trim());
+            stmt.setString(2, teacherId.trim());
+            try (ResultSet rs = stmt.executeQuery()) {
+                if (!rs.next()) {
+                    return false;
+                }
+
+                Evaluation evaluation = new Evaluation();
+                evaluation.setSessionId(rs.getString("sessionId"));
+                evaluation.setStudentId(rs.getString("studentId"));
+                evaluation.setTeacherId(rs.getString("teacherId"));
+                evaluation.setStudentName(rs.getString("student_name"));
+                evaluation.setClassName(rs.getString("className"));
+                evaluation.setSurah(resolveSurahDisplay(rs.getString("surah")));
+                evaluation.setAyahRange(rs.getString("ayah_range"));
+                evaluation.setSessionDate(rs.getString("session_date"));
+                evaluation.setStartTime(rs.getString("start_time"));
+                evaluation.setEndTime(rs.getString("end_time"));
+                evaluation.setStatus("PENDING");
+                return insertEvaluation(evaluation);
+            }
+        } catch (SQLException e) {
+            setError("Unable to create pending evaluation for session " + sessionId, e);
+            return false;
+        }
+    }
+
+    private String buildEvaluationListSelectSql() {
+        String ayahRange = TalaqqiSchemaUtil.ayahRangeExpr(connection);
+        String createdCol = TalaqqiSchemaUtil.studentEvalCreatedColumn(connection, "se");
+        String updatedCol = TalaqqiSchemaUtil.studentEvalUpdatedColumn(connection, "se");
+
+        return "SELECT " +
+            "se.studentEvaluationId, " +
+            "se.studentId, " +
+            "COALESCE(s.studentName, '') AS student_name, " +
+            "COALESCE(NULLIF(se.class_name, ''), cs.className, '') AS class_name, " +
+            "COALESCE(NULLIF(se.surah, ''), CAST(cs.classSurah AS CHAR), '') AS surah, " +
+            "COALESCE(NULLIF(se.ayah_range, ''), " + ayahRange + ", '') AS ayah_range, " +
+            "COALESCE(NULLIF(se.session_date, ''), DATE_FORMAT(ts.sessionDate, '%Y-%m-%d'), DATE_FORMAT(cs.scheduleDate, '%Y-%m-%d'), '') AS session_date, " +
+            "COALESCE(NULLIF(se.start_time, ''), cs.startTime, '') AS start_time, " +
+            "COALESCE(NULLIF(se.end_time, ''), cs.endTime, '') AS end_time, " +
+            "COALESCE(cs.classSurah, 0) AS quran_surah_number, " +
+            "COALESCE(cs.classAyah, 0) AS quran_ayah_number, " +
+            "COALESCE(NULLIF(se.teacherId, ''), cs.teacherId, '') AS teacherId, " +
+            "COALESCE(NULLIF(t.teacherName, ''), '') AS teacher_name, " +
+            "se.sessionId, se.tajweedScore, se.fluencyScore, se.accuracyScore, se.overall_score, se.rating, " +
+            "se.strength, se.areas_for_improvement, se.performance_tag, se.next_target_surah, se.suggestions, " +
+            "se.teacher_comments, se.status, se.weakness, se.studentImprovements, se.nextTarget, se.comments, " +
+            createdCol + " AS createdAt, " +
+            updatedCol + " AS updated_at " +
+            "FROM studentevaluation se " +
+            "LEFT JOIN student s ON se.studentId = s.studentId " +
+            TalaqqiSchemaUtil.leftJoinSessionFromEvaluation(connection) +
+            "LEFT JOIN teacher t ON COALESCE(NULLIF(se.teacherId, ''), cs.teacherId) = t.teacherId ";
+    }
+
+    private List<Evaluation> getPendingEvaluationsFallback(String teacherId) {
+        List<Evaluation> evaluations = new ArrayList<>();
+        String createdCol = TalaqqiSchemaUtil.studentEvalCreatedColumn(connection, "se");
+        String query =
+            "SELECT se.studentEvaluationId, se.studentId, se.sessionId, se.teacherId, " +
+            "se.tajweedScore, se.fluencyScore, se.accuracyScore, se.overall_score, se.rating, " +
+            "se.strength, se.areas_for_improvement, se.performance_tag, se.next_target_surah, " +
+            "se.suggestions, se.teacher_comments, se.status, se.weakness, se.studentImprovements, " +
+            "se.nextTarget, se.comments, " +
+            "COALESCE(s.studentName, '') AS student_name, '' AS teacher_name, " +
+            "COALESCE(se.class_name, '') AS class_name, COALESCE(se.surah, '') AS surah, " +
+            "COALESCE(se.ayah_range, '') AS ayah_range, " +
+            "COALESCE(se.session_date, '') AS session_date, " +
+            "COALESCE(se.start_time, '') AS start_time, " +
+            "COALESCE(se.end_time, '') AS end_time, " +
+            "0 AS quran_surah_number, 0 AS quran_ayah_number, " +
+            createdCol + " AS createdAt, NULL AS updated_at " +
+            "FROM studentevaluation se " +
+            "LEFT JOIN student s ON se.studentId = s.studentId " +
+            "WHERE se.teacherId = ? AND UPPER(COALESCE(se.status, 'PENDING')) = 'PENDING' " +
+            "ORDER BY " + createdCol + " DESC";
+
+        try (PreparedStatement stmt = connection.prepareStatement(query)) {
+            stmt.setString(1, teacherId);
+            try (ResultSet rs = stmt.executeQuery()) {
+                while (rs.next()) {
+                    evaluations.add(mapResultSetToEvaluation(rs));
+                }
+            }
+        } catch (SQLException e) {
+            setError("Fallback pending evaluation query failed", e);
         }
         return evaluations;
     }

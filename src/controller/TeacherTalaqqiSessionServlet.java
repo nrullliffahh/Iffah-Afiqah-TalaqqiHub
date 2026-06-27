@@ -203,6 +203,18 @@ public class TeacherTalaqqiSessionServlet extends HttpServlet {
                 // Mark class as Completed in DB
                 boolean completed = talaqqiSessionDAO.completeSession(sessionId, teacherId);
 
+                if (completed) {
+                    try (java.sql.Connection conn = util.DBConnection.getConnection()) {
+                        if (conn != null) {
+                            new com.talaqqihub.dao.TeacherEvaluationDAO(conn)
+                                .ensurePendingEvaluationForSession(sessionId, teacherId);
+                        }
+                    } catch (Exception evalError) {
+                        System.err.println("[TeacherTalaqqiSessionServlet] pending evaluation skipped: "
+                            + evalError.getMessage());
+                    }
+                }
+
                 talaqqiSessionDAO.clearLiveSessionStart(sessionId);
 
                 // Clear the active session from HTTP session
