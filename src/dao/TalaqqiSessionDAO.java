@@ -712,16 +712,21 @@ public class TalaqqiSessionDAO {
     private static void applyResolvedQuranReference(TalaqqiSession ts,
             int dbSurah, int dbAyah, int dbAyahEnd,
             int displaySurah, int displayAyah, int displayJuzuk) {
-        int resolvedSurah = dbSurah > 0 ? dbSurah : displaySurah;
-        int resolvedAyah = dbAyah > 0 ? dbAyah : displayAyah;
-
-        ts.setCurrentSurahNumber(resolvedSurah > 0 ? resolvedSurah : 2);
-        ts.setCurrentAyahNumber(resolvedAyah > 0 ? resolvedAyah : 1);
-        if (dbAyahEnd > 0) {
-            ts.setCurrentAyahEnd(dbAyahEnd);
+        // Live teacher control is stored in qurandisplay on Apply; classschedule holds
+        // defaults and ayah range end. Prefer display when the teacher has applied settings.
+        int resolvedSurah;
+        int resolvedAyah;
+        if (displaySurah > 0) {
+            resolvedSurah = displaySurah;
+            resolvedAyah = displayAyah > 0 ? displayAyah : 1;
         } else {
-            ts.setCurrentAyahEnd(0);
+            resolvedSurah = dbSurah > 0 ? dbSurah : 2;
+            resolvedAyah = dbAyah > 0 ? dbAyah : 1;
         }
+
+        ts.setCurrentSurahNumber(resolvedSurah);
+        ts.setCurrentAyahNumber(resolvedAyah);
+        ts.setCurrentAyahEnd(dbAyahEnd > 0 ? dbAyahEnd : 0);
         ts.setCurrentJuzukNumber(displayJuzuk > 0 ? displayJuzuk : 0);
 
         TalaqqiSession.QuranReference qRef = new TalaqqiSession.QuranReference(
@@ -1382,7 +1387,7 @@ public class TalaqqiSessionDAO {
         ts.setSessionStartTime(startTime != null ? timeFmt.format(startTime) : "--:--");
         ts.setSessionEndTime(endTime     != null ? timeFmt.format(endTime)   : "--:--");
 
-        // ── Quran reference: classschedule (teacher Apply) is source of truth; qurandisplay is fallback ─
+        // ── Quran reference: qurandisplay (live teacher Apply) overrides classschedule defaults ─
         int dbSurah    = rs.getInt("classSurah");
         int dbAyah     = rs.getInt("classAyah");
         int dbAyahEnd  = 0;
