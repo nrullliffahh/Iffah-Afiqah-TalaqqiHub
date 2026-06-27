@@ -1,6 +1,8 @@
 package dao;
 
+import model.StudentBooking;
 import model.TalaqqiSession;
+import util.BookingPartitionUtil;
 import util.DBConnection;
 
 import java.sql.*;
@@ -10,6 +12,7 @@ import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.LocalTime;
 import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.List;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
@@ -308,40 +311,105 @@ public class TalaqqiSessionDAO {
     }
 
     /**
-     * Returns a list of upcoming sessions for the student (used by the
-     * session picker or history view in student UI).
-     *
-     * @param studentId  Student primary key
-     * @param limit      Maximum number of sessions to return
+     * Returns a list of switchable sessions for the student (Upcoming + Rescheduled only).
      */
     public List<TalaqqiSession> getUpcomingSessionsListForStudent(String studentId, int limit) {
-        // Step 1: Auto-create any missing talaqqisession rows for this student
-        ensureTalaqqiSessionsExistForStudent(studentId);
+        return getSwitchableSessionsList(studentId, false, limit);
+    }
 
-        List<TalaqqiSession> list = new ArrayList<>();
+    /**
+     * Returns a list of switchable sessions for the teacher (Upcoming + Rescheduled only).
+     */
+    public List<TalaqqiSession> getUpcomingSessionsList(String teacherId, int limit) {
+        return getSwitchableSessionsList(teacherId, true, limit);
+    }
+
+    /**
+     * Session picker: only bookings in Upcoming or Rescheduled partitions (same as class booking UI).
+     */
+    private List<TalaqqiSession> getSwitchableSessionsList(String userId, boolean forTeacher, int limit) {
+        List<TalaqqiSession> sessions = new ArrayList<>();
+        if (userId == null || userId.trim().isEmpty() || limit <= 0) {
+            return sessions;
+        }
+
+        if (forTeacher) {
+            ensureTalaqqiSessionsExist(userId);
+        } else {
+            ensureTalaqqiSessionsExistForStudent(userId);
+        }
+
+        StudentBookingDAO bookingDAO = new StudentBookingDAO();
+        List<StudentBooking> bookings = forTeacher
+            ? bookingDAO.getTeacherBookings(userId)
+            : bookingDAO.getMyBookings(userId);
+        BookingPartitionUtil.Partition partitioned = BookingPartitionUtil.partition(bookings);
+
+        List<StudentBooking> switchable = new ArrayList<>();
+        switchable.addAll(partitioned.upcoming);
+        switchable.addAll(partitioned.rescheduled);
+
+        LocalDate today = LocalDate.now();
+        switchable.removeIf(b -> b.getBookingDate() == null || b.getBookingDate().isBefore(today));
+        switchable.sort(Comparator
+            .comparing(StudentBooking::getBookingDate)
+            .thenComparing(b -> b.getBookingTime() != null ? b.getBookingTime() : LocalTime.MIN));
+
+        for (StudentBooking booking : switchable) {
+            if (sessions.size() >= limit) {
+                break;
+            }
+            TalaqqiSession session = querySessionByBookingId(
+                booking.getBookingId(),
+                forTeacher ? userId : null,
+                forTeacher ? null : userId);
+            if (session != null) {
+                sessions.add(session);
+            }
+        }
+        return sessions;
+    }
+
+    private TalaqqiSession querySessionByBookingId(String bookingId, String teacherId, String studentId) {
+        if (bookingId == null || bookingId.trim().isEmpty()) {
+            return null;
+        }
         Connection conn = null;
         PreparedStatement ps = null;
         ResultSet rs = null;
         try {
             conn = DBConnection.getConnection();
-            if (conn == null) return list;
-            String sql = baseSelect(conn) +
-                "WHERE cb.studentId  = ? " +
-                "  AND ts.sessionDate >= CURDATE() " +
-                ACTIVE_SESSION_FILTER +
-                "ORDER BY ts.sessionDate ASC, cs.startTime ASC " +
-                "LIMIT ?";
+            if (conn == null) {
+                return null;
+            }
+            StringBuilder where = new StringBuilder("WHERE cb.bookingId = ? ");
+            if (teacherId != null && !teacherId.isEmpty()) {
+                where.append("AND cs.teacherId = ? ");
+            }
+            if (studentId != null && !studentId.isEmpty()) {
+                where.append("AND cb.studentId = ? ");
+            }
+            where.append("LIMIT 1");
+            String sql = baseSelect(conn) + where;
             ps = conn.prepareStatement(util.TalaqqiSchemaUtil.sql(sql, conn));
-            ps.setString(1, studentId);
-            ps.setInt(2, limit);
+            int idx = 1;
+            ps.setString(idx++, bookingId.trim());
+            if (teacherId != null && !teacherId.isEmpty()) {
+                ps.setString(idx++, teacherId);
+            }
+            if (studentId != null && !studentId.isEmpty()) {
+                ps.setString(idx, studentId);
+            }
             rs = ps.executeQuery();
-            while (rs.next()) list.add(mapRow(rs));
+            if (rs.next()) {
+                return mapRow(rs);
+            }
         } catch (SQLException e) {
-            System.err.println("[TalaqqiSessionDAO] getUpcomingSessionsListForStudent: " + e.getMessage());
+            System.err.println("[TalaqqiSessionDAO] querySessionByBookingId: " + e.getMessage());
         } finally {
             closeQuietly(rs, ps, conn);
         }
-        return list;
+        return null;
     }
 
     /**
@@ -374,43 +442,6 @@ public class TalaqqiSessionDAO {
             closeQuietly(rs, ps, conn);
         }
         return null;
-    }
-
-    /**
-     * Returns a list of upcoming sessions for the teacher (used by the
-     * session-picker dropdown in the UI).
-     *
-     * @param teacherId  Teacher primary key
-     * @param limit      Maximum number of sessions to return
-     */
-    public List<TalaqqiSession> getUpcomingSessionsList(String teacherId, int limit) {
-        // Step 1: Auto-create any missing talaqqisession rows for this teacher
-        ensureTalaqqiSessionsExist(teacherId);
-
-        List<TalaqqiSession> list = new ArrayList<>();
-        Connection conn = null;
-        PreparedStatement ps = null;
-        ResultSet rs = null;
-        try {
-            conn = DBConnection.getConnection();
-            if (conn == null) return list;
-            String sql = baseSelect(conn) +
-                "WHERE cs.teacherId  = ? " +
-                "  AND ts.sessionDate >= CURDATE() " +
-                ACTIVE_SESSION_FILTER +
-                "ORDER BY ts.sessionDate ASC, cs.startTime ASC " +
-                "LIMIT ?";
-            ps = conn.prepareStatement(util.TalaqqiSchemaUtil.sql(sql, conn));
-            ps.setString(1, teacherId);
-            ps.setInt(2, limit);
-            rs = ps.executeQuery();
-            while (rs.next()) list.add(mapRow(rs));
-        } catch (SQLException e) {
-            System.err.println("[TalaqqiSessionDAO] getUpcomingSessionsList: " + e.getMessage());
-        } finally {
-            closeQuietly(rs, ps, conn);
-        }
-        return list;
     }
 
     // ══════════════════════════════════════════════════════════════════════════
