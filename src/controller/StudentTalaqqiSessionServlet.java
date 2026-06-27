@@ -142,6 +142,9 @@ public class StudentTalaqqiSessionServlet extends HttpServlet {
     protected void doPost(HttpServletRequest request, HttpServletResponse response)
             throws ServletException, IOException {
 
+        request.setCharacterEncoding("UTF-8");
+        response.setCharacterEncoding("UTF-8");
+
         // ── Authentication guard ──────────────────────────────────────────────
         HttpSession httpSession = request.getSession(false);
         if (!isAuthenticated(httpSession)) {
@@ -258,12 +261,14 @@ public class StudentTalaqqiSessionServlet extends HttpServlet {
                     int surah = session.getCurrentSurahNumber();
                     int ayah = session.getCurrentAyahNumber();
                     int ayahEnd = session.getCurrentAyahEnd();
+                    int juzuk = session.getCurrentJuzukNumber();
                     
                     response.getWriter().write(
                         "{\"success\": true, " +
                         "\"surah\": " + surah + ", " +
                         "\"ayah\": " + ayah + ", " +
                         "\"ayahEnd\": " + ayahEnd + ", " +
+                        "\"juzuk\": " + juzuk + ", " +
                         "\"sessionId\": \"" + session.getSessionId() + "\"}"
                     );
                 } else {

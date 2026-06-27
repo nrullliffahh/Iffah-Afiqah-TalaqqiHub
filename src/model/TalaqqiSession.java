@@ -52,6 +52,7 @@ public class TalaqqiSession {
     private int currentSurahNumber;
     private int currentAyahNumber;
     private int currentAyahEnd;     // 0 means not set (single-ayah mode)
+    private int currentJuzukNumber;
     private QuranReference currentQuranReference;
 
     // ══════════════════════════════════════════════════════════════════════════
@@ -263,6 +264,9 @@ public class TalaqqiSession {
 
     public int  getCurrentAyahEnd()           { return currentAyahEnd; }
     public void setCurrentAyahEnd(int v)      { this.currentAyahEnd = v; }
+
+    public int  getCurrentJuzukNumber()       { return currentJuzukNumber; }
+    public void setCurrentJuzukNumber(int v)  { this.currentJuzukNumber = v; }
 
     public QuranReference getCurrentQuranReference()                   { return currentQuranReference; }
     public void           setCurrentQuranReference(QuranReference ref) { this.currentQuranReference = ref; }

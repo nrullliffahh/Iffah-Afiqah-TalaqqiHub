@@ -438,10 +438,12 @@ public class TalaqqiSessionDAO {
             conn = DBConnection.getConnection();
             if (conn == null) return false;
 
+            String sessionTable = util.TalaqqiSchemaUtil.sessionTable(conn);
+            String sessionLink = util.TalaqqiSchemaUtil.sessionToBookingOnClause("ts", conn);
             String sql = usesBookingIdLink(conn)
                 ? "UPDATE classschedule cs "
                     + "JOIN classbooking cb ON cs.scheduleId = cb.scheduleId "
-                    + "JOIN talaqqisession ts ON ts.bookingId = cb.bookingId "
+                    + "JOIN " + sessionTable + " ts ON " + sessionLink + " "
                     + "SET cs.classSurah = ?, cs.classAyah = ?, cs.classAyahEnd = ? "
                     + "WHERE ts.sessionId = ? AND cs.teacherId = ?"
                 : util.TalaqqiSchemaUtil.hasClassAyahEnd(conn)
@@ -478,9 +480,9 @@ public class TalaqqiSessionDAO {
         }
 
         // Save to qurandisplay (start ayah only — end range lives on classschedule.classAyahEnd)
-        saveQuranDisplay(sessionId, surahNumber, ayahStart);
+        boolean savedDisplay = saveQuranDisplay(sessionId, surahNumber, ayahStart);
 
-        return classScheduleUpdated;
+        return classScheduleUpdated || savedDisplay;
     }
 
     /**
@@ -1122,17 +1124,43 @@ public class TalaqqiSessionDAO {
         ts.setSessionStartTime(startTime != null ? timeFmt.format(startTime) : "--:--");
         ts.setSessionEndTime(endTime     != null ? timeFmt.format(endTime)   : "--:--");
 
-        // ── Quran reference from classschedule (classSurah / classAyah / classAyahEnd) ─
-        // Defaults: Surah 2 (Al-Baqarah), Ayah 1 if database values are not set
+        // ── Quran reference: live teacher display (qurandisplay) overrides schedule defaults ─
         int dbSurah    = rs.getInt("classSurah");
         int dbAyah     = rs.getInt("classAyah");
         int dbAyahEnd  = 0;
         try { dbAyahEnd = rs.getInt("classAyahEnd"); } catch (SQLException ignored) {}
-        
-        // Set defaults if database values are zero or null
-        ts.setCurrentSurahNumber(dbSurah > 0 ? dbSurah : 2);      // Default: Surah 2 (Al-Baqarah)
-        ts.setCurrentAyahNumber(dbAyah > 0 ? dbAyah : 1);         // Default: Ayah 1
-        if (dbAyahEnd > 0) ts.setCurrentAyahEnd(dbAyahEnd);
+
+        int displaySurah = 0;
+        int displayAyah = 0;
+        int displayJuzuk = 0;
+        try {
+            Object surahObj = rs.getObject("displaySurah");
+            if (surahObj instanceof Number) {
+                displaySurah = ((Number) surahObj).intValue();
+            }
+        } catch (SQLException ignored) {}
+        try {
+            Object ayahObj = rs.getObject("displayAyah");
+            if (ayahObj instanceof Number) {
+                displayAyah = ((Number) ayahObj).intValue();
+            }
+        } catch (SQLException ignored) {}
+        try {
+            Object juzObj = rs.getObject("displayJuzuk");
+            if (juzObj instanceof Number) {
+                displayJuzuk = ((Number) juzObj).intValue();
+            }
+        } catch (SQLException ignored) {}
+
+        int resolvedSurah = displaySurah > 0 ? displaySurah : dbSurah;
+        int resolvedAyah = displayAyah > 0 ? displayAyah : dbAyah;
+
+        ts.setCurrentSurahNumber(resolvedSurah > 0 ? resolvedSurah : 2);
+        ts.setCurrentAyahNumber(resolvedAyah > 0 ? resolvedAyah : 1);
+        if (dbAyahEnd > 0) {
+            ts.setCurrentAyahEnd(dbAyahEnd);
+        }
+        ts.setCurrentJuzukNumber(displayJuzuk > 0 ? displayJuzuk : 0);
 
         TalaqqiSession.QuranReference qRef = new TalaqqiSession.QuranReference(
                 ts.getCurrentSurahNumber(), ts.getCurrentAyahNumber());

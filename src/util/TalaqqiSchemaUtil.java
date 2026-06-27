@@ -164,7 +164,7 @@ public final class TalaqqiSchemaUtil {
     public static String joinSessionToBooking(Connection conn) {
         String t = sessionTable(conn);
         if (hasColumn(conn, t, "bookingId")) {
-            return "JOIN " + t + " ts ON " + sessionToBookingOnClause(t);
+            return "JOIN " + t + " ts ON " + sessionToBookingOnClause(t, conn);
         }
         return "JOIN " + t + " ts ON ts.scheduleId = cb.scheduleId ";
     }
@@ -172,7 +172,7 @@ public final class TalaqqiSchemaUtil {
     public static String leftJoinSessionToBooking(Connection conn) {
         String t = sessionTable(conn);
         if (hasColumn(conn, t, "bookingId")) {
-            return "LEFT JOIN " + t + " ts ON " + sessionToBookingOnClause(t);
+            return "LEFT JOIN " + t + " ts ON " + sessionToBookingOnClause(t, conn);
         }
         return "LEFT JOIN " + t + " ts ON ts.scheduleId = cb.scheduleId ";
     }
@@ -188,6 +188,14 @@ public final class TalaqqiSchemaUtil {
             + sessionTableAlias + ".bookingId IS NULL OR "
             + sessionTableAlias + ".bookingId = '') AND "
             + sessionTableAlias + ".scheduleId = cb.scheduleId)";
+    }
+
+    /** ON clause for joining {@code talaqqisession} rows to {@code classbooking}. */
+    public static String sessionToBookingOnClause(String sessionTableAlias, Connection conn) {
+        if (usesBookingIdLink(conn)) {
+            return sessionToBookingOnClause(sessionTableAlias);
+        }
+        return sessionTableAlias + ".scheduleId = cb.scheduleId";
     }
 
     public static String adminSessionFromJoin(Connection conn) {
@@ -223,6 +231,13 @@ public final class TalaqqiSchemaUtil {
             ? "ts.sessionStartTime, ts.sessionDuration, "
             : "NULL AS sessionStartTime, NULL AS sessionDuration, ";
         String ayahEndCol = ayahEnd ? "cs.classAyahEnd, " : "NULL AS classAyahEnd, ";
+        boolean quranDisplay = hasQuranDisplayTable(conn);
+        String quranDisplayCols = quranDisplay
+            ? "qd.currentSurah AS displaySurah, qd.currentAyah AS displayAyah, qd.currentJuzuk AS displayJuzuk, "
+            : "NULL AS displaySurah, NULL AS displayAyah, NULL AS displayJuzuk, ";
+        String quranDisplayJoin = quranDisplay
+            ? "LEFT JOIN qurandisplay qd ON ts.sessionId = qd.sessionId "
+            : "";
 
         String sql;
         if (byBooking) {
@@ -232,10 +247,12 @@ public final class TalaqqiSchemaUtil {
                 + "cb.studentId, cb.scheduleId, cb.bookingStatus, "
                 + "cs.teacherId, cs.className, cs.startTime, cs.endTime, cs.duration, "
                 + "cs.classSurah, cs.classAyah, " + ayahEndCol
+                + quranDisplayCols
                 + "s.studentName, t.teacherName AS teacherName "
                 + "FROM talaqqisession ts "
-                + "JOIN classbooking cb ON ts.bookingId = cb.bookingId "
+                + "JOIN classbooking cb ON " + sessionToBookingOnClause("ts", conn) + " "
                 + "JOIN classschedule cs ON cb.scheduleId = cs.scheduleId "
+                + quranDisplayJoin
                 + "LEFT JOIN student s ON cb.studentId = s.studentId "
                 + "LEFT JOIN teacher t ON cs.teacherId = t.teacherId ";
         } else {
@@ -244,11 +261,13 @@ public final class TalaqqiSchemaUtil {
                 + "cb.bookingId, cb.studentId, cs.scheduleId, cb.bookingStatus, "
                 + "cs.teacherId, cs.className, cs.startTime, cs.endTime, cs.duration, "
                 + "cs.classSurah, cs.classAyah, " + ayahEndCol
+                + quranDisplayCols
                 + "s.studentName, t.teacherName AS teacherName "
                 + "FROM talaqqisession ts "
                 + "JOIN classschedule cs ON ts.scheduleId = cs.scheduleId "
                 + "LEFT JOIN classbooking cb ON cb.scheduleId = cs.scheduleId "
                 + "  AND cb.bookingStatus NOT IN ('Cancelled','Rejected') "
+                + quranDisplayJoin
                 + "LEFT JOIN student s ON cb.studentId = s.studentId "
                 + "LEFT JOIN teacher t ON cs.teacherId = t.teacherId ";
         }

@@ -369,7 +369,12 @@
         
         // Load initial surah info and update display
         loadSurahInfo(currentQuranState.surah);
-        updateQuranLocationDisplay(currentQuranState.surah, currentQuranState.ayah, currentQuranState.ayahEnd);
+        updateQuranLocationDisplay(
+            currentQuranState.surah,
+            currentQuranState.ayah,
+            currentQuranState.ayahEnd,
+            currentQuranState.juzuk
+        );
         updateVersesDisplay(currentQuranState.surah, currentQuranState.ayah, currentQuranState.ayahEnd);
         
         startPollingQuranUpdates();
@@ -569,10 +574,12 @@
     // ── Poll for Quran reference updates (teacher-to-student sync) ─────────
 
     // Track current Quran reference to detect changes
+    const STUDENT_SESSION_ID = '<c:out value="${not empty session ? session.sessionId : ''}" />';
     let currentQuranState = {
         surah: parseInt(new URLSearchParams(window.location.search).get('surah') || '<c:out value="${not empty session ? session.currentSurahNumber : ''}" />') || 2,
         ayah:  parseInt(new URLSearchParams(window.location.search).get('ayah') || '<c:out value="${not empty session ? session.currentAyahNumber : ''}" />') || 1,
-        ayahEnd: parseInt(new URLSearchParams(window.location.search).get('ayahEnd') || '<c:out value="${not empty session ? session.currentAyahEnd : ''}" />') || 0
+        ayahEnd: parseInt(new URLSearchParams(window.location.search).get('ayahEnd') || '<c:out value="${not empty session ? session.currentAyahEnd : ''}" />') || 0,
+        juzuk: parseInt('<c:out value="${not empty session ? session.currentJuzukNumber : ''}" />') || 1
     };
 
     const POLL_INTERVAL_MS = 3000; // Check every 3 seconds
@@ -634,12 +641,12 @@
     /**
      * Update the Juz, Surah, Ayah display numbers
      */
-    function updateQuranLocationDisplay(surah, ayah, ayahEnd) {
+    function updateQuranLocationDisplay(surah, ayah, ayahEnd, juzuk) {
         const juzDisplay = document.getElementById('currentJuzDisplay');
         const surahDisplay = document.getElementById('currentSurahDisplay');
         const ayahDisplay = document.getElementById('currentAyahDisplay');
         
-        if (juzDisplay) juzDisplay.textContent = '1';
+        if (juzDisplay) juzDisplay.textContent = (juzuk && juzuk > 0) ? juzuk : '1';
         if (surahDisplay) surahDisplay.textContent = surah;
         if (ayahDisplay) {
             const end = parseInt(ayahEnd, 10);
@@ -656,10 +663,16 @@
         <c:if test="${not empty session}">
         pollTimerId = setInterval(async () => {
             try {
+                const body = new URLSearchParams();
+                body.append('action', 'getCurrentQuran');
+                if (STUDENT_SESSION_ID) {
+                    body.append('sessionId', STUDENT_SESSION_ID);
+                }
+
                 const response = await fetch('<c:out value="${contextPath}" />/student/sessions', {
                     method: 'POST',
-                    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-                    body: 'action=getCurrentQuran'
+                    headers: { 'Content-Type': 'application/x-www-form-urlencoded; charset=UTF-8' },
+                    body: body.toString()
                 });
 
                 if (!response.ok) return; // Silent fail if server error
@@ -670,26 +683,27 @@
                 const newSurah = data.surah;
                 const newAyah = data.ayah;
                 const newAyahEnd = data.ayahEnd;
+                const newJuzuk = data.juzuk || currentQuranState.juzuk;
+
+                const prevSurah = currentQuranState.surah;
+                const prevAyah = currentQuranState.ayah;
+                const prevAyahEnd = currentQuranState.ayahEnd;
 
                 // Check if Quran reference has changed
-                if (newSurah !== currentQuranState.surah || 
-                    newAyah !== currentQuranState.ayah ||
-                    newAyahEnd !== currentQuranState.ayahEnd) {
+                if (newSurah !== prevSurah || 
+                    newAyah !== prevAyah ||
+                    newAyahEnd !== prevAyahEnd) {
                     
-                    console.log('[Quran Update] Surah ' + newSurah + ':' + newAyah + ' (was ' + currentQuranState.surah + ':' + currentQuranState.ayah + ')');
+                    console.log('[Quran Update] Surah ' + newSurah + ':' + newAyah + ' (was ' + prevSurah + ':' + prevAyah + ')');
                     
-                    // Update local state
-                    currentQuranState = { surah: newSurah, ayah: newAyah, ayahEnd: newAyahEnd };
+                    currentQuranState = { surah: newSurah, ayah: newAyah, ayahEnd: newAyahEnd, juzuk: newJuzuk };
 
-                    // Load surah info if surah changed
-                    if (newSurah !== currentQuranState.surah) {
+                    if (newSurah !== prevSurah) {
                         await loadSurahInfo(newSurah);
                     }
                     
-                    // Update location display
-                    updateQuranLocationDisplay(newSurah, newAyah, newAyahEnd);
+                    updateQuranLocationDisplay(newSurah, newAyah, newAyahEnd, newJuzuk);
 
-                    // Fetch and display new verses
                     await updateVersesDisplay(newSurah, newAyah, newAyahEnd);
                 }
             } catch (error) {
