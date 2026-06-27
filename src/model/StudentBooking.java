@@ -201,6 +201,14 @@ public class StudentBooking {
         return !LocalTime.now().isBefore(endTime);
     }
 
+    /** New slot booked to replace a missed class. */
+    public boolean isRescheduledReplacement() {
+        if (cancellationReason == null) {
+            return false;
+        }
+        return cancellationReason.toLowerCase().contains("rescheduled from");
+    }
+
     /** Old booking marked rescheduled after student picks a new slot. */
     public boolean isRescheduled() {
         if (bookingStatus != null && "Rescheduled".equalsIgnoreCase(bookingStatus.trim())) {

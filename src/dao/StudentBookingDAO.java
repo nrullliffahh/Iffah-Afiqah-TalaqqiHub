@@ -420,6 +420,23 @@ public class StudentBookingDAO {
         }
     }
 
+    /** Tag a newly booked slot as the rescheduled replacement for a previous booking. */
+    public void recordNewRescheduleSlot(String newBookingId, String previousBookingId) {
+        if (newBookingId == null || newBookingId.trim().isEmpty()) {
+            return;
+        }
+        String reason = "Rescheduled from "
+            + (previousBookingId != null ? previousBookingId.trim() : "previous booking");
+        try (Connection conn = DBConnection.getConnection()) {
+            if (conn == null) {
+                return;
+            }
+            recordRescheduleReason(conn, newBookingId, reason);
+        } catch (SQLException e) {
+            System.err.println("[StudentBookingDAO] recordNewRescheduleSlot failed: " + e.getMessage());
+        }
+    }
+
     /** Insert booking row; tries Pending/Upcoming/Confirmed for schema compatibility. */
     private boolean insertClassBooking(
         Connection conn, String bookingId, String studentId, String scheduleId,

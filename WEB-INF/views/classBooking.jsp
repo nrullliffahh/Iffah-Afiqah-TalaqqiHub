@@ -924,15 +924,29 @@
                     </c:if>
                     
                             <div class="space-y-4">
-                        <!-- Upcoming bookings -->
+                        <!-- Upcoming / rescheduled replacement slots -->
                         <c:forEach var="booking" items="${upcomingBookings}">
-                            <c:set var="borderClass" value="border-blue-200 bg-blue-50" />
+                            <c:choose>
+                                <c:when test="${booking.rescheduledReplacement}">
+                                    <c:set var="borderClass" value="border-teal-200 bg-teal-50" />
+                                </c:when>
+                                <c:otherwise>
+                                    <c:set var="borderClass" value="border-blue-200 bg-blue-50" />
+                                </c:otherwise>
+                            </c:choose>
                             <div class="border-2 rounded-xl p-5 ${borderClass} booking-entry" data-booking-id="${booking.bookingId}" data-booking-date="${booking.bookingDate}" data-booking-time="${booking.bookingTime}" data-teacher-name="${booking.teacherName}" data-class-type="${booking.className}" data-booking-status="${booking.bookingStatus}" data-attendance-status="${booking.attendanceStatus}" data-can-cancel="${booking.cancellationAllowed}">
                                 <div class="flex items-start justify-between">
                                     <div class="flex-1">
                                         <div class="flex items-center gap-3 mb-3">
                                             <h4 class="font-bold text-gray-800 text-lg">${booking.className}</h4>
-                                            <span class="px-3 py-1 bg-blue-100 text-blue-700 text-sm font-semibold rounded-full">Upcoming</span>
+                                            <c:choose>
+                                                <c:when test="${booking.rescheduledReplacement}">
+                                                    <span class="px-3 py-1 bg-teal-100 text-teal-800 text-sm font-semibold rounded-full">Rescheduled</span>
+                                                </c:when>
+                                                <c:otherwise>
+                                                    <span class="px-3 py-1 bg-blue-100 text-blue-700 text-sm font-semibold rounded-full">Upcoming</span>
+                                                </c:otherwise>
+                                            </c:choose>
                                         </div>
                                         <div class="grid grid-cols-3 gap-4">
                                             <div class="flex items-center gap-2">
@@ -963,6 +977,9 @@
                                                 </div>
                                             </div>
                                         </div>
+                                        <c:if test="${booking.rescheduledReplacement and not empty booking.cancellationReason}">
+                                            <div class="mt-3 text-sm text-teal-800">${booking.cancellationReason}</div>
+                                        </c:if>
                                     </div>
                                     <div class="flex flex-col gap-2 ml-4">
                                         <button type="button" onclick="openDetailsModal('${booking.bookingId}')" class="px-4 py-2 border-2 border-gray-300 bg-white text-gray-700 rounded-lg text-sm font-semibold hover:bg-gray-100 transition-colors">
@@ -1403,29 +1420,22 @@
                 const sts = (el.dataset.bookingStatus || 'Upcoming');
                 const att = (el.dataset.attendanceStatus || '');
                 let displaySts = sts;
-                if (sts === 'Completed' && att === 'Absent') {
+                const card = el.closest('.booking-entry');
+                if (att === 'Absent') {
                     displaySts = 'Not Completed';
-                } else if (att === 'Absent') {
-                    displaySts = 'Not Completed';
-                } else if (sts === 'Rescheduled' || sts === 'Cancelled') {
-                    const card = el.closest('.booking-entry');
-                    const isRescheduled = card && card.classList.contains('bg-teal-50');
-                    if (isRescheduled || sts === 'Rescheduled') {
-                        displaySts = 'Rescheduled';
-                    }
+                } else if (card && card.classList.contains('bg-teal-50')) {
+                    displaySts = 'Rescheduled';
+                } else if (sts === 'Rescheduled') {
+                    displaySts = 'Rescheduled';
                 }
                 statusEl.textContent = displaySts;
                 statusEl.className = 'inline-block px-3 py-1 rounded-full text-xs font-semibold';
-                if (sts === 'Upcoming' || sts === 'Confirmed') {
-                    if (att === 'Absent') {
-                        statusEl.classList.add('bg-amber-100','text-amber-800');
-                    } else {
-                        statusEl.classList.add('bg-blue-100','text-blue-700');
-                    }
+                if (displaySts === 'Rescheduled') {
+                    statusEl.classList.add('bg-teal-100','text-teal-800');
                 } else if (displaySts === 'Not Completed') {
                     statusEl.classList.add('bg-amber-100','text-amber-800');
-                } else if (displaySts === 'Rescheduled') {
-                    statusEl.classList.add('bg-teal-100','text-teal-800');
+                } else if (sts === 'Upcoming' || sts === 'Confirmed') {
+                    statusEl.classList.add('bg-blue-100','text-blue-700');
                 } else if (sts === 'Completed') {
                     statusEl.classList.add('bg-green-100','text-green-700');
                 } else if (sts === 'Cancelled') {
