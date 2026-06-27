@@ -32,6 +32,61 @@ write_secret_file() {
   chmod 600 "${_path}"
 }
 
+read_secret() {
+  _key="$1"
+  _val=""
+  eval "_val=\${${_key}:-}"
+  if [ -n "${_val}" ]; then
+    printf '%s' "${_val}"
+    return 0
+  fi
+  _file_var="${_key}_FILE"
+  eval "_file_path=\${${_file_var}:-}"
+  if [ -n "${_file_path}" ] && [ -f "${_file_path}" ]; then
+    tr -d '\r\n' < "${_file_path}"
+    return 0
+  fi
+  for _candidate in "/run/secrets/$(printf '%s' "${_key}" | tr '[:upper:]' '[:lower:]')" "/run/secrets/${_key}"; do
+    if [ -f "${_candidate}" ]; then
+      tr -d '\r\n' < "${_candidate}"
+      return 0
+    fi
+  done
+  return 1
+}
+
+load_dotenv_files() {
+  for _envfile in /etc/kerocket/env /run/config/env /app/.env /usr/local/tomcat/conf/kerocket.env; do
+    if [ -f "${_envfile}" ]; then
+      set -a
+      # shellcheck disable=SC1090
+      . "${_envfile}"
+      set +a
+    fi
+  done
+}
+
+parse_embedded_jdbc_creds() {
+  _url="${1:-}"
+  case "${_url}" in
+    jdbc:mysql://*@*|jdbc:mariadb://*@*)
+      _rest="${_url#*://}"
+      _userinfo="${_rest%%@*}"
+      _hostpart="${_rest#*@}"
+      if [ "${_userinfo}" = "${_rest}" ]; then
+        return 0
+      fi
+      EMBEDDED_USER="${_userinfo%%:*}"
+      EMBEDDED_PASSWORD="${_userinfo#*:}"
+      if [ "${_userinfo}" = "${EMBEDDED_PASSWORD}" ]; then
+        EMBEDDED_PASSWORD=""
+      fi
+      _scheme="${_url%%://*}"
+      EMBEDDED_JDBC_URL="${_scheme}://${_hostpart}"
+      ;;
+  esac
+}
+
 is_internal_kerocket_db() {
   case "${1:-}" in
     *aivencloud.com*|*aiven.io*)
@@ -113,7 +168,9 @@ JDBC_URL=""
 DB_USER=""
 DB_PASSWORD=""
 
-echo "DB env at entrypoint (shell, may be before Kerocket env file): DB_URL=$([ -n "${DB_URL:-}" ] && echo set || echo missing) DATABASE_URL=$([ -n "${DATABASE_URL:-}" ] && echo set || echo missing) DB_USER=$([ -n "${DB_USER:-}" ] && echo set || echo missing)"
+load_dotenv_files
+
+echo "DB env at entrypoint (shell): DB_URL=$([ -n "${DB_URL:-}" ] && echo set || echo missing) DATABASE_URL=$([ -n "${DATABASE_URL:-}" ] && echo set || echo missing) DB_USER=$([ -n "$(read_secret DB_USER 2>/dev/null || true)" ] && echo set || echo missing)"
 
 if [ -n "${DATABASE_URL:-}" ]; then
   parse_database_url "${DATABASE_URL}"
@@ -121,8 +178,23 @@ fi
 
 if [ -n "${DB_URL:-}" ]; then
   JDBC_URL="${DB_URL}"
-  DB_USER="${DB_USER:-${MYSQLUSER:-${MYSQL_USER:-}}}"
-  DB_PASSWORD="${DB_PASSWORD:-${MYSQLPASSWORD:-${MYSQL_PASSWORD:-}}}"
+  DB_USER="$(read_secret DB_USER 2>/dev/null || true)"
+  DB_PASSWORD="$(read_secret DB_PASSWORD 2>/dev/null || true)"
+  if [ -z "${DB_USER}" ]; then
+    DB_USER="$(read_secret MYSQLUSER 2>/dev/null || read_secret MYSQL_USER 2>/dev/null || true)"
+  fi
+  if [ -z "${DB_PASSWORD}" ]; then
+    DB_PASSWORD="$(read_secret MYSQLPASSWORD 2>/dev/null || read_secret MYSQL_PASSWORD 2>/dev/null || true)"
+  fi
+  EMBEDDED_USER=""
+  EMBEDDED_PASSWORD=""
+  EMBEDDED_JDBC_URL=""
+  parse_embedded_jdbc_creds "${DB_URL}"
+  if [ -n "${EMBEDDED_USER}" ]; then
+    DB_USER="${EMBEDDED_USER}"
+    DB_PASSWORD="${EMBEDDED_PASSWORD}"
+    JDBC_URL="${EMBEDDED_JDBC_URL}"
+  fi
   if is_external_db_url "${DB_URL}"; then
     # Aiven DB_URL — never use kerocket user from internal DATABASE_URL.
     case "${DATABASE_URL:-}" in
@@ -198,7 +270,8 @@ EOF
   echo "Wrote JDBC credential files under ${CONF_DIR}"
 else
   if [ -n "${JDBC_URL}" ]; then
-    echo "ERROR: JDBC URL set but DB_USER/DB_PASSWORD missing — set DB_USER=avnadmin and DB_PASSWORD in Kerocket Deploy tab."
+    echo "ERROR: JDBC URL set but no credentials — embed user:pass in DB_URL or set DB_USER/DB_PASSWORD."
+    echo "  Example: DB_URL=jdbc:mysql://avnadmin:YOUR_PASSWORD@host:16135/talaqqihub_db?sslMode=REQUIRED"
   else
     echo "ERROR: No database environment variables found."
   fi

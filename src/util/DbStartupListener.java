@@ -31,7 +31,7 @@ public class DbStartupListener implements ServletContextListener {
             System.err.println(
                 "DbStartupListener: database connection FAILED. lastError="
                     + DBConnection.getLastConnectionError()
-                    + " — set DB_USER=avnadmin and DB_PASSWORD in Kerocket Deploy tab."
+                    + " — embed avnadmin:PASSWORD in DB_URL if Kerocket does not inject DB_USER/DB_PASSWORD."
             );
         }
     }

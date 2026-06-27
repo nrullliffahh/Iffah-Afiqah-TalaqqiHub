@@ -25,7 +25,18 @@ Kerocket must use **Docker build** (`kerocket.toml` → `Dockerfile`):
 - `DATABASE_URL` → often internal `mysql:3306/app` (empty, no student table)
 - `DB_URL` → your Aiven URL with `talaqqihub_db` (where you import SQL)
 
-When both exist, the app uses **`DB_URL` (Aiven)** first. You must also set:
+**Kerocket credential quirk:** Some deployments inject `DB_URL` into Java but **not** separate `DB_USER` / `DB_PASSWORD` lines. If logs show `DB_USER=missing` at JVM startup, use **one line** with embedded credentials:
+
+```
+DB_URL=jdbc:mysql://avnadmin:YOUR_AIVEN_PASSWORD@mysql-XXXX.i.aivencloud.com:16135/talaqqihub_db?sslMode=REQUIRED
+PORT=8080
+GEMINI_API_KEY=...
+```
+
+(URL-encode special characters in the password if needed.)
+
+Alternatively keep separate lines if your Kerocket build passes them through:
+
 ```
 DB_USER=avnadmin
 DB_PASSWORD=<your Aiven password>

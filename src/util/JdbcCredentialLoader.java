@@ -58,35 +58,35 @@ public final class JdbcCredentialLoader {
      * Log what the Java process actually sees (never log password values).
      */
     public static void logJvmEnvPresence() {
+        String dbUrl = firstNonEmpty(getenv("DB_URL"), getProperty("DB_URL"), dotEnvGet("DB_URL"));
+        boolean embeddedCreds = dbUrl != null && dbUrl.contains("@") && dbUrl.indexOf('@') > dbUrl.indexOf("://") + 3;
         System.out.println(
             "JdbcCredentialLoader JVM env: DB_URL=" + envStatus("DB_URL")
+                + (embeddedCreds ? "(embedded-user)" : "")
                 + " DATABASE_URL=" + envStatus("DATABASE_URL")
-                + " DB_USER=" + (isSet("DB_USER") ? safeUser(getenv("DB_USER")) : "missing")
-                + " DB_PASSWORD=" + (isSet("DB_PASSWORD") ? "set" : "missing")
-                + " MYSQLUSER=" + (isSet("MYSQLUSER") || isSet("MYSQL_USER") ? "set" : "missing")
+                + " DB_USER=" + credentialUserStatus()
+                + " DB_PASSWORD=" + credentialPasswordStatus()
+                + " dotenv=" + (dotEnvLoaded() ? "loaded" : "none")
         );
     }
 
     /** Write credential files when JVM env is available (entrypoint may run too early on Kerocket). */
     public static void materializeDeployFilesFromJvmEnv() {
-        String dbUrl = firstNonEmpty(getenv("DB_URL"), getProperty("DB_URL"));
-        String databaseUrl = firstNonEmpty(getenv("DATABASE_URL"), getProperty("DATABASE_URL"));
-        String dbUser = explicitCredentialsUser();
-        String dbPassword = explicitCredentialsPassword();
-
-        CredentialConfig config = buildAivenConfig(dbUrl, dbUser, dbPassword, databaseUrl);
-        if (config == null) {
+        ResolvedCredentials creds = resolveCredentials();
+        if (creds == null || creds.user == null || creds.user.isEmpty()) {
             System.out.println(
-                "JdbcCredentialLoader: deploy files not written — DB_USER/DB_PASSWORD not visible to JVM yet."
+                "JdbcCredentialLoader: deploy files not written — no DB credentials."
+                + " Kerocket may not inject DB_USER/DB_PASSWORD; embed user:pass in DB_URL"
+                + " (jdbc:mysql://avnadmin:PASSWORD@host:port/talaqqihub_db?sslMode=REQUIRED)."
             );
             return;
         }
 
         try {
             Files.createDirectories(DEPLOY_URL_FILE.getParent());
-            Files.writeString(DEPLOY_URL_FILE, config.url, StandardCharsets.UTF_8);
-            Files.writeString(DEPLOY_USER_FILE, config.user, StandardCharsets.UTF_8);
-            Files.writeString(DEPLOY_PASSWORD_FILE, config.password, StandardCharsets.UTF_8);
+            Files.writeString(DEPLOY_URL_FILE, creds.url, StandardCharsets.UTF_8);
+            Files.writeString(DEPLOY_USER_FILE, creds.user, StandardCharsets.UTF_8);
+            Files.writeString(DEPLOY_PASSWORD_FILE, creds.password != null ? creds.password : "", StandardCharsets.UTF_8);
             DEPLOY_URL_FILE.toFile().setReadable(false, false);
             DEPLOY_URL_FILE.toFile().setReadable(true, true);
             DEPLOY_USER_FILE.toFile().setReadable(false, false);
@@ -95,28 +95,57 @@ public final class JdbcCredentialLoader {
             DEPLOY_PASSWORD_FILE.toFile().setReadable(true, true);
 
             Properties props = new Properties();
-            props.setProperty("db.url.b64", Base64.getEncoder().encodeToString(config.url.getBytes(StandardCharsets.UTF_8)));
-            props.setProperty("db.user.b64", Base64.getEncoder().encodeToString(config.user.getBytes(StandardCharsets.UTF_8)));
-            props.setProperty("db.password.b64", Base64.getEncoder().encodeToString(config.password.getBytes(StandardCharsets.UTF_8)));
+            props.setProperty("db.url.b64", Base64.getEncoder().encodeToString(creds.url.getBytes(StandardCharsets.UTF_8)));
+            props.setProperty("db.user.b64", Base64.getEncoder().encodeToString(creds.user.getBytes(StandardCharsets.UTF_8)));
+            props.setProperty("db.password.b64", Base64.getEncoder().encodeToString(
+                (creds.password != null ? creds.password : "").getBytes(StandardCharsets.UTF_8)));
             try (var out = Files.newOutputStream(DEPLOY_PROPERTIES)) {
                 props.store(out, "TalaqqiHub JDBC credentials (from JVM env)");
             }
 
             System.out.println(
-                "JdbcCredentialLoader: materialized deploy files (user=" + config.user
-                    + ", database=" + safeJdbcDatabase(config.url) + ")."
+                "JdbcCredentialLoader: materialized deploy files (user=" + creds.user
+                    + ", database=" + safeJdbcDatabase(creds.url) + ", source=" + creds.source + ")."
             );
         } catch (Exception e) {
             System.err.println("JdbcCredentialLoader: failed to write deploy files: " + e.getMessage());
         }
     }
 
+    private static final class ResolvedCredentials {
+        final String url;
+        final String user;
+        final String password;
+        final String source;
+
+        ResolvedCredentials(String url, String user, String password, String source) {
+            this.url = url;
+            this.user = user;
+            this.password = password;
+            this.source = source;
+        }
+    }
+
+    /** Resolve JDBC URL + user + password from env, dotenv files, secrets, or embedded DB_URL. */
+    private static ResolvedCredentials resolveCredentials() {
+        String dbUrl = firstNonEmpty(getenv("DB_URL"), getProperty("DB_URL"), dotEnvGet("DB_URL"));
+        String databaseUrl = firstNonEmpty(getenv("DATABASE_URL"), getProperty("DATABASE_URL"), dotEnvGet("DATABASE_URL"));
+        String dbUser = explicitCredentialsUser();
+        String dbPassword = explicitCredentialsPassword();
+
+        CredentialConfig config = buildAivenConfig(dbUrl, dbUser, dbPassword, databaseUrl);
+        if (config != null) {
+            return new ResolvedCredentials(config.url, config.user, config.password, config.source);
+        }
+        return null;
+    }
+
     public static List<CredentialConfig> loadAll() {
         List<CredentialConfig> configs = new ArrayList<>();
         Set<String> seen = new LinkedHashSet<>();
 
-        String dbUrl = firstNonEmpty(getenv("DB_URL"), getProperty("DB_URL"));
-        String databaseUrl = firstNonEmpty(getenv("DATABASE_URL"), getProperty("DATABASE_URL"));
+        String dbUrl = firstNonEmpty(getenv("DB_URL"), getProperty("DB_URL"), dotEnvGet("DB_URL"));
+        String databaseUrl = firstNonEmpty(getenv("DATABASE_URL"), getProperty("DATABASE_URL"), dotEnvGet("DATABASE_URL"));
         String dbUser = explicitCredentialsUser();
         String dbPassword = explicitCredentialsPassword();
 
@@ -187,7 +216,7 @@ public final class JdbcCredentialLoader {
         return configs;
     }
 
-    /** Aiven DB_URL + DB_USER/DB_PASSWORD, or credentials from external DATABASE_URL only. */
+    /** Aiven DB_URL + credentials from env, dotenv, secrets, embedded JDBC URL, or external DATABASE_URL. */
     private static CredentialConfig buildAivenConfig(
         String dbUrl, String dbUser, String dbPassword, String databaseUrl
     ) {
@@ -197,6 +226,17 @@ public final class JdbcCredentialLoader {
 
         String user = dbUser;
         String password = dbPassword != null ? dbPassword : "";
+        String jdbcUrl = dbUrl;
+
+        // Kerocket often injects DB_URL but not separate DB_USER/DB_PASSWORD — parse jdbc://user:pass@host/...
+        ParsedUrl embedded = parseJdbcUrl(dbUrl);
+        if (embedded != null) {
+            jdbcUrl = embedded.jdbcUrl;
+            if (user == null || user.isEmpty()) {
+                user = embedded.user;
+                password = firstNonEmpty(embedded.password, password);
+            }
+        }
 
         if ((user == null || user.isEmpty()) && databaseUrl != null && isExternalDatabaseUrl(databaseUrl)) {
             CredentialConfig external = parseDatabaseUrl(databaseUrl);
@@ -210,19 +250,23 @@ public final class JdbcCredentialLoader {
             return null;
         }
 
-        if (isKerocketPlatformUser(user) && isExternalDatabaseUrl(dbUrl)) {
+        if (isKerocketPlatformUser(user) && isExternalDatabaseUrl(jdbcUrl)) {
             System.err.println(
                 "JdbcCredentialLoader: refusing kerocket platform user for external Aiven DB_URL — set DB_USER=avnadmin and DB_PASSWORD in Kerocket Deploy tab."
             );
             return null;
         }
 
+        String source = (embedded != null && embedded.user != null && !embedded.user.isEmpty())
+            ? "JdbcCredentialLoader:aiven(embedded-url)"
+            : "JdbcCredentialLoader:aiven";
+
         return new CredentialConfig(
-            ensureJdbcParams(dbUrl),
+            ensureJdbcParams(jdbcUrl),
             user,
             password,
             true,
-            "JdbcCredentialLoader:aiven"
+            source
         );
     }
 
@@ -486,21 +530,132 @@ public final class JdbcCredentialLoader {
         return sb.toString();
     }
 
-    /** Only explicit deploy-tab vars — never kerocket from DATABASE_URL. */
+    /** Env var, *_FILE path, /run/secrets/, or dotenv file. */
     private static String explicitCredentialsUser() {
         return firstNonEmpty(
-            getenv("DB_USER"), getProperty("DB_USER"),
-            getenv("MYSQLUSER"), getProperty("MYSQLUSER"),
-            getenv("MYSQL_USER"), getProperty("MYSQL_USER")
+            readEnvOrSecret("DB_USER"),
+            readEnvOrSecret("MYSQLUSER"),
+            readEnvOrSecret("MYSQL_USER")
         );
     }
 
     private static String explicitCredentialsPassword() {
         return firstNonEmpty(
-            getenv("DB_PASSWORD"), getProperty("DB_PASSWORD"),
-            getenv("MYSQLPASSWORD"), getProperty("MYSQLPASSWORD"),
-            getenv("MYSQL_PASSWORD"), getProperty("MYSQL_PASSWORD")
+            readEnvOrSecret("DB_PASSWORD"),
+            readEnvOrSecret("MYSQLPASSWORD"),
+            readEnvOrSecret("MYSQL_PASSWORD")
         );
+    }
+
+    private static String readEnvOrSecret(String key) {
+        String direct = firstNonEmpty(getenv(key), getProperty(key), dotEnvGet(key));
+        if (direct != null) {
+            return direct;
+        }
+        String filePath = firstNonEmpty(getenv(key + "_FILE"), getProperty(key + "_FILE"), dotEnvGet(key + "_FILE"));
+        if (filePath != null) {
+            return readFileTrimmed(Paths.get(filePath));
+        }
+        for (String candidate : new String[] {
+            "/run/secrets/" + key.toLowerCase(),
+            "/run/secrets/" + key,
+            "/var/run/secrets/" + key.toLowerCase()
+        }) {
+            String fromSecret = readFileTrimmed(Paths.get(candidate));
+            if (fromSecret != null) {
+                return fromSecret;
+            }
+        }
+        return null;
+    }
+
+    private static String readFileTrimmed(Path path) {
+        try {
+            if (!Files.isRegularFile(path)) {
+                return null;
+            }
+            String value = Files.readString(path, StandardCharsets.UTF_8).trim();
+            return value.isEmpty() ? null : value;
+        } catch (Exception e) {
+            return null;
+        }
+    }
+
+    private static volatile java.util.Map<String, String> DOTENV_CACHE;
+
+    private static boolean dotEnvLoaded() {
+        ensureDotEnvLoaded();
+        return DOTENV_CACHE != null && !DOTENV_CACHE.isEmpty();
+    }
+
+    private static String dotEnvGet(String key) {
+        ensureDotEnvLoaded();
+        if (DOTENV_CACHE == null) {
+            return null;
+        }
+        String value = DOTENV_CACHE.get(key);
+        if (value == null || value.isEmpty()) {
+            return null;
+        }
+        return value;
+    }
+
+    private static void ensureDotEnvLoaded() {
+        if (DOTENV_CACHE != null) {
+            return;
+        }
+        synchronized (JdbcCredentialLoader.class) {
+            if (DOTENV_CACHE != null) {
+                return;
+            }
+            java.util.Map<String, String> merged = new java.util.LinkedHashMap<>();
+            for (Path path : new Path[] {
+                Paths.get("/etc/kerocket/env"),
+                Paths.get("/run/config/env"),
+                Paths.get("/app/.env"),
+                Paths.get("/usr/local/tomcat/conf/kerocket.env")
+            }) {
+                mergeDotEnvFile(merged, path);
+            }
+            DOTENV_CACHE = merged;
+        }
+    }
+
+    private static void mergeDotEnvFile(java.util.Map<String, String> into, Path path) {
+        if (!Files.isRegularFile(path)) {
+            return;
+        }
+        try {
+            for (String line : Files.readAllLines(path, StandardCharsets.UTF_8)) {
+                line = line.trim();
+                if (line.isEmpty() || line.startsWith("#")) {
+                    continue;
+                }
+                int eq = line.indexOf('=');
+                if (eq <= 0) {
+                    continue;
+                }
+                String key = line.substring(0, eq).trim();
+                String value = line.substring(eq + 1).trim();
+                if (value.startsWith("\"") && value.endsWith("\"") && value.length() >= 2) {
+                    value = value.substring(1, value.length() - 1);
+                }
+                if (!key.isEmpty() && !value.isEmpty()) {
+                    into.put(key, value);
+                }
+            }
+        } catch (Exception ignored) {
+            // optional fallback source
+        }
+    }
+
+    private static String credentialUserStatus() {
+        String user = explicitCredentialsUser();
+        return user != null ? safeUser(user) : "missing";
+    }
+
+    private static String credentialPasswordStatus() {
+        return explicitCredentialsPassword() != null ? "set" : "missing";
     }
 
     private static String envStatus(String key) {
@@ -508,7 +663,7 @@ public final class JdbcCredentialLoader {
     }
 
     private static boolean isSet(String key) {
-        return getenv(key) != null || getProperty(key) != null;
+        return getenv(key) != null || getProperty(key) != null || dotEnvGet(key) != null;
     }
 
     private static String safeUser(String user) {
