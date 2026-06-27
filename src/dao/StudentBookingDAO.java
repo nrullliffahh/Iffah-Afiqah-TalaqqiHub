@@ -318,7 +318,7 @@ public class StudentBookingDAO {
                 return false;
             }
 
-            boolean sessionLinked = ensureTalaqqiSessionForBooking(conn, bookingId, bookingDate);
+            boolean sessionLinked = ensureTalaqqiSessionForBooking(conn, bookingId, scheduleId, bookingDate);
             if (!sessionLinked) {
                 conn.rollback();
                 System.err.println("bookSession: talaqqisession link failed for bookingId=" + bookingId);
@@ -423,33 +423,91 @@ public class StudentBookingDAO {
         return message.contains("Data truncated") || message.contains("Incorrect enum value");
     }
 
-    private boolean ensureTalaqqiSessionForBooking(Connection conn, String bookingId, LocalDate sessionDate)
-            throws SQLException {
+    /**
+     * Link booking to talaqqisession. Supports modern schema (bookingId column)
+     * and legacy production schema (scheduleId column only).
+     */
+    private boolean ensureTalaqqiSessionForBooking(
+        Connection conn, String bookingId, String scheduleId, LocalDate sessionDate
+    ) throws SQLException {
         try {
-            String existsSql = "SELECT sessionId FROM talaqqisession WHERE bookingId = ? LIMIT 1";
-            try (PreparedStatement existsPs = conn.prepareStatement(existsSql)) {
-                existsPs.setString(1, bookingId);
-                try (ResultSet rs = existsPs.executeQuery()) {
-                    if (rs.next()) return true;
-                }
-            }
-
-            String nextSessionId = generateNextSessionId(conn);
-            String insertSql = "INSERT INTO talaqqisession (sessionId, sessionType, sessionDate, bookingId) VALUES (?, 'Live Talaqqi', ?, ?)";
-            try (PreparedStatement insertPs = conn.prepareStatement(insertSql)) {
-                insertPs.setString(1, nextSessionId);
-                insertPs.setDate(2, java.sql.Date.valueOf(sessionDate));
-                insertPs.setString(3, bookingId);
-                return insertPs.executeUpdate() > 0;
-            }
+            return linkTalaqqiSessionByBookingId(conn, bookingId, sessionDate);
         } catch (SQLException e) {
-            String msg = e.getMessage() != null ? e.getMessage() : "";
-            if (msg.contains("doesn't exist") || msg.contains("Unknown table")) {
-                System.err.println("ensureTalaqqiSessionForBooking: talaqqisession table missing — booking saved without session link");
+            if (isTableMissing(e)) {
+                System.out.println("ensureTalaqqiSessionForBooking: talaqqisession table missing — booking proceeds");
                 return true;
             }
-            throw e;
+            if (!isUnknownColumn(e, "bookingId")) {
+                throw e;
+            }
+            System.out.println("ensureTalaqqiSessionForBooking: legacy schema (scheduleId) — bookingId column absent");
         }
+
+        if (scheduleId != null && !scheduleId.trim().isEmpty()) {
+            try {
+                return linkTalaqqiSessionByScheduleId(conn, scheduleId, sessionDate);
+            } catch (SQLException e) {
+                if (isTableMissing(e)) {
+                    System.out.println("ensureTalaqqiSessionForBooking: talaqqisession unavailable — booking proceeds");
+                    return true;
+                }
+                throw e;
+            }
+        }
+
+        System.out.println("ensureTalaqqiSessionForBooking: skipped session link — booking proceeds");
+        return true;
+    }
+
+    private boolean linkTalaqqiSessionByBookingId(Connection conn, String bookingId, LocalDate sessionDate)
+            throws SQLException {
+        String existsSql = "SELECT sessionId FROM talaqqisession WHERE bookingId = ? LIMIT 1";
+        try (PreparedStatement existsPs = conn.prepareStatement(existsSql)) {
+            existsPs.setString(1, bookingId);
+            try (ResultSet rs = existsPs.executeQuery()) {
+                if (rs.next()) {
+                    return true;
+                }
+            }
+        }
+
+        String nextSessionId = generateNextSessionId(conn);
+        String insertSql =
+            "INSERT INTO talaqqisession (sessionId, sessionType, sessionDate, bookingId) VALUES (?, 'Live Talaqqi', ?, ?)";
+        try (PreparedStatement insertPs = conn.prepareStatement(insertSql)) {
+            insertPs.setString(1, nextSessionId);
+            insertPs.setDate(2, java.sql.Date.valueOf(sessionDate));
+            insertPs.setString(3, bookingId);
+            return insertPs.executeUpdate() > 0;
+        }
+    }
+
+    private boolean linkTalaqqiSessionByScheduleId(Connection conn, String scheduleId, LocalDate sessionDate)
+            throws SQLException {
+        String existsSql = "SELECT sessionId FROM talaqqisession WHERE scheduleId = ? LIMIT 1";
+        try (PreparedStatement existsPs = conn.prepareStatement(existsSql)) {
+            existsPs.setString(1, scheduleId);
+            try (ResultSet rs = existsPs.executeQuery()) {
+                if (rs.next()) {
+                    return true;
+                }
+            }
+        }
+
+        String nextSessionId = generateNextSessionId(conn);
+        String insertSql =
+            "INSERT INTO talaqqisession (sessionId, sessionType, sessionDate, scheduleId) VALUES (?, 'Live Talaqqi', ?, ?)";
+        try (PreparedStatement insertPs = conn.prepareStatement(insertSql)) {
+            insertPs.setString(1, nextSessionId);
+            insertPs.setDate(2, java.sql.Date.valueOf(sessionDate));
+            insertPs.setString(3, scheduleId);
+            return insertPs.executeUpdate() > 0;
+        }
+    }
+
+    private static boolean isTableMissing(SQLException e) {
+        String msg = e.getMessage();
+        return msg != null && msg.contains("doesn't exist");
     }
 
     private String generateNextSessionId(Connection conn) throws SQLException {
