@@ -61,6 +61,7 @@ public class ClassBookingServlet extends HttpServlet {
                         completedBookings.add(b);
                         break;
                     case "Cancelled":
+                    case "Rescheduled":
                         cancelledBookings.add(b);
                         break;
                     default:

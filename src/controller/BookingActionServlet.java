@@ -48,24 +48,27 @@ public class BookingActionServlet extends HttpServlet {
             } else {
                 boolean success = bookingDAO.bookSession(studentId, scheduleId, bookingDate, bookingTime);
                     if (success) {
-                        // If this booking is part of a reschedule flow, cancel the old booking
                         String rescheduleBookingId = request.getParameter("rescheduleBookingId");
-                        if (rescheduleBookingId != null && !rescheduleBookingId.trim().isEmpty()) {
+                        boolean isReschedule = rescheduleBookingId != null && !rescheduleBookingId.trim().isEmpty();
+                        if (isReschedule) {
                             try {
                                 System.out.println("[BookingActionServlet] received rescheduleBookingId=" + rescheduleBookingId);
                                 boolean resOk = bookingDAO.rescheduleBooking(rescheduleBookingId, "Rescheduled to " + bookingDateStr);
                                 System.out.println("[BookingActionServlet] rescheduleBooking result=" + resOk + " for bookingId=" + rescheduleBookingId);
-                                if (!resOk) {
-                                    // Inform user/admin that marking old booking failed
-                                    session.setAttribute("errorMessage", "Booked new slot but failed to mark previous booking as rescheduled. Please contact support.");
+                                if (resOk) {
+                                    session.setAttribute("successMessage", "Class rescheduled successfully!");
+                                } else {
+                                    session.setAttribute("successMessage", "New slot booked successfully.");
+                                    session.setAttribute("errorMessage", "Could not update your previous booking. Please contact support if the old class still appears.");
                                 }
                             } catch (Exception ee) {
-                                // non-fatal if reschedule flag fails; log and set message
                                 ee.printStackTrace();
-                                session.setAttribute("errorMessage", "Booked new slot but failed to update the previous booking status.");
+                                session.setAttribute("successMessage", "New slot booked successfully.");
+                                session.setAttribute("errorMessage", "Could not update your previous booking. Please contact support if the old class still appears.");
                             }
+                        } else {
+                            session.setAttribute("successMessage", "Class booked successfully!");
                         }
-                        session.setAttribute("successMessage", "Class booked successfully!");
                     } else {
                         session.setAttribute("errorMessage", "Failed to book class. Please try again.");
                     }

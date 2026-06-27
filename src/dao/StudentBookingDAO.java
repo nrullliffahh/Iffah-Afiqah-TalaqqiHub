@@ -810,46 +810,74 @@ public class StudentBookingDAO {
      * the UI can show rescheduled classes separately.
      */
     public boolean rescheduleBooking(String bookingId, String reason) {
+        if (bookingId == null || bookingId.trim().isEmpty()) {
+            return false;
+        }
+
         Connection conn = null;
-        PreparedStatement ps1 = null;
-        PreparedStatement ps2 = null;
         String scheduleId = null;
 
         try {
             conn = DBConnection.getConnection();
+            if (conn == null) {
+                return false;
+            }
             conn.setAutoCommit(false);
 
-            // find scheduleId for this booking so we can update schedule status
             try (PreparedStatement ps0 = conn.prepareStatement("SELECT scheduleId FROM classbooking WHERE bookingId = ?")) {
                 ps0.setString(1, bookingId);
                 try (ResultSet rs0 = ps0.executeQuery()) {
-                    if (rs0.next()) scheduleId = rs0.getString(1);
+                    if (rs0.next()) {
+                        scheduleId = rs0.getString(1);
+                    }
                 }
-            } catch (SQLException ignore) { ignore.printStackTrace(); }
+            }
 
-            String updateSql = "UPDATE classbooking SET bookingStatus = 'Rescheduled' WHERE bookingId = ?";
-            ps1 = conn.prepareStatement(updateSql);
-            System.out.println("[StudentBookingDAO] Executing reschedule update SQL: " + updateSql + " with bookingId=" + bookingId);
-            ps1.setString(1, bookingId);
-            int rowsUpdated = ps1.executeUpdate();
-            System.out.println("[StudentBookingDAO] reschedule update rowsUpdated=" + rowsUpdated + " for bookingId=" + bookingId);
+            int rowsUpdated = 0;
+            String[] statusCandidates = {"Rescheduled", "Cancelled"};
+            SQLException lastEnumError = null;
+            for (String status : statusCandidates) {
+                try (PreparedStatement ps = conn.prepareStatement(
+                        "UPDATE classbooking SET bookingStatus = ? WHERE bookingId = ?")) {
+                    ps.setString(1, status);
+                    ps.setString(2, bookingId);
+                    rowsUpdated = ps.executeUpdate();
+                    if (rowsUpdated > 0) {
+                        System.out.println("[StudentBookingDAO] rescheduleBooking applied status=" + status
+                            + " bookingId=" + bookingId);
+                        break;
+                    }
+                } catch (SQLException e) {
+                    if (isInvalidEnumValue(e)) {
+                        lastEnumError = e;
+                        continue;
+                    }
+                    throw e;
+                }
+            }
+            if (rowsUpdated == 0 && lastEnumError != null) {
+                throw lastEnumError;
+            }
 
             if (rowsUpdated > 0) {
-                // Insert or update reschedule reason into `studentcancellation` table
-                String insertSql = "INSERT INTO studentcancellation (bookingId, cancellationReason, cancelledAt, cancelledBy) " +
-                                   "SELECT bookingId, ?, NOW(), 'student' FROM classbooking WHERE bookingId = ? " +
-                                   "ON DUPLICATE KEY UPDATE cancellationReason = VALUES(cancellationReason), cancelledAt = NOW(), cancelledBy = 'student'";
-                ps2 = conn.prepareStatement(insertSql);
-                System.out.println("[StudentBookingDAO] Executing upsert cancellation reason SQL for bookingId=" + bookingId);
-                ps2.setString(1, reason);
-                ps2.setString(2, bookingId);
-                ps2.executeUpdate();
+                recordRescheduleReason(conn, bookingId, reason);
+                try (PreparedStatement psDel = conn.prepareStatement(
+                        "DELETE FROM talaqqisession WHERE bookingId = ?")) {
+                    psDel.setString(1, bookingId);
+                    psDel.executeUpdate();
+                } catch (SQLException ignore) {
+                    ignore.printStackTrace();
+                }
             }
 
             conn.commit();
-            // restore teacher slot as available for booking
+
             if (rowsUpdated > 0 && scheduleId != null) {
-                try { new ClassScheduleDAO().updateClassStatus(scheduleId, "Scheduled"); } catch (Exception ignore) { ignore.printStackTrace(); }
+                try {
+                    new ClassScheduleDAO().updateClassStatus(scheduleId, "Scheduled");
+                } catch (Exception ignore) {
+                    ignore.printStackTrace();
+                }
             }
             return rowsUpdated > 0;
 
@@ -861,18 +889,42 @@ public class StudentBookingDAO {
                     ex.printStackTrace();
                 }
             }
+            System.err.println("[StudentBookingDAO] rescheduleBooking failed: " + e.getMessage());
             e.printStackTrace();
             return false;
         } finally {
-            try {
-                if (ps1 != null) ps1.close();
-                if (ps2 != null) ps2.close();
-                if (conn != null) {
+            if (conn != null) {
+                try {
                     conn.setAutoCommit(true);
                     conn.close();
+                } catch (SQLException e) {
+                    e.printStackTrace();
                 }
+            }
+        }
+    }
+
+    private void recordRescheduleReason(Connection conn, String bookingId, String reason) {
+        String safeReason = reason != null ? reason : "Rescheduled by student";
+        String[] insertVariants = {
+            "INSERT INTO studentcancellation (bookingId, cancellationReason, cancelledAt, cancelledBy) "
+                + "VALUES (?, ?, NOW(), 'student') "
+                + "ON DUPLICATE KEY UPDATE cancellationReason = VALUES(cancellationReason), "
+                + "cancelledAt = NOW(), cancelledBy = 'student'",
+            "INSERT INTO studentcancellation (bookingId, cancellationReason) VALUES (?, ?) "
+                + "ON DUPLICATE KEY UPDATE cancellationReason = VALUES(cancellationReason)"
+        };
+        for (String sql : insertVariants) {
+            try (PreparedStatement ps = conn.prepareStatement(sql)) {
+                ps.setString(1, bookingId);
+                ps.setString(2, safeReason);
+                ps.executeUpdate();
+                return;
             } catch (SQLException e) {
-                e.printStackTrace();
+                if (!isSchemaMismatch(e)) {
+                    System.err.println("[StudentBookingDAO] recordRescheduleReason: " + e.getMessage());
+                    return;
+                }
             }
         }
     }
