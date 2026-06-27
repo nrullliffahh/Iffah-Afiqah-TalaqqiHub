@@ -48,10 +48,9 @@ public class ClassBookingServlet extends HttpServlet {
             }
         }
 
-        // Partition: Upcoming, Completed, Rescheduled, Cancelled
+        // Partition bookings: Upcoming, Completed, then Cancelled/Rescheduled
         java.util.List<StudentBooking> upcomingBookings = new java.util.ArrayList<>();
         java.util.List<StudentBooking> completedBookings = new java.util.ArrayList<>();
-        java.util.List<StudentBooking> rescheduledBookings = new java.util.ArrayList<>();
         java.util.List<StudentBooking> cancelledBookings = new java.util.ArrayList<>();
         if (myBookings != null) {
             for (StudentBooking b : myBookings) {
@@ -59,18 +58,21 @@ public class ClassBookingServlet extends HttpServlet {
                 if (status == null) {
                     status = "";
                 }
-                if (b.isRescheduled()) {
-                    rescheduledBookings.add(b);
-                } else if ("Cancelled".equalsIgnoreCase(status)) {
-                    cancelledBookings.add(b);
-                } else if ("Completed".equalsIgnoreCase(status)) {
-                    if (b.isFutureSession()) {
-                        rescheduledBookings.add(b);
-                    } else {
-                        completedBookings.add(b);
-                    }
-                } else {
-                    upcomingBookings.add(b);
+                switch (status) {
+                    case "Completed":
+                        if (b.isFutureSession()) {
+                            upcomingBookings.add(b);
+                        } else {
+                            completedBookings.add(b);
+                        }
+                        break;
+                    case "Cancelled":
+                    case "Rescheduled":
+                        cancelledBookings.add(b);
+                        break;
+                    default:
+                        upcomingBookings.add(b);
+                        break;
                 }
             }
         }
@@ -91,7 +93,6 @@ public class ClassBookingServlet extends HttpServlet {
         request.setAttribute("myBookings", myBookings);
         request.setAttribute("upcomingBookings", upcomingBookings);
         request.setAttribute("completedBookings", completedBookings);
-        request.setAttribute("rescheduledBookings", rescheduledBookings);
         request.setAttribute("cancelledBookings", cancelledBookings);
         request.setAttribute("availableSchedules", availableSchedules);
         request.setAttribute("selectedDate", selectedDate);

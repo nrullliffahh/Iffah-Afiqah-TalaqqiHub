@@ -53,7 +53,6 @@ public class BookingActionServlet extends HttpServlet {
                     if (isReschedule) {
                         try {
                             System.out.println("[BookingActionServlet] received rescheduleBookingId=" + rescheduleBookingId);
-                            bookingDAO.recordNewRescheduleSlot(newBookingId, rescheduleBookingId);
                             boolean resOk = bookingDAO.rescheduleBooking(rescheduleBookingId, "Rescheduled to " + bookingDateStr);
                             System.out.println("[BookingActionServlet] rescheduleBooking result=" + resOk + " for bookingId=" + rescheduleBookingId);
                             if (resOk) {

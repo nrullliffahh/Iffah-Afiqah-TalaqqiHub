@@ -158,31 +158,15 @@ public class StudentBooking {
         return bookingTime.isAfter(java.time.LocalTime.now());
     }
 
+    /** Old booking marked rescheduled after student picks a new slot. */
     public boolean isRescheduled() {
         if (bookingStatus != null && "Rescheduled".equalsIgnoreCase(bookingStatus.trim())) {
             return true;
         }
-        if (cancellationReason == null) {
+        if (cancellationReason == null || bookingStatus == null) {
             return false;
         }
-        return cancellationReason.toLowerCase().contains("rescheduled");
-    }
-
-    /** Completed session the student did not attend (or attendance was never recorded). */
-    public boolean isNotCompleted() {
-        if (bookingStatus == null || !"Completed".equalsIgnoreCase(bookingStatus.trim())) {
-            return false;
-        }
-        if (isFutureSession()) {
-            return false;
-        }
-        if (isAbsent()) {
-            return true;
-        }
-        if (attendanceStatus == null || attendanceStatus.trim().isEmpty()) {
-            return true;
-        }
-        String att = attendanceStatus.trim();
-        return !"Present".equalsIgnoreCase(att) && !"Late".equalsIgnoreCase(att);
+        return "Cancelled".equalsIgnoreCase(bookingStatus.trim())
+            && cancellationReason.toLowerCase().contains("rescheduled to");
     }
 }
