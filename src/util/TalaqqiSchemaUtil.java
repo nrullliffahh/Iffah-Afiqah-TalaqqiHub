@@ -428,10 +428,16 @@ public final class TalaqqiSchemaUtil {
         if (!hasQuranDisplayTable(conn)) {
             return "";
         }
-        if (quranDisplayHasSessionId(conn)) {
+        boolean bySession = quranDisplayHasSessionId(conn);
+        boolean bySchedule = quranDisplayHasScheduleId(conn);
+        if (bySession && bySchedule) {
+            return "LEFT JOIN qurandisplay qd ON ("
+                + tsAlias + ".sessionId = qd.sessionId OR cs.scheduleId = qd.scheduleId) ";
+        }
+        if (bySession) {
             return "LEFT JOIN qurandisplay qd ON " + tsAlias + ".sessionId = qd.sessionId ";
         }
-        if (quranDisplayHasScheduleId(conn)) {
+        if (bySchedule) {
             return "LEFT JOIN qurandisplay qd ON cs.scheduleId = qd.scheduleId ";
         }
         return "";

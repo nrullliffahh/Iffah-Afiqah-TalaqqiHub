@@ -99,6 +99,20 @@ public class StudentTalaqqiSessionServlet extends HttpServlet {
             int ayahNumber = session.getCurrentAyahNumber();
             int ayahEnd = session.getCurrentAyahEnd();
 
+            TalaqqiSessionDAO.LiveQuranRef liveRef =
+                talaqqiSessionDAO.getLiveQuranReference(session.getSessionId());
+            if (liveRef != null) {
+                surahNumber = liveRef.surah;
+                ayahNumber = liveRef.ayah;
+                ayahEnd = liveRef.ayahEnd;
+                session.setCurrentSurahNumber(surahNumber);
+                session.setCurrentAyahNumber(ayahNumber);
+                session.setCurrentAyahEnd(ayahEnd);
+                if (liveRef.juzuk > 0) {
+                    session.setCurrentJuzukNumber(liveRef.juzuk);
+                }
+            }
+
             int verseCount;
             if (ayahEnd > ayahNumber) {
                 verseCount = ayahEnd - ayahNumber + 1;

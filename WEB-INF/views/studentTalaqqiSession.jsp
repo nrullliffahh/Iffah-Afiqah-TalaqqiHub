@@ -375,6 +375,11 @@
 
     // Initialize
     document.addEventListener('DOMContentLoaded', () => {
+        const jitsiContainerEl = document.getElementById('jitsiContainer');
+        STUDENT_SESSION_ID = '<c:out value="${not empty talaqqiSession ? talaqqiSession.sessionId : ''}" />'
+            || (jitsiContainerEl ? jitsiContainerEl.getAttribute('data-session-id') : '')
+            || '';
+
         setupEventListeners();
         
         // Load initial surah info and update display
@@ -584,16 +589,14 @@
     // ── Poll for Quran reference updates (teacher-to-student sync) ─────────
 
     // Track current Quran reference to detect changes
-    const jitsiContainerEl = document.getElementById('jitsiContainer');
-    const STUDENT_SESSION_ID = '<c:out value="${not empty talaqqiSession ? talaqqiSession.sessionId : ''}" />'
-        || (jitsiContainerEl ? jitsiContainerEl.getAttribute('data-session-id') : '')
-        || '';
     let currentQuranState = {
         surah: parseInt(new URLSearchParams(window.location.search).get('surah') || '<c:out value="${not empty talaqqiSession ? talaqqiSession.currentSurahNumber : ''}" />') || 2,
         ayah:  parseInt(new URLSearchParams(window.location.search).get('ayah') || '<c:out value="${not empty talaqqiSession ? talaqqiSession.currentAyahNumber : ''}" />') || 1,
         ayahEnd: parseInt(new URLSearchParams(window.location.search).get('ayahEnd') || '<c:out value="${not empty talaqqiSession ? talaqqiSession.currentAyahEnd : ''}" />') || 0,
         juzuk: parseInt('<c:out value="${not empty talaqqiSession ? talaqqiSession.currentJuzukNumber : ''}" />') || 1
     };
+    let STUDENT_SESSION_ID = '';
+    let quranPollSyncedOnce = false;
 
     const POLL_INTERVAL_MS = 3000; // Check every 3 seconds
     let pollTimerId = null;
@@ -703,9 +706,13 @@
             if (newSurah !== prevSurah ||
                 newAyah !== prevAyah ||
                 newAyahEnd !== prevAyahEnd ||
-                newJuzuk !== prevJuzuk) {
+                newJuzuk !== prevJuzuk ||
+                !quranPollSyncedOnce) {
 
-                console.log('[Quran Update] Surah ' + newSurah + ':' + newAyah + ' (was ' + prevSurah + ':' + prevAyah + ')');
+                quranPollSyncedOnce = true;
+                console.log('[Quran Update] Surah ' + newSurah + ':' + newAyah
+                    + (newAyahEnd > newAyah ? ('-' + newAyahEnd) : '')
+                    + ' (was ' + prevSurah + ':' + prevAyah + ')');
 
                 currentQuranState = { surah: newSurah, ayah: newAyah, ayahEnd: newAyahEnd, juzuk: newJuzuk };
 
