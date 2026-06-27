@@ -328,16 +328,16 @@ public class ClassScheduleServlet extends HttpServlet {
     }
 
     private List<Map<String, Object>> getCompletedClasses(String teacherId) {
-        // Use classbooking table (not booking)
+        // Completed = booking marked Completed when teacher ends Talaqqi session (same-day included)
         String sqlWithBooking = "SELECT cs.*, " +
                        "s.studentName AS bookedStudentName, s.studentId AS bookedStudentId, " +
                        "s2.studentName AS assignedStudentName, s2.studentId AS assignedStudentId, " +
                        "cb.bookingStatus, cb.bookingId " +
                        "FROM classschedule cs " +
-                       "LEFT JOIN classbooking cb ON cs.scheduleId = cb.scheduleId " +
+                       "INNER JOIN classbooking cb ON cs.scheduleId = cb.scheduleId AND cb.bookingStatus = 'Completed' " +
                        "LEFT JOIN student s ON cb.studentId = s.studentId " +
                        "LEFT JOIN student s2 ON cs.studentId = s2.studentId " +
-                       "WHERE cs.teacherId=? AND (cb.bookingStatus='Completed' OR cs.classStatus='Completed') AND cs.scheduleDate < CURDATE() " +
+                       "WHERE cs.teacherId=? " +
                        "ORDER BY cs.scheduleDate DESC, cs.startTime DESC";
         
         // Fallback: show past scheduled classes as completed (if classbooking table doesn't exist)

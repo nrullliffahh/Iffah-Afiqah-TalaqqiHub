@@ -820,7 +820,6 @@
             startTime: '${fn:substring(classItem.startTime, 0, 5)}',
             endTime: '${fn:substring(classItem.endTime, 0, 5)}'
         });
-        console.log('  Completed: ${classItem.studentName} on ${classItem.scheduleDate}');
         </c:forEach>
         </c:if>
         
@@ -841,19 +840,34 @@
         </c:if>
         
         console.log('Total completed:', completedClassesData.length, 'Total cancelled:', cancelledClassesData.length);
+
+        function parseScheduleMonthParts(dateStr) {
+            if (!dateStr) return null;
+            const iso = String(dateStr).substring(0, 10);
+            const parts = iso.split('-');
+            if (parts.length === 3) {
+                const year = parseInt(parts[0], 10);
+                const month = parseInt(parts[1], 10) - 1;
+                if (!isNaN(year) && !isNaN(month)) {
+                    return { year: year, month: month };
+                }
+            }
+            const d = new Date(dateStr);
+            return isNaN(d.getTime()) ? null : { year: d.getFullYear(), month: d.getMonth() };
+        }
         
         // Filter classes by the currently displayed month
         function getCompletedClassesForMonth(year, month) {
             return completedClassesData.filter(classItem => {
-                const classDate = new Date(classItem.scheduleDate);
-                return classDate.getFullYear() === year && classDate.getMonth() === month;
+                const p = parseScheduleMonthParts(classItem.scheduleDate);
+                return p && p.year === year && p.month === month;
             });
         }
         
         function getCancelledClassesForMonth(year, month) {
             return cancelledClassesData.filter(classItem => {
-                const classDate = new Date(classItem.scheduleDate);
-                return classDate.getFullYear() === year && classDate.getMonth() === month;
+                const p = parseScheduleMonthParts(classItem.scheduleDate);
+                return p && p.year === year && p.month === month;
             });
         }
         
