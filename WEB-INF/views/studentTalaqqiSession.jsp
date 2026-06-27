@@ -146,7 +146,7 @@
         <select class="ml-auto border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-teal-400"
                 onchange="if(this.value){location.href='${contextPath}/student/sessions?sessionId='+this.value;}">
             <c:forEach var="s" items="${upcomingSessions}">
-                <option value="${s.sessionId}" ${s.sessionId == session.sessionId ? 'selected' : ''}>
+                <option value="${s.sessionId}" ${s.sessionId == talaqqiSession.sessionId ? 'selected' : ''}>
                     ${s.teacherName} | ${s.sessionDate} | ${s.sessionStartTime} - ${s.sessionEndTime}
                 </option>
             </c:forEach>
@@ -158,33 +158,33 @@
     <div class="session-body">
 
         <c:choose>
-            <c:when test="${not empty session}">
+            <c:when test="${not empty talaqqiSession}">
                 <!-- Session Card -->
                 <div class="bg-white rounded-lg p-6 md:p-8 shadow-md border border-gray-100 mb-6">
                     <div class="flex items-start justify-between mb-4">
                         <div class="flex-1">
-                            <h3 class="text-2xl md:text-3xl font-bold text-gray-900 mb-2">${session.className}</h3>
+                            <h3 class="text-2xl md:text-3xl font-bold text-gray-900 mb-2">${talaqqiSession.className}</h3>
                             <div class="flex flex-wrap items-center gap-4 md:gap-6 text-gray-600 text-sm">
                                 <span class="inline-flex items-center gap-2">
                                     <i class="far fa-calendar text-teal-600"></i>
-                                    ${session.sessionDate}
+                                    ${talaqqiSession.sessionDate}
                                 </span>
                                 <span class="inline-flex items-center gap-2">
                                     <i class="far fa-clock text-teal-600"></i>
-                                    ${session.sessionStartTime} - ${session.sessionEndTime}
+                                    ${talaqqiSession.sessionStartTime} - ${talaqqiSession.sessionEndTime}
                                 </span>
                                 <span class="inline-flex items-center gap-2">
                                     <i class="fas fa-bolt text-teal-600"></i>
-                                    ${session.duration} minutes
+                                    ${talaqqiSession.duration} minutes
                                 </span>
                             </div>
                         </div>
                         <div class="text-right">
                             <p class="text-xs text-gray-500 uppercase tracking-wide mb-1">Teacher</p>
                             <div class="flex items-center gap-3 justify-end">
-                                <p class="text-sm font-bold text-gray-900">${session.teacherName}</p>
+                                <p class="text-sm font-bold text-gray-900">${talaqqiSession.teacherName}</p>
                                 <div class="w-12 h-12 rounded-full bg-gradient-to-br from-teal-400 to-green-500 text-white grid place-items-center font-bold text-sm">
-                                    ${session.teacherInitials}
+                                    ${talaqqiSession.teacherInitials}
                                 </div>
                             </div>
                         </div>
@@ -202,17 +202,17 @@
                     <div class="xl:col-span-2 space-y-3">
                         <div class="video-shell relative">
                             <div id="jitsiContainer" class="hidden absolute inset-0 w-full h-full"
-                                 data-room-name="${session.roomName}"
+                                 data-room-name="${talaqqiSession.roomName}"
                                  data-jitsi-domain="<%= JitsiConfig.getDomain() %>"
-                                 data-session-id="${session.sessionId}"
-                                 data-teacher-id="${session.teacherId}"></div>
+                                 data-session-id="${talaqqiSession.sessionId}"
+                                 data-teacher-id="${talaqqiSession.teacherId}"></div>
                             <div id="sessionNotStarted" class="absolute inset-0 z-10 bg-white w-full h-full grid place-items-center text-center p-8">
                                 <div>
                                     <div class="w-20 h-20 rounded-3xl bg-gradient-to-br from-teal-400 to-green-500 text-white grid place-items-center text-4xl mx-auto">
                                         <i class="fas fa-video"></i>
                                     </div>
                                     <h3 class="text-2xl md:text-3xl font-bold text-gray-900 mt-4 mb-2">Session Not Started</h3>
-                                    <p class="text-sm text-gray-600 max-w-md mx-auto">Click the "Join Live Session" button above to start your Talaqqi session with ${session.teacherName}.</p>
+                                    <p class="text-sm text-gray-600 max-w-md mx-auto">Click the "Join Live Session" button above to start your Talaqqi session with ${talaqqiSession.teacherName}.</p>
                                 </div>
                             </div>
                         </div>
@@ -232,15 +232,25 @@
                                 <div class="grid grid-cols-3 gap-3">
                                     <div>
                                         <p class="text-xs text-gray-600 font-medium mb-1">Juz</p>
-                                        <p id="currentJuzDisplay" class="text-lg font-bold text-teal-600"><c:out value="${not empty session && session.currentJuzukNumber > 0 ? session.currentJuzukNumber : 1}" /></p>
+                                        <p id="currentJuzDisplay" class="text-lg font-bold text-teal-600"><c:out value="${not empty talaqqiSession && talaqqiSession.currentJuzukNumber > 0 ? talaqqiSession.currentJuzukNumber : 1}" /></p>
                                     </div>
                                     <div>
                                         <p class="text-xs text-gray-600 font-medium mb-1">Surah</p>
-                                        <p id="currentSurahDisplay" class="text-lg font-bold text-teal-600"><c:out value="${not empty session ? session.currentSurahNumber : 2}" /></p>
+                                        <p id="currentSurahDisplay" class="text-lg font-bold text-teal-600"><c:out value="${not empty talaqqiSession ? talaqqiSession.currentSurahNumber : 2}" /></p>
                                     </div>
                                     <div>
                                         <p class="text-xs text-gray-600 font-medium mb-1">Ayah</p>
-                                        <p id="currentAyahDisplay" class="text-lg font-bold text-teal-600"><c:out value="${not empty session ? session.currentAyahNumber : 1}" /></p>
+                                        <p id="currentAyahDisplay" class="text-lg font-bold text-teal-600">
+                                            <c:choose>
+                                                <c:when test="${not empty talaqqiSession && talaqqiSession.currentAyahEnd > talaqqiSession.currentAyahNumber}">
+                                                    <c:out value="${talaqqiSession.currentAyahNumber}-${talaqqiSession.currentAyahEnd}" />
+                                                </c:when>
+                                                <c:when test="${not empty talaqqiSession}">
+                                                    <c:out value="${talaqqiSession.currentAyahNumber}" />
+                                                </c:when>
+                                                <c:otherwise>1</c:otherwise>
+                                            </c:choose>
+                                        </p>
                                     </div>
                                 </div>
                             </div>
@@ -574,12 +584,12 @@
     // ── Poll for Quran reference updates (teacher-to-student sync) ─────────
 
     // Track current Quran reference to detect changes
-    const STUDENT_SESSION_ID = '<c:out value="${not empty session ? session.sessionId : ''}" />';
+    const STUDENT_SESSION_ID = '<c:out value="${not empty talaqqiSession ? talaqqiSession.sessionId : ''}" />';
     let currentQuranState = {
-        surah: parseInt(new URLSearchParams(window.location.search).get('surah') || '<c:out value="${not empty session ? session.currentSurahNumber : ''}" />') || 2,
-        ayah:  parseInt(new URLSearchParams(window.location.search).get('ayah') || '<c:out value="${not empty session ? session.currentAyahNumber : ''}" />') || 1,
-        ayahEnd: parseInt(new URLSearchParams(window.location.search).get('ayahEnd') || '<c:out value="${not empty session ? session.currentAyahEnd : ''}" />') || 0,
-        juzuk: parseInt('<c:out value="${not empty session ? session.currentJuzukNumber : ''}" />') || 1
+        surah: parseInt(new URLSearchParams(window.location.search).get('surah') || '<c:out value="${not empty talaqqiSession ? talaqqiSession.currentSurahNumber : ''}" />') || 2,
+        ayah:  parseInt(new URLSearchParams(window.location.search).get('ayah') || '<c:out value="${not empty talaqqiSession ? talaqqiSession.currentAyahNumber : ''}" />') || 1,
+        ayahEnd: parseInt(new URLSearchParams(window.location.search).get('ayahEnd') || '<c:out value="${not empty talaqqiSession ? talaqqiSession.currentAyahEnd : ''}" />') || 0,
+        juzuk: parseInt('<c:out value="${not empty talaqqiSession ? talaqqiSession.currentJuzukNumber : ''}" />') || 1
     };
 
     const POLL_INTERVAL_MS = 3000; // Check every 3 seconds
@@ -709,7 +719,7 @@
     }
 
     function startPollingQuranUpdates() {
-        <c:if test="${not empty session}">
+        <c:if test="${not empty talaqqiSession}">
         pollQuranOnce();
         pollTimerId = setInterval(pollQuranOnce, POLL_INTERVAL_MS);
         </c:if>

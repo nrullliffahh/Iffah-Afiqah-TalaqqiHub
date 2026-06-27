@@ -120,7 +120,8 @@ public class StudentTalaqqiSessionServlet extends HttpServlet {
         }
 
         // ── Set request attributes for JSP ───────────────────────────────────
-        request.setAttribute("session", session);
+        // "talaqqiSession" — not "session" (JSP EL reserves ${session} for HttpSession)
+        request.setAttribute("talaqqiSession", session);
         request.setAttribute("upcomingSessions", upcomingSessions);
         request.setAttribute("verses", verses);
         request.setAttribute("studentId", studentId);
