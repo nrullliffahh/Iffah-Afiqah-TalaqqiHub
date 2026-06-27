@@ -453,8 +453,6 @@ public class StudentDAO {
                     pstmt = null;
                 }
             }
-        } catch (SQLException e) {
-            System.err.println("getPackageNameById: " + e.getMessage());
         } finally {
             try { if (rs != null) rs.close(); } catch (SQLException ignored) {}
             try { if (pstmt != null) pstmt.close(); } catch (SQLException ignored) {}
