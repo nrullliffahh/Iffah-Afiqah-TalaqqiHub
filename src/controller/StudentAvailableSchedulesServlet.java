@@ -106,6 +106,12 @@ public class StudentAvailableSchedulesServlet extends HttpServlet {
                 sb.append("\"bookingStudentId\":\"").append(escapeJson(String.valueOf(s.get("bookingStudentId")))).append("\"");
                 sb.append(',');
                 sb.append("\"bookingStatus\":\"").append(escapeJson(String.valueOf(s.get("bookingStatus")))).append("\"");
+                sb.append(',');
+                Object lockedObj = s.get("locked");
+                boolean lockedFlag = lockedObj instanceof Boolean && (Boolean) lockedObj;
+                sb.append("\"locked\":").append(lockedFlag);
+                sb.append(',');
+                sb.append("\"classStatus\":\"").append(escapeJson(String.valueOf(s.get("classStatus")))).append("\"");
                 sb.append('}');
             }
             sb.append(']');

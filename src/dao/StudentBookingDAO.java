@@ -291,20 +291,20 @@ public class StudentBookingDAO {
      */
     public List<Map<String, Object>> getSchedulesWithBookingInfoByDate(LocalDate date) {
         String sqlWithCancellation =
-            "SELECT cs.scheduleId, cs.startTime, cs.endTime, cs.duration, cs.teacherId, t.teacherName, "
+            "SELECT cs.scheduleId, cs.startTime, cs.endTime, cs.duration, cs.teacherId, cs.classStatus, t.teacherName, "
                 + "cb.bookingId, cb.studentId AS bookingStudentId, cb.bookingStatus, sc.cancellationReason AS cancellationReason "
                 + "FROM classschedule cs "
                 + "LEFT JOIN teacher t ON cs.teacherId = t.teacherId "
-                + "LEFT JOIN classbooking cb ON cs.scheduleId = cb.scheduleId AND cb.bookingStatus != 'Cancelled' "
+                + "LEFT JOIN classbooking cb ON cs.scheduleId = cb.scheduleId AND cb.bookingStatus NOT IN ('Cancelled', 'Rescheduled') "
                 + "LEFT JOIN studentcancellation sc ON cb.bookingId = sc.bookingId "
                 + "WHERE cs.scheduleDate = ? "
                 + "ORDER BY cs.startTime ASC";
         String sqlWithoutCancellation =
-            "SELECT cs.scheduleId, cs.startTime, cs.endTime, cs.duration, cs.teacherId, t.teacherName, "
+            "SELECT cs.scheduleId, cs.startTime, cs.endTime, cs.duration, cs.teacherId, cs.classStatus, t.teacherName, "
                 + "cb.bookingId, cb.studentId AS bookingStudentId, cb.bookingStatus, NULL AS cancellationReason "
                 + "FROM classschedule cs "
                 + "LEFT JOIN teacher t ON cs.teacherId = t.teacherId "
-                + "LEFT JOIN classbooking cb ON cs.scheduleId = cb.scheduleId AND cb.bookingStatus != 'Cancelled' "
+                + "LEFT JOIN classbooking cb ON cs.scheduleId = cb.scheduleId AND cb.bookingStatus NOT IN ('Cancelled', 'Rescheduled') "
                 + "WHERE cs.scheduleDate = ? "
                 + "ORDER BY cs.startTime ASC";
 
@@ -339,7 +339,11 @@ public class StudentBookingDAO {
                     m.put("bookingId", bookingId);
                     m.put("bookingStudentId", rs.getString("bookingStudentId"));
                     m.put("bookingStatus", rs.getString("bookingStatus"));
-                    m.put("booked", bookingId != null);
+                    String classStatus = rs.getString("classStatus");
+                    m.put("classStatus", classStatus != null ? classStatus : "");
+                    boolean locked = classStatus != null && "Cancelled".equalsIgnoreCase(classStatus.trim());
+                    m.put("locked", locked);
+                    m.put("booked", bookingId != null || locked);
                     m.put("cancellationReason", rs.getString("cancellationReason"));
                     list.add(m);
                 }

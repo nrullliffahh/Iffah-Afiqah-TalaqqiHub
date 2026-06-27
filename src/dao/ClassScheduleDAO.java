@@ -452,14 +452,14 @@ public class ClassScheduleDAO {
                     ignore.printStackTrace();
                 }
 
-                String unlockSql = "UPDATE classschedule SET classStatus = 'Scheduled' WHERE scheduleId = ? AND teacherId = ?";
-                try (PreparedStatement unlockStmt = conn.prepareStatement(unlockSql)) {
-                    unlockStmt.setString(1, scheduleId);
-                    unlockStmt.setString(2, teacherId);
-                    unlockStmt.executeUpdate();
+                String lockSql = "UPDATE classschedule SET classStatus = 'Cancelled' WHERE scheduleId = ? AND teacherId = ?";
+                try (PreparedStatement lockStmt = conn.prepareStatement(lockSql)) {
+                    lockStmt.setString(1, scheduleId);
+                    lockStmt.setString(2, teacherId);
+                    lockStmt.executeUpdate();
                 }
 
-                System.out.println("Booking cancelled successfully; slot unlocked for rebooking");
+                System.out.println("Booking cancelled successfully; slot locked");
                 
             } else {
                 // Slot is not booked - delete it from classschedule

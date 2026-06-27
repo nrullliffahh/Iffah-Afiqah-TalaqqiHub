@@ -734,6 +734,19 @@
                                     const displayStart = formatTo12Hour(s.startTime);
                                     const displayEnd = formatTo12Hour(endTime);
 
+                                    // Teacher-cancelled / locked slots: grey, not bookable by anyone
+                                    if (s.locked || (s.classStatus && String(s.classStatus).toLowerCase() === 'cancelled')) {
+                                        return '<div class="flex items-center justify-between p-4 rounded-lg bg-gray-100 text-gray-600 opacity-90" title="This slot is no longer available" style="pointer-events:none;cursor:not-allowed;">'
+                                            + '<div>'
+                                                + '<p class="font-semibold opacity-80">' + displayStart + ' - ' + displayEnd + ' <span class="text-sm opacity-80">(' + s.duration + ' min)</span></p>'
+                                                + '<p class="text-xs opacity-80">' + (s.teacherName || '') + '</p>'
+                                            + '</div>'
+                                            + '<div>'
+                                                + '<span class="px-4 py-2 bg-gray-400 text-white rounded-lg text-sm font-medium">Unavailable</span>'
+                                            + '</div>'
+                                        + '</div>';
+                                    }
+
                                     // If server indicates this slot is booked, render accordingly
                                     if (s.booked) {
                                         // If booked by current student, show View Details
@@ -803,6 +816,8 @@
                                             duration: s.duration || 15,
                                             teacherName: s.teacherName || '',
                                             booked: s.booked === true || s.booked === 'true' || s.booked === '1',
+                                            locked: s.locked === true || s.locked === 'true' || s.locked === '1',
+                                            classStatus: s.classStatus || '',
                                             bookingId: s.bookingId || null,
                                             bookingStudentId: s.bookingStudentId || null,
                                             bookingStatus: s.bookingStatus || null
