@@ -5,6 +5,7 @@ import model.ClassSchedule;
 import util.BookingStatus;
 import util.DBConnection;
 import util.TalaqqiSchemaUtil;
+import util.TalaqqiSchemaUtil;
 import java.sql.Connection;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
@@ -516,7 +517,7 @@ public class StudentBookingDAO {
     private boolean linkTalaqqiSessionByBookingId(Connection conn, String bookingId, LocalDate sessionDate)
             throws SQLException {
         String existsSql = "SELECT sessionId FROM talaqqisession WHERE bookingId = ? LIMIT 1";
-        try (PreparedStatement existsPs = conn.prepareStatement(existsSql)) {
+        try (PreparedStatement existsPs = conn.prepareStatement(TalaqqiSchemaUtil.sql(existsSql, conn))) {
             existsPs.setString(1, bookingId);
             try (ResultSet rs = existsPs.executeQuery()) {
                 if (rs.next()) {
@@ -528,7 +529,7 @@ public class StudentBookingDAO {
         String nextSessionId = generateNextSessionId(conn);
         String insertSql =
             "INSERT INTO talaqqisession (sessionId, sessionType, sessionDate, bookingId) VALUES (?, 'Live Talaqqi', ?, ?)";
-        try (PreparedStatement insertPs = conn.prepareStatement(insertSql)) {
+        try (PreparedStatement insertPs = conn.prepareStatement(TalaqqiSchemaUtil.sql(insertSql, conn))) {
             insertPs.setString(1, nextSessionId);
             insertPs.setDate(2, java.sql.Date.valueOf(sessionDate));
             insertPs.setString(3, bookingId);
@@ -539,7 +540,7 @@ public class StudentBookingDAO {
     private boolean linkTalaqqiSessionByScheduleId(Connection conn, String scheduleId, LocalDate sessionDate)
             throws SQLException {
         String existsSql = "SELECT sessionId FROM talaqqisession WHERE scheduleId = ? LIMIT 1";
-        try (PreparedStatement existsPs = conn.prepareStatement(existsSql)) {
+        try (PreparedStatement existsPs = conn.prepareStatement(TalaqqiSchemaUtil.sql(existsSql, conn))) {
             existsPs.setString(1, scheduleId);
             try (ResultSet rs = existsPs.executeQuery()) {
                 if (rs.next()) {
@@ -551,7 +552,7 @@ public class StudentBookingDAO {
         String nextSessionId = generateNextSessionId(conn);
         String insertSql =
             "INSERT INTO talaqqisession (sessionId, sessionType, sessionDate, scheduleId) VALUES (?, 'Live Talaqqi', ?, ?)";
-        try (PreparedStatement insertPs = conn.prepareStatement(insertSql)) {
+        try (PreparedStatement insertPs = conn.prepareStatement(TalaqqiSchemaUtil.sql(insertSql, conn))) {
             insertPs.setString(1, nextSessionId);
             insertPs.setDate(2, java.sql.Date.valueOf(sessionDate));
             insertPs.setString(3, scheduleId);
@@ -560,8 +561,12 @@ public class StudentBookingDAO {
     }
 
     private static boolean isTableMissing(SQLException e) {
+        if (TalaqqiSchemaUtil.isTableMissing(e)) {
+            return true;
+        }
         String msg = e.getMessage();
-        return msg != null && msg.contains("doesn't exist");
+        return msg != null && (msg.contains("talaqqisession") || msg.contains("talaqisession"))
+            && msg.contains("doesn't exist");
     }
 
     private String generateNextSessionId(Connection conn) throws SQLException {
@@ -569,7 +574,7 @@ public class StudentBookingDAO {
                      "WHERE sessionId REGEXP '^S[0-9]+$' " +
                      "ORDER BY CAST(SUBSTRING(sessionId, 2) AS UNSIGNED) DESC LIMIT 1";
 
-        try (PreparedStatement ps = conn.prepareStatement(sql);
+        try (PreparedStatement ps = conn.prepareStatement(TalaqqiSchemaUtil.sql(sql, conn));
              ResultSet rs = ps.executeQuery()) {
             if (rs.next()) {
                 String latest = rs.getString(1);

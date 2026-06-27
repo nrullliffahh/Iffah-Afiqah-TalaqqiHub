@@ -73,7 +73,8 @@ public class TalaqqiSessionDAO {
     }
 
     private static String baseSelect(Connection conn) {
-        return usesBookingIdLink(conn) ? MODERN_BASE_SELECT : LEGACY_BASE_SELECT;
+        return util.TalaqqiSchemaUtil.sql(
+            usesBookingIdLink(conn) ? MODERN_BASE_SELECT : LEGACY_BASE_SELECT, conn);
     }
 
     /** Join fragment: talaqqisession ↔ classbooking (alias ts, cb already in query). */
@@ -84,18 +85,6 @@ public class TalaqqiSessionDAO {
     /** Predicate for inline JOIN/WHERE (both sides already aliased ts, cb). */
     private static String sessionBookingLinkPredicate(Connection conn) {
         return usesBookingIdLink(conn) ? "ts.bookingId = cb.bookingId" : "ts.scheduleId = cb.scheduleId";
-    }
-
-    /** FROM clause for admin list/detail queries. */
-    private static String adminSessionFromJoin(Connection conn) {
-        return usesBookingIdLink(conn)
-            ? "FROM talaqqisession ts "
-                + "JOIN classbooking cb ON ts.bookingId = cb.bookingId "
-                + "JOIN classschedule cs ON cb.scheduleId = cs.scheduleId "
-            : "FROM talaqqisession ts "
-                + "JOIN classschedule cs ON ts.scheduleId = cs.scheduleId "
-                + "LEFT JOIN classbooking cb ON cb.scheduleId = cs.scheduleId "
-                + "  AND cb.bookingStatus NOT IN ('Cancelled','Rejected') ";
     }
 
     private static boolean hasSessionTimingColumns(Connection conn) {
@@ -141,7 +130,7 @@ public class TalaqqiSessionDAO {
                 : "INSERT INTO talaqqisession (sessionId, sessionType, sessionDate, scheduleId) VALUES (?, 'Live Talaqqi', ?, ?)";
 
             conn.setAutoCommit(false);
-            try (PreparedStatement missingPs = conn.prepareStatement(missingSql)) {
+            try (PreparedStatement missingPs = conn.prepareStatement(util.TalaqqiSchemaUtil.sql(missingSql, conn)) {
                 missingPs.setString(1, teacherId);
                 try (ResultSet rs = missingPs.executeQuery()) {
                     while (rs.next()) {
@@ -174,7 +163,7 @@ public class TalaqqiSessionDAO {
         boolean inserted = false;
         for (int attempt = 0; !inserted && attempt < 3; attempt++) {
             String sessionId = generateNextSessionId(conn);
-            try (PreparedStatement insertPs = conn.prepareStatement(insertSql)) {
+            try (PreparedStatement insertPs = conn.prepareStatement(util.TalaqqiSchemaUtil.sql(insertSql, conn)) {
                 insertPs.setString(1, sessionId);
                 insertPs.setDate(2, sessionDate);
                 insertPs.setString(3, linkValue);
@@ -191,7 +180,7 @@ public class TalaqqiSessionDAO {
             "WHERE sessionId REGEXP '^S[0-9]+$' " +
             "ORDER BY CAST(SUBSTRING(sessionId, 2) AS UNSIGNED) DESC LIMIT 1";
 
-        try (PreparedStatement ps = conn.prepareStatement(sql);
+        try (PreparedStatement ps = conn.prepareStatement(util.TalaqqiSchemaUtil.sql(sql, conn));
              ResultSet rs = ps.executeQuery()) {
             if (rs.next()) {
                 String latest = rs.getString(1);
@@ -261,7 +250,7 @@ public class TalaqqiSessionDAO {
                 : "INSERT INTO talaqqisession (sessionId, sessionType, sessionDate, scheduleId) VALUES (?, 'Live Talaqqi', ?, ?)";
 
             conn.setAutoCommit(false);
-            try (PreparedStatement missingPs = conn.prepareStatement(missingSql)) {
+            try (PreparedStatement missingPs = conn.prepareStatement(util.TalaqqiSchemaUtil.sql(missingSql, conn)) {
                 missingPs.setString(1, studentId);
                 try (ResultSet rs = missingPs.executeQuery()) {
                     while (rs.next()) {
@@ -330,7 +319,7 @@ public class TalaqqiSessionDAO {
                 "  AND ts.sessionDate >= CURDATE() " +
                 "ORDER BY ts.sessionDate ASC, cs.startTime ASC " +
                 "LIMIT ?";
-            ps = conn.prepareStatement(sql);
+            ps = conn.prepareStatement(util.TalaqqiSchemaUtil.sql(sql, conn));
             ps.setString(1, studentId);
             ps.setInt(2, limit);
             rs = ps.executeQuery();
@@ -362,7 +351,7 @@ public class TalaqqiSessionDAO {
                 "WHERE ts.sessionId = ? " +
                 (scoped ? "AND cs.teacherId = ? " : "") +
                 "LIMIT 1";
-            ps = conn.prepareStatement(sql);
+            ps = conn.prepareStatement(util.TalaqqiSchemaUtil.sql(sql, conn));
             ps.setString(1, sessionId);
             if (scoped) ps.setString(2, teacherId);
             rs = ps.executeQuery();
@@ -398,7 +387,7 @@ public class TalaqqiSessionDAO {
                 "  AND ts.sessionDate >= CURDATE() " +
                 "ORDER BY ts.sessionDate ASC, cs.startTime ASC " +
                 "LIMIT ?";
-            ps = conn.prepareStatement(sql);
+            ps = conn.prepareStatement(util.TalaqqiSchemaUtil.sql(sql, conn));
             ps.setString(1, teacherId);
             ps.setInt(2, limit);
             rs = ps.executeQuery();
@@ -452,7 +441,7 @@ public class TalaqqiSessionDAO {
                         + "SET cs.classSurah = ?, cs.classAyah = ? "
                         + "WHERE ts.sessionId = ? AND cs.teacherId = ?";
 
-            ps = conn.prepareStatement(sql);
+            ps = conn.prepareStatement(util.TalaqqiSchemaUtil.sql(sql, conn));
             ps.setInt(1, surahNumber);
             ps.setInt(2, ayahStart);
             if (usesBookingIdLink(conn) || util.TalaqqiSchemaUtil.hasClassAyahEnd(conn)) {
@@ -498,7 +487,7 @@ public class TalaqqiSessionDAO {
             conn = DBConnection.getConnection();
             if (conn == null) return false;
             
-            ps = conn.prepareStatement(checkSql);
+            ps = conn.prepareStatement(util.TalaqqiSchemaUtil.sql(checkSql, conn));
             ps.setString(1, sessionId);
             rs = ps.executeQuery();
             
@@ -530,7 +519,7 @@ public class TalaqqiSessionDAO {
             conn = DBConnection.getConnection();
             if (conn == null) return false;
             
-            ps = conn.prepareStatement(sql);
+            ps = conn.prepareStatement(util.TalaqqiSchemaUtil.sql(sql, conn));
             
             if (existingDisplayId != null) {
                 // UPDATE case
@@ -569,7 +558,7 @@ public class TalaqqiSessionDAO {
             conn = DBConnection.getConnection();
             if (conn == null) return "Q001";
             
-            ps = conn.prepareStatement(sql);
+            ps = conn.prepareStatement(util.TalaqqiSchemaUtil.sql(sql, conn));
             rs = ps.executeQuery();
             
             int nextNum = 1;
@@ -621,7 +610,7 @@ public class TalaqqiSessionDAO {
                 return true;
             }
             String sql = "UPDATE talaqqisession SET sessionStartTime = CURTIME() WHERE sessionId = ?";
-            ps = conn.prepareStatement(sql);
+            ps = conn.prepareStatement(util.TalaqqiSchemaUtil.sql(sql, conn));
             ps.setString(1, sessionId);
             return ps.executeUpdate() > 0;
         } catch (SQLException e) {
@@ -655,7 +644,7 @@ public class TalaqqiSessionDAO {
 
             if (hasSessionTimingColumns(conn)) {
                 String fetchSql = "SELECT ts.sessionStartTime FROM talaqqisession ts WHERE ts.sessionId = ?";
-                ps = conn.prepareStatement(fetchSql);
+                ps = conn.prepareStatement(util.TalaqqiSchemaUtil.sql(fetchSql, conn));
                 ps.setString(1, sessionId);
                 rs = ps.executeQuery();
                 if (rs.next()) {
@@ -686,7 +675,7 @@ public class TalaqqiSessionDAO {
                 conn = DBConnection.getConnection();
                 if (conn == null) return false;
                 
-                ps = conn.prepareStatement(durationSql);
+                ps = conn.prepareStatement(util.TalaqqiSchemaUtil.sql(durationSql, conn));
                 ps.setTimestamp(1, sessionStartTime);
                 rs = ps.executeQuery();
                 
@@ -733,7 +722,7 @@ public class TalaqqiSessionDAO {
                     + "WHERE ts.sessionId = ? AND cs.teacherId = ?";
             }
 
-            ps = conn.prepareStatement(updateSql);
+            ps = conn.prepareStatement(util.TalaqqiSchemaUtil.sql(updateSql, conn));
             int param = 1;
             if (usesBookingIdLink(conn) && hasSessionTimingColumns(conn)) {
                 ps.setDouble(param++, durationMinutes);
@@ -804,7 +793,7 @@ public class TalaqqiSessionDAO {
         try {
             conn = DBConnection.getConnection();
             if (conn == null) return false;
-            ps = conn.prepareStatement(upsertSql);
+            ps = conn.prepareStatement(util.TalaqqiSchemaUtil.sql(upsertSql, conn));
             ps.setString(1, attendanceId);
             ps.setDate(2, sessionDate);
             ps.setString(3, status);
@@ -892,7 +881,7 @@ public class TalaqqiSessionDAO {
                 sql += " AND a.studentId = ?";
             }
 
-            ps = conn.prepareStatement(sql);
+            ps = conn.prepareStatement(util.TalaqqiSchemaUtil.sql(sql, conn));
             ps.setTime(1, leaveTime);
             ps.setString(2, sessionId);
             if (studentId != null && !studentId.isEmpty()) {
@@ -929,7 +918,7 @@ public class TalaqqiSessionDAO {
                 + "WHERE ts.sessionId = ? "
                 + "  AND a.joinTime IS NOT NULL "
                 + "  AND a.leaveTime IS NULL";
-            ps = conn.prepareStatement(sql);
+            ps = conn.prepareStatement(util.TalaqqiSchemaUtil.sql(sql, conn));
             ps.setTime(1, leaveTime);
             ps.setString(2, sessionId);
             return ps.executeUpdate();
@@ -963,7 +952,7 @@ public class TalaqqiSessionDAO {
                     + "WHERE ts.sessionId = ? LIMIT 1"
                 : "SELECT scheduleId FROM talaqqisession WHERE sessionId = ? LIMIT 1";
 
-            ps = conn.prepareStatement(sql);
+            ps = conn.prepareStatement(util.TalaqqiSchemaUtil.sql(sql, conn));
             ps.setString(1, sessionId);
             rs = ps.executeQuery();
             return rs.next() ? rs.getString("scheduleId") : null;
@@ -987,7 +976,7 @@ public class TalaqqiSessionDAO {
             conn = DBConnection.getConnection();
             if (conn == null) return null;
             String sql = baseSelect(conn) + whereSuffix;
-            ps = conn.prepareStatement(sql);
+            ps = conn.prepareStatement(util.TalaqqiSchemaUtil.sql(sql, conn));
             ps.setString(1, param);
             rs = ps.executeQuery();
             if (rs.next()) return mapRow(rs);
@@ -1098,13 +1087,13 @@ public class TalaqqiSessionDAO {
                 + "       CASE WHEN ts.sessionDate IS NOT NULL THEN 'Completed' ELSE 'Upcoming' END as status, "
                 + "       'Present' as attendanceStatus, "
                 + "       ts.sessionDate as completedAt "
-                + adminSessionFromJoin(conn)
+                + util.TalaqqiSchemaUtil.adminSessionFromJoin(conn)
                 + "LEFT JOIN qurandisplay qd ON ts.sessionId = qd.sessionId "
                 + "LEFT JOIN student s ON cb.studentId = s.studentId "
                 + "LEFT JOIN teacher t ON cs.teacherId = t.teacherId "
                 + "ORDER BY cs.scheduleDate DESC, cs.startTime DESC";
 
-            ps = conn.prepareStatement(sql);
+            ps = conn.prepareStatement(util.TalaqqiSchemaUtil.sql(sql, conn));
             rs = ps.executeQuery();
             
             while (rs.next()) {
@@ -1166,13 +1155,13 @@ public class TalaqqiSessionDAO {
                 + "       CASE WHEN ts.sessionDate IS NOT NULL THEN 'Completed' ELSE 'Upcoming' END as status, "
                 + "       'Present' as attendanceStatus, "
                 + "       ts.sessionDate as completedAt "
-                + adminSessionFromJoin(conn)
+                + util.TalaqqiSchemaUtil.adminSessionFromJoin(conn)
                 + "LEFT JOIN qurandisplay qd ON ts.sessionId = qd.sessionId "
                 + "LEFT JOIN student s ON cb.studentId = s.studentId "
                 + "LEFT JOIN teacher t ON cs.teacherId = t.teacherId "
                 + "WHERE ts.sessionId = ?";
 
-            ps = conn.prepareStatement(sql);
+            ps = conn.prepareStatement(util.TalaqqiSchemaUtil.sql(sql, conn));
             ps.setString(1, sessionId);
             rs = ps.executeQuery();
             
@@ -1245,7 +1234,7 @@ public class TalaqqiSessionDAO {
                 + "WHERE t.teacherName IS NOT NULL "
                 + "ORDER BY t.teacherName ASC";
 
-            ps = conn.prepareStatement(sql);
+            ps = conn.prepareStatement(util.TalaqqiSchemaUtil.sql(sql, conn));
             rs = ps.executeQuery();
             
             while (rs.next()) {
@@ -1275,7 +1264,7 @@ public class TalaqqiSessionDAO {
         
         try {
             conn = DBConnection.getConnection();
-            ps = conn.prepareStatement(sql);
+            ps = conn.prepareStatement(util.TalaqqiSchemaUtil.sql(sql, conn));
             rs = ps.executeQuery();
             
             if (rs.next()) {
@@ -1311,7 +1300,7 @@ public class TalaqqiSessionDAO {
                 + "INNER JOIN classbooking cb ON cs.scheduleId = cb.scheduleId "
                 + " " + join;
 
-            ps = conn.prepareStatement(sql);
+            ps = conn.prepareStatement(util.TalaqqiSchemaUtil.sql(sql, conn));
             rs = ps.executeQuery();
             
             if (rs.next()) {
@@ -1346,7 +1335,7 @@ public class TalaqqiSessionDAO {
                 + "INNER JOIN classbooking cb ON s.studentId = cb.studentId "
                 + " " + join;
 
-            ps = conn.prepareStatement(sql);
+            ps = conn.prepareStatement(util.TalaqqiSchemaUtil.sql(sql, conn));
             rs = ps.executeQuery();
             
             if (rs.next()) {
@@ -1453,7 +1442,7 @@ public class TalaqqiSessionDAO {
                     + "        AND (a.attendanceStatus IN ('Present', 'Late') OR a.joinTime IS NOT NULL)"
                     + "  )";
 
-            ps = conn.prepareStatement(findMissingStudentsSql);
+            ps = conn.prepareStatement(util.TalaqqiSchemaUtil.sql(findMissingStudentsSql, conn));
             ps.setString(1, sessionId);
             ps.setString(2, teacherId);
             rs = ps.executeQuery();
@@ -1477,7 +1466,7 @@ public class TalaqqiSessionDAO {
                     "  studentId, teacherId, scheduleId, markAutoAttendance) " +
                     "VALUES (?, ?, 'Absent', ?, ?, ?, true)";
 
-                try (PreparedStatement insertPs = conn.prepareStatement(insertAbsentSql)) {
+                try (PreparedStatement insertPs = conn.prepareStatement(util.TalaqqiSchemaUtil.sql(insertAbsentSql, conn)) {
                     insertPs.setString(1, attendanceId);
                     insertPs.setDate(2, today);
                     insertPs.setString(3, studentId);
@@ -1537,7 +1526,7 @@ public class TalaqqiSessionDAO {
                     + "JOIN classschedule cs ON ts.scheduleId = cs.scheduleId "
                     + "WHERE ts.sessionId = ? LIMIT 1";
 
-            ps = conn.prepareStatement(sql);
+            ps = conn.prepareStatement(util.TalaqqiSchemaUtil.sql(sql, conn));
             ps.setString(1, sessionId);
             rs = ps.executeQuery();
             if (!rs.next()) {
@@ -1584,7 +1573,7 @@ public class TalaqqiSessionDAO {
         try {
             conn = DBConnection.getConnection();
             if (conn == null) return null;
-            ps = conn.prepareStatement(sql);
+            ps = conn.prepareStatement(util.TalaqqiSchemaUtil.sql(sql, conn));
             ps.setString(1, sessionId);
             rs = ps.executeQuery();
             if (!rs.next()) return null;
@@ -1612,7 +1601,7 @@ public class TalaqqiSessionDAO {
         try {
             conn = DBConnection.getConnection();
             if (conn == null) return null;
-            ps = conn.prepareStatement(sql);
+            ps = conn.prepareStatement(util.TalaqqiSchemaUtil.sql(sql, conn));
             ps.setString(1, sessionId);
             rs = ps.executeQuery();
             if (rs.next()) {
