@@ -41,7 +41,7 @@ public class TalaqqiSessionDAO {
     private static final ConcurrentHashMap<String, Long> LIVE_SESSION_START_EPOCH = new ConcurrentHashMap<>();
 
     private static final String ACTIVE_SESSION_FILTER =
-        "  AND cb.bookingStatus NOT IN ('Cancelled', 'Rescheduled') " +
+        "  AND cb.bookingStatus NOT IN ('Cancelled', 'Rescheduled', 'Completed', 'Rejected') " +
         "  AND cs.classStatus NOT IN ('Cancelled') ";
 
     // ── Common SELECT: modern (bookingId FK) vs legacy production (scheduleId FK) ──
@@ -70,7 +70,7 @@ public class TalaqqiSessionDAO {
         "FROM talaqqisession ts " +
         "JOIN classschedule cs ON ts.scheduleId = cs.scheduleId " +
         "LEFT JOIN classbooking cb ON cb.scheduleId = cs.scheduleId " +
-        "  AND cb.bookingStatus NOT IN ('Cancelled','Rejected') " +
+        "  AND cb.bookingStatus NOT IN ('Cancelled','Rejected','Completed','Rescheduled') " +
         "LEFT JOIN student s ON cb.studentId = s.studentId " +
         "LEFT JOIN teacher t ON cs.teacherId = t.teacherId ";
 
