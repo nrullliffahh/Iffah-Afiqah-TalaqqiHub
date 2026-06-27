@@ -1438,8 +1438,8 @@
             if (rescheduleBtn) {
                 const att = (el.dataset.attendanceStatus || '');
                 const card = el.closest('.booking-entry');
-                const needsReschedule = att === 'Absent' && card && card.classList.contains('bg-amber-50');
-                if (needsReschedule) {
+                const showReschedule = card && card.classList.contains('bg-amber-50');
+                if (showReschedule) {
                     rescheduleBtn.classList.remove('hidden');
                     rescheduleBtn.dataset.bookingId = bookingId;
                     rescheduleBtn.dataset.bookingDate = rawDate;

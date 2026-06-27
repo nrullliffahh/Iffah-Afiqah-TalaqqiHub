@@ -2,6 +2,7 @@ package model;
 
 import java.time.LocalDate;
 import java.time.LocalTime;
+import util.BookingStatus;
 
 public class StudentBooking {
     private String bookingId;
@@ -144,11 +145,31 @@ public class StudentBooking {
         return attendanceStatus != null && "Absent".equalsIgnoreCase(attendanceStatus.trim());
     }
 
-    /** Past session where student was absent — show Not Completed + Reschedule. */
+    /** Student was marked absent, or past session ended without attendance. */
     public boolean isNeedsReschedule() {
-        return isAbsent() && !isFutureSession();
+        if (isAbsent()) {
+            return true;
+        }
+        if (!isSessionEnded()) {
+            return false;
+        }
+        String status = bookingStatus != null ? bookingStatus.trim() : "";
+        if ("Cancelled".equalsIgnoreCase(status) || "Rescheduled".equalsIgnoreCase(status)) {
+            return false;
+        }
+        if ("Completed".equalsIgnoreCase(status)) {
+            return false;
+        }
+        if (attendanceStatus != null && !attendanceStatus.trim().isEmpty()) {
+            String att = attendanceStatus.trim();
+            if ("Present".equalsIgnoreCase(att) || "Late".equalsIgnoreCase(att)) {
+                return false;
+            }
+        }
+        return BookingStatus.isActive(status);
     }
 
+    /** Session start is still in the future (active upcoming slot). */
     public boolean isFutureSession() {
         if (bookingDate == null) {
             return false;
@@ -161,6 +182,23 @@ public class StudentBooking {
             return false;
         }
         return bookingTime.isAfter(java.time.LocalTime.now());
+    }
+
+    /** True when scheduled start + duration has passed. */
+    public boolean isSessionEnded() {
+        if (bookingDate == null || bookingTime == null) {
+            return false;
+        }
+        LocalDate today = LocalDate.now();
+        if (bookingDate.isBefore(today)) {
+            return true;
+        }
+        if (bookingDate.isAfter(today)) {
+            return false;
+        }
+        int mins = duration != null && duration > 0 ? duration : 15;
+        LocalTime endTime = bookingTime.plusMinutes(mins);
+        return !LocalTime.now().isBefore(endTime);
     }
 
     /** Old booking marked rescheduled after student picks a new slot. */
