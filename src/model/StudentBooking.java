@@ -145,7 +145,7 @@ public class StudentBooking {
     }
 
     /** Past session where student was absent — show Not Completed + Reschedule. */
-    public boolean needsReschedule() {
+    public boolean isNeedsReschedule() {
         return isAbsent() && !isFutureSession();
     }
 

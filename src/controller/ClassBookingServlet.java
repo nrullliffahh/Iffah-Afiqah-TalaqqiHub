@@ -60,7 +60,7 @@ public class ClassBookingServlet extends HttpServlet {
                 }
                 if ("Cancelled".equalsIgnoreCase(status) || "Rescheduled".equalsIgnoreCase(status)) {
                     cancelledBookings.add(b);
-                } else if (b.needsReschedule()) {
+                } else if (b.isNeedsReschedule()) {
                     completedBookings.add(b);
                 } else if ("Completed".equalsIgnoreCase(status)) {
                     if (b.isFutureSession()) {
