@@ -150,11 +150,6 @@ public final class TalaqqiSchemaUtil {
         } else {
             sessionJoin = "LEFT JOIN " + t + " ts ON ts.teacherId = se.teacherId ";
         }
-        if (hasColumn(conn, t, "bookingId")) {
-            return sessionJoin
-                + "LEFT JOIN classbooking cb ON " + sessionToBookingOnClause(t)
-                + "LEFT JOIN classschedule cs ON cb.scheduleId = cs.scheduleId ";
-        }
         return sessionJoin
             + "LEFT JOIN classschedule cs ON ts.scheduleId = cs.scheduleId "
             + "LEFT JOIN classbooking cb ON cb.scheduleId = cs.scheduleId AND cb.studentId = se.studentId ";
