@@ -289,39 +289,11 @@
         
         // Attendance Trend Chart (Bar)
         const trendCtx = document.getElementById('trendChart').getContext('2d');
-        
-        // Parse trend data from server
-        const trendData = {
-            'Week 1_Present': 0, 'Week 1_Absent': 0, 'Week 1_Late': 0,
-            'Week 2_Present': 0, 'Week 2_Absent': 0, 'Week 2_Late': 0,
-            'Week 3_Present': 0, 'Week 3_Absent': 0, 'Week 3_Late': 0,
-            'Week 4_Present': 0, 'Week 4_Absent': 0, 'Week 4_Late': 0
-        };
-        
-        <c:forEach items="${trendDetails}" var="entry">
-            trendData['${entry.key}'] = ${entry.value};
-        </c:forEach>
-        
-        const presentData = [
-            trendData['Week 1_Present'] || 0,
-            trendData['Week 2_Present'] || 0,
-            trendData['Week 3_Present'] || 0,
-            trendData['Week 4_Present'] || 0
-        ];
-        
-        const absentData = [
-            trendData['Week 1_Absent'] || 0,
-            trendData['Week 2_Absent'] || 0,
-            trendData['Week 3_Absent'] || 0,
-            trendData['Week 4_Absent'] || 0
-        ];
-        
-        const lateData = [
-            trendData['Week 1_Late'] || 0,
-            trendData['Week 2_Late'] || 0,
-            trendData['Week 3_Late'] || 0,
-            trendData['Week 4_Late'] || 0
-        ];
+
+        const presentData = ${presentTrendJson};
+        const absentData = ${absentTrendJson};
+        const lateData = ${lateTrendJson};
+        const trendMax = Math.max(4, ...presentData, ...absentData, ...lateData);
         
         const trendChart = new Chart(trendCtx, {
             type: 'bar',
@@ -404,9 +376,9 @@
                     y: {
                         beginAtZero: true,
                         stacked: false,
-                        max: 8,
+                        max: trendMax,
                         ticks: {
-                            stepSize: 2,
+                            stepSize: Math.max(1, Math.ceil(trendMax / 4)),
                             font: { size: 12, weight: '500' },
                             color: '#9ca3af',
                             padding: 8

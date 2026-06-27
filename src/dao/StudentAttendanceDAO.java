@@ -261,50 +261,74 @@ public class StudentAttendanceDAO {
     
     public Map<String, Integer> getAttendanceTrendDetails(String studentId) {
         Map<String, Integer> trendDetails = new LinkedHashMap<>();
-        // Calculate weeks as: days 1-7 = Week 1, days 8-14 = Week 2, etc.
-        String query = "SELECT " +
-                      "CONCAT('Week ', LEAST(4, CEIL(DAY(attendanceDate) / 7.0))) as week, " +
-                      "attendanceStatus, " +
-                      "COUNT(*) as count " +
-                      "FROM attendance " +
-                      "WHERE studentId = ? " +
-                      "AND MONTH(attendanceDate) = MONTH(CURDATE()) " +
-                      "AND YEAR(attendanceDate) = YEAR(CURDATE()) " +
-                      "GROUP BY LEAST(4, CEIL(DAY(attendanceDate) / 7.0)), attendanceStatus " +
-                      "ORDER BY LEAST(4, CEIL(DAY(attendanceDate) / 7.0)), attendanceStatus";
-        
-        Connection conn = null;
-        PreparedStatement ps = null;
-        ResultSet rs = null;
-        
-        try {
-            conn = DBConnection.getConnection();
-            if (conn == null) {
-                System.err.println("getAttendanceTrendDetails: DB connection is null.");
-                return trendDetails;
-            }
-            
-            ps = conn.prepareStatement(query);
-            ps.setString(1, studentId);
-            rs = ps.executeQuery();
-            
-            while (rs.next()) {
-                String key = rs.getString("week") + "_" + rs.getString("attendanceStatus");
-                trendDetails.put(key, rs.getInt("count"));
-            }
-        } catch (SQLException e) {
-            e.printStackTrace();
-        } finally {
-            try {
-                if (rs != null) rs.close();
-                if (ps != null) ps.close();
-                if (conn != null) conn.close();
-            } catch (SQLException e) {
-                e.printStackTrace();
+        for (Map.Entry<String, Map<String, Integer>> week : getWeeklyAttendanceTrend(studentId).entrySet()) {
+            for (Map.Entry<String, Integer> status : week.getValue().entrySet()) {
+                trendDetails.put(week.getKey() + "_" + status.getKey(), status.getValue());
             }
         }
-        
         return trendDetails;
+    }
+
+    /**
+     * Weekly Present / Absent / Late counts for the current month (Week 1–4).
+     */
+    public Map<String, Map<String, Integer>> getWeeklyAttendanceTrend(String studentId) {
+        Map<String, Map<String, Integer>> weeklyData = new LinkedHashMap<>();
+        for (int w = 1; w <= 4; w++) {
+            Map<String, Integer> counts = new HashMap<>();
+            counts.put("Present", 0);
+            counts.put("Absent", 0);
+            counts.put("Late", 0);
+            weeklyData.put("Week " + w, counts);
+        }
+
+        String query = "SELECT "
+            + "LEAST(4, (DAY(attendanceDate) - 1) DIV 7 + 1) AS weekNum, "
+            + "UPPER(TRIM(attendanceStatus)) AS statusKey, "
+            + "COUNT(*) AS cnt "
+            + "FROM attendance "
+            + "WHERE studentId = ? "
+            + "AND MONTH(attendanceDate) = MONTH(CURDATE()) "
+            + "AND YEAR(attendanceDate) = YEAR(CURDATE()) "
+            + "GROUP BY weekNum, statusKey";
+
+        try (Connection conn = DBConnection.getConnection();
+             PreparedStatement ps = conn.prepareStatement(query)) {
+            if (conn == null) {
+                return weeklyData;
+            }
+            ps.setString(1, studentId);
+            try (ResultSet rs = ps.executeQuery()) {
+                while (rs.next()) {
+                    int weekNum = rs.getInt("weekNum");
+                    if (weekNum < 1 || weekNum > 4) {
+                        continue;
+                    }
+                    String weekLabel = "Week " + weekNum;
+                    String canonical = normalizeAttendanceStatus(rs.getString("statusKey"));
+                    if (canonical == null) {
+                        continue;
+                    }
+                    weeklyData.get(weekLabel).put(canonical, rs.getInt("cnt"));
+                }
+            }
+        } catch (SQLException e) {
+            System.err.println("getWeeklyAttendanceTrend: " + e.getMessage());
+            e.printStackTrace();
+        }
+        return weeklyData;
+    }
+
+    private static String normalizeAttendanceStatus(String raw) {
+        if (raw == null) {
+            return null;
+        }
+        switch (raw.trim().toUpperCase()) {
+            case "PRESENT": return "Present";
+            case "ABSENT": return "Absent";
+            case "LATE": return "Late";
+            default: return null;
+        }
     }
 
     /**

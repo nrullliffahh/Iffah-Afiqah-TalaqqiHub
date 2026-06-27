@@ -10,6 +10,8 @@ import javax.servlet.http.HttpServletRequest;
 import javax.servlet.http.HttpServletResponse;
 import javax.servlet.http.HttpSession;
 import java.io.IOException;
+import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 
@@ -39,6 +41,17 @@ public class StudentAttendanceServlet extends HttpServlet {
         double rate = (total > 0) ? Math.round(((double) attended / total) * 100) : 0;
 
         Map<String, Integer> trendDetails = dao.getAttendanceTrendDetails(studentId);
+        Map<String, Map<String, Integer>> weeklyTrend = dao.getWeeklyAttendanceTrend(studentId);
+
+        List<Integer> presentTrend = new ArrayList<>();
+        List<Integer> absentTrend = new ArrayList<>();
+        List<Integer> lateTrend = new ArrayList<>();
+        for (int w = 1; w <= 4; w++) {
+            Map<String, Integer> counts = weeklyTrend.getOrDefault("Week " + w, Collections.emptyMap());
+            presentTrend.add(counts.getOrDefault("Present", 0));
+            absentTrend.add(counts.getOrDefault("Absent", 0));
+            lateTrend.add(counts.getOrDefault("Late", 0));
+        }
 
         request.setAttribute("records", records);
         request.setAttribute("total", total);
@@ -47,6 +60,9 @@ public class StudentAttendanceServlet extends HttpServlet {
         request.setAttribute("late", late);
         request.setAttribute("rate", (int) rate);
         request.setAttribute("trendDetails", trendDetails);
+        request.setAttribute("presentTrendJson", toJsonArray(presentTrend));
+        request.setAttribute("absentTrendJson", toJsonArray(absentTrend));
+        request.setAttribute("lateTrendJson", toJsonArray(lateTrend));
 
         request.getRequestDispatcher("/WEB-INF/views/studentAttendance.jsp").forward(request, response);
     }
@@ -55,5 +71,17 @@ public class StudentAttendanceServlet extends HttpServlet {
     protected void doPost(HttpServletRequest request, HttpServletResponse response)
             throws ServletException, IOException {
         doGet(request, response);
+    }
+
+    private static String toJsonArray(List<Integer> values) {
+        StringBuilder sb = new StringBuilder("[");
+        for (int i = 0; i < values.size(); i++) {
+            if (i > 0) {
+                sb.append(',');
+            }
+            sb.append(values.get(i));
+        }
+        sb.append(']');
+        return sb.toString();
     }
 }
