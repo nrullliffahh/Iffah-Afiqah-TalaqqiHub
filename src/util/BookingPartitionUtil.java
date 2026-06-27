@@ -30,7 +30,8 @@ public final class BookingPartitionUtil {
             }
             if ("Cancelled".equalsIgnoreCase(status) || "Rescheduled".equalsIgnoreCase(status)) {
                 if (b.isRescheduled()) {
-                    p.rescheduled.add(b);
+                    // Old slot replaced by a new booking — hide; only the replacement appears under Rescheduled
+                    continue;
                 } else {
                     p.cancelled.add(b);
                 }
