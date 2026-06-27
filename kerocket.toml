@@ -3,13 +3,14 @@
 # BUILD: Docker only (Maven WAR + Tomcat 9). Do not use Nixpacks Node detection.
 #
 # DEPLOY TAB — required environment variables (copy from .env.example):
-#   DB_URL         = jdbc:mysql://HOST:PORT/talaqqihub_db?sslMode=REQUIRED
-#   DB_USER        = avnadmin          (Aiven default user)
-#   DB_PASSWORD    = <your Aiven password>   ← MUST be set in Deploy tab
 #   PORT           = 8080
-#   GEMINI_API_KEY = (optional, for AI assistant)
+#   DB_URL         = jdbc:mysql://avnadmin:PASSWORD@HOST:16135/talaqqihub_db?sslMode=REQUIRED
+#                    (embed Aiven user + password in the URL — Kerocket may not pass DB_USER/DB_PASSWORD)
 #
-# Alternative: attach MySQL data service and set DATABASE_URL instead of DB_USER/DB_PASSWORD.
+# Alternative: separate lines instead of embedded URL:
+#   DB_URL, DB_USER=avnadmin, DB_PASSWORD=<Aiven password>
+#
+# Or attach MySQL data service and set DATABASE_URL (internal Kerocket MySQL only).
 
 [project]
 name = "TalaqqiHub"
