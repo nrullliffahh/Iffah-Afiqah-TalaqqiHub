@@ -38,8 +38,8 @@ public class TalaqqiSessionDAO {
     /** Seconds after scheduled start before marking Late (> 5 minutes). */
     private static final long LATE_THRESHOLD_SECONDS = LATE_THRESHOLD_MINUTES * 60L;
 
-    // ── Common SELECT columns shared by every query ──────────────────────────
-    private static final String BASE_SELECT =
+    // ── Common SELECT: modern (bookingId FK) vs legacy production (scheduleId FK) ──
+    private static final String MODERN_BASE_SELECT =
         "SELECT ts.sessionId, ts.sessionType, ts.sessionDate AS tsDate, ts.sessionStartTime, ts.sessionDuration, " +
         "       ts.bookingId, " +
         "       cb.studentId, cb.scheduleId, cb.bookingStatus, " +
@@ -53,6 +53,126 @@ public class TalaqqiSessionDAO {
         "LEFT JOIN student  s ON cb.studentId  = s.studentId " +
         "LEFT JOIN teacher  t ON cs.teacherId  = t.teacherId ";
 
+    /** Production Aiven dump: talaqqisession.scheduleId → classschedule, not bookingId. */
+    private static final String LEGACY_BASE_SELECT =
+        "SELECT ts.sessionId, ts.sessionType, ts.sessionDate AS tsDate, " +
+        "NULL AS sessionStartTime, NULL AS sessionDuration, " +
+        "cb.bookingId, cb.studentId, cs.scheduleId, cb.bookingStatus, " +
+        "cs.teacherId, cs.className, cs.startTime, cs.endTime, cs.duration, " +
+        "cs.classSurah, cs.classAyah, NULL AS classAyahEnd, " +
+        "s.studentName, t.teacherName AS teacherName " +
+        "FROM talaqqisession ts " +
+        "JOIN classschedule cs ON ts.scheduleId = cs.scheduleId " +
+        "LEFT JOIN classbooking cb ON cb.scheduleId = cs.scheduleId " +
+        "  AND cb.bookingStatus NOT IN ('Cancelled','Rejected') " +
+        "LEFT JOIN student s ON cb.studentId = s.studentId " +
+        "LEFT JOIN teacher t ON cs.teacherId = t.teacherId ";
+
+    private static volatile Boolean linkByBookingId;
+
+    private static boolean usesBookingIdLink(Connection conn) {
+        if (linkByBookingId != null) {
+            return linkByBookingId;
+        }
+        synchronized (TalaqqiSessionDAO.class) {
+            if (linkByBookingId != null) {
+                return linkByBookingId;
+            }
+            boolean modern = false;
+            Connection probe = conn;
+            boolean closeProbe = false;
+            try {
+                if (probe == null) {
+                    probe = DBConnection.getConnection();
+                    closeProbe = true;
+                }
+                if (probe != null) {
+                    DatabaseMetaData meta = probe.getMetaData();
+                    try (ResultSet cols = meta.getColumns(probe.getCatalog(), null, "talaqqisession", "bookingId")) {
+                        modern = cols.next();
+                    }
+                }
+            } catch (SQLException e) {
+                modern = false;
+            } finally {
+                if (closeProbe && probe != null) {
+                    try {
+                        probe.close();
+                    } catch (SQLException ignored) {}
+                }
+            }
+            linkByBookingId = modern;
+            System.out.println("[TalaqqiSessionDAO] talaqqisession link column: " + (modern ? "bookingId" : "scheduleId"));
+            return modern;
+        }
+    }
+
+    private static String baseSelect(Connection conn) {
+        return usesBookingIdLink(conn) ? MODERN_BASE_SELECT : LEGACY_BASE_SELECT;
+    }
+
+    /** Join fragment: talaqqisession ↔ classbooking (alias ts, cb already in query). */
+    static String joinSessionToBooking(Connection conn) {
+        return usesBookingIdLink(conn)
+            ? "JOIN talaqqisession ts ON ts.bookingId = cb.bookingId "
+            : "JOIN talaqqisession ts ON ts.scheduleId = cb.scheduleId ";
+    }
+
+    /** Predicate for inline JOIN/WHERE (both sides already aliased ts, cb). */
+    private static String sessionBookingLinkPredicate(Connection conn) {
+        return usesBookingIdLink(conn) ? "ts.bookingId = cb.bookingId" : "ts.scheduleId = cb.scheduleId";
+    }
+
+    /** FROM clause for admin list/detail queries. */
+    private static String adminSessionFromJoin(Connection conn) {
+        return usesBookingIdLink(conn)
+            ? "FROM talaqqisession ts "
+                + "JOIN classbooking cb ON ts.bookingId = cb.bookingId "
+                + "JOIN classschedule cs ON cb.scheduleId = cs.scheduleId "
+            : "FROM talaqqisession ts "
+                + "JOIN classschedule cs ON ts.scheduleId = cs.scheduleId "
+                + "LEFT JOIN classbooking cb ON cb.scheduleId = cs.scheduleId "
+                + "  AND cb.bookingStatus NOT IN ('Cancelled','Rejected') ";
+    }
+
+    private static volatile Boolean sessionTimingColumns;
+
+    private static boolean hasSessionTimingColumns(Connection conn) {
+        if (sessionTimingColumns != null) {
+            return sessionTimingColumns;
+        }
+        synchronized (TalaqqiSessionDAO.class) {
+            if (sessionTimingColumns != null) {
+                return sessionTimingColumns;
+            }
+            boolean has = false;
+            Connection probe = conn;
+            boolean closeProbe = false;
+            try {
+                if (probe == null) {
+                    probe = DBConnection.getConnection();
+                    closeProbe = true;
+                }
+                if (probe != null) {
+                    DatabaseMetaData meta = probe.getMetaData();
+                    try (ResultSet cols = meta.getColumns(probe.getCatalog(), null, "talaqqisession", "sessionStartTime")) {
+                        has = cols.next();
+                    }
+                }
+            } catch (SQLException e) {
+                has = false;
+            } finally {
+                if (closeProbe && probe != null) {
+                    try {
+                        probe.close();
+                    } catch (SQLException ignored) {}
+                }
+            }
+            sessionTimingColumns = has;
+            return has;
+        }
+    }
+
     // ══════════════════════════════════════════════════════════════════════════
     //  AUTO-PROVISION
     //  Creates talaqqisession rows for any upcoming booking that doesn't
@@ -65,53 +185,43 @@ public class TalaqqiSessionDAO {
      * belonging to the given teacher.
      */
     private void ensureTalaqqiSessionsExist(String teacherId) {
-        String missingSql =
-            "SELECT cb.bookingId, cs.scheduleDate " +
-            "FROM classbooking cb " +
-            "JOIN classschedule cs ON cb.scheduleId = cs.scheduleId " +
-            "WHERE cs.teacherId = ? " +
-            "  AND cb.bookingStatus IN " + util.BookingStatus.SQL_ACTIVE + " " +
-            "  AND NOT EXISTS (" +
-            "      SELECT 1 FROM talaqqisession ts2 WHERE ts2.bookingId = cb.bookingId" +
-            "  ) " +
-            "ORDER BY cs.scheduleDate ASC, cb.bookingTime ASC, cb.bookingId ASC";
-
-        String insertSql =
-            "INSERT INTO talaqqisession (sessionId, sessionType, sessionDate, bookingId) VALUES (?, 'Live Talaqqi', ?, ?)";
-
         Connection conn = null;
         try {
             conn = DBConnection.getConnection();
-            if (conn == null) return;
+            if (conn == null) {
+                return;
+            }
+            boolean modern = usesBookingIdLink(conn);
+            String missingSql = modern
+                ? "SELECT cb.bookingId, cs.scheduleDate, cb.scheduleId "
+                    + "FROM classbooking cb "
+                    + "JOIN classschedule cs ON cb.scheduleId = cs.scheduleId "
+                    + "WHERE cs.teacherId = ? "
+                    + "  AND cb.bookingStatus IN " + util.BookingStatus.SQL_ACTIVE + " "
+                    + "  AND NOT EXISTS (SELECT 1 FROM talaqqisession ts2 WHERE ts2.bookingId = cb.bookingId) "
+                    + "ORDER BY cs.scheduleDate ASC, cb.bookingTime ASC, cb.bookingId ASC"
+                : "SELECT cb.scheduleId, cs.scheduleDate "
+                    + "FROM classbooking cb "
+                    + "JOIN classschedule cs ON cb.scheduleId = cs.scheduleId "
+                    + "WHERE cs.teacherId = ? "
+                    + "  AND cb.bookingStatus IN " + util.BookingStatus.SQL_ACTIVE + " "
+                    + "  AND NOT EXISTS (SELECT 1 FROM talaqqisession ts2 WHERE ts2.scheduleId = cb.scheduleId) "
+                    + "ORDER BY cs.scheduleDate ASC, cb.bookingTime ASC, cb.bookingId ASC";
+            String insertSql = modern
+                ? "INSERT INTO talaqqisession (sessionId, sessionType, sessionDate, bookingId) VALUES (?, 'Live Talaqqi', ?, ?)"
+                : "INSERT INTO talaqqisession (sessionId, sessionType, sessionDate, scheduleId) VALUES (?, 'Live Talaqqi', ?, ?)";
 
             conn.setAutoCommit(false);
-
             try (PreparedStatement missingPs = conn.prepareStatement(missingSql)) {
                 missingPs.setString(1, teacherId);
-
                 try (ResultSet rs = missingPs.executeQuery()) {
                     while (rs.next()) {
-                        String bookingId = rs.getString("bookingId");
                         java.sql.Date sessionDate = rs.getDate("scheduleDate");
-
-                        boolean inserted = false;
-                        int attempts = 0;
-                        while (!inserted && attempts < 3) {
-                            attempts++;
-                            String sessionId = generateNextSessionId(conn);
-                            try (PreparedStatement insertPs = conn.prepareStatement(insertSql)) {
-                                insertPs.setString(1, sessionId);
-                                insertPs.setDate(2, sessionDate);
-                                insertPs.setString(3, bookingId);
-                                inserted = insertPs.executeUpdate() > 0;
-                            } catch (SQLIntegrityConstraintViolationException duplicateKey) {
-                                inserted = false;
-                            }
-                        }
+                        String linkValue = modern ? rs.getString("bookingId") : rs.getString("scheduleId");
+                        insertSessionRow(conn, insertSql, sessionDate, linkValue);
                     }
                 }
             }
-
             conn.commit();
         } catch (SQLException e) {
             if (conn != null) {
@@ -126,6 +236,22 @@ public class TalaqqiSessionDAO {
                     conn.setAutoCommit(true);
                     conn.close();
                 } catch (SQLException ignored) {}
+            }
+        }
+    }
+
+    private void insertSessionRow(Connection conn, String insertSql, java.sql.Date sessionDate, String linkValue)
+            throws SQLException {
+        boolean inserted = false;
+        for (int attempt = 0; !inserted && attempt < 3; attempt++) {
+            String sessionId = generateNextSessionId(conn);
+            try (PreparedStatement insertPs = conn.prepareStatement(insertSql)) {
+                insertPs.setString(1, sessionId);
+                insertPs.setDate(2, sessionDate);
+                insertPs.setString(3, linkValue);
+                inserted = insertPs.executeUpdate() > 0;
+            } catch (SQLIntegrityConstraintViolationException duplicateKey) {
+                inserted = false;
             }
         }
     }
@@ -169,72 +295,53 @@ public class TalaqqiSessionDAO {
      * @return populated TalaqqiSession, or {@code null} if none found
      */
     public TalaqqiSession getUpcomingSessionForTeacher(String teacherId) {
-        // Step 1: Auto-create any missing talaqqisession rows for this teacher
         ensureTalaqqiSessionsExist(teacherId);
-
-        String sql = BASE_SELECT +
+        return querySingleSession(
             "WHERE cs.teacherId  = ? " +
             "  AND ts.sessionDate >= CURDATE() " +
             "ORDER BY ts.sessionDate ASC, cs.startTime ASC " +
-            "LIMIT 1";
-
-        return querySingleSession(sql, teacherId);
+            "LIMIT 1",
+            teacherId);
     }
 
-    /**
-     * Ensures talaqqisession rows exist for all upcoming bookings of the given student.
-     * Called before student queries to guarantee session data is available.
-     *
-     * @param studentId  Student primary key (e.g. "STU-001")
-     */
     private void ensureTalaqqiSessionsExistForStudent(String studentId) {
-        String missingSql =
-            "SELECT cb.bookingId, cs.scheduleDate " +
-            "FROM classbooking cb " +
-            "JOIN classschedule cs ON cb.scheduleId = cs.scheduleId " +
-            "WHERE cb.studentId = ? " +
-            "  AND cb.bookingStatus IN " + util.BookingStatus.SQL_ACTIVE + " " +
-            "  AND NOT EXISTS (" +
-            "      SELECT 1 FROM talaqqisession ts2 WHERE ts2.bookingId = cb.bookingId" +
-            "  ) " +
-            "ORDER BY cs.scheduleDate ASC, cb.bookingTime ASC, cb.bookingId ASC";
-
-        String insertSql =
-            "INSERT INTO talaqqisession (sessionId, sessionType, sessionDate, bookingId) VALUES (?, 'Live Talaqqi', ?, ?)";
-
         Connection conn = null;
         try {
             conn = DBConnection.getConnection();
-            if (conn == null) return;
+            if (conn == null) {
+                return;
+            }
+            boolean modern = usesBookingIdLink(conn);
+            String missingSql = modern
+                ? "SELECT cb.bookingId, cs.scheduleDate, cb.scheduleId "
+                    + "FROM classbooking cb "
+                    + "JOIN classschedule cs ON cb.scheduleId = cs.scheduleId "
+                    + "WHERE cb.studentId = ? "
+                    + "  AND cb.bookingStatus IN " + util.BookingStatus.SQL_ACTIVE + " "
+                    + "  AND NOT EXISTS (SELECT 1 FROM talaqqisession ts2 WHERE ts2.bookingId = cb.bookingId) "
+                    + "ORDER BY cs.scheduleDate ASC, cb.bookingTime ASC, cb.bookingId ASC"
+                : "SELECT cb.scheduleId, cs.scheduleDate "
+                    + "FROM classbooking cb "
+                    + "JOIN classschedule cs ON cb.scheduleId = cs.scheduleId "
+                    + "WHERE cb.studentId = ? "
+                    + "  AND cb.bookingStatus IN " + util.BookingStatus.SQL_ACTIVE + " "
+                    + "  AND NOT EXISTS (SELECT 1 FROM talaqqisession ts2 WHERE ts2.scheduleId = cb.scheduleId) "
+                    + "ORDER BY cs.scheduleDate ASC, cb.bookingTime ASC, cb.bookingId ASC";
+            String insertSql = modern
+                ? "INSERT INTO talaqqisession (sessionId, sessionType, sessionDate, bookingId) VALUES (?, 'Live Talaqqi', ?, ?)"
+                : "INSERT INTO talaqqisession (sessionId, sessionType, sessionDate, scheduleId) VALUES (?, 'Live Talaqqi', ?, ?)";
 
             conn.setAutoCommit(false);
-
             try (PreparedStatement missingPs = conn.prepareStatement(missingSql)) {
                 missingPs.setString(1, studentId);
-
                 try (ResultSet rs = missingPs.executeQuery()) {
                     while (rs.next()) {
-                        String bookingId = rs.getString("bookingId");
                         java.sql.Date sessionDate = rs.getDate("scheduleDate");
-
-                        boolean inserted = false;
-                        int attempts = 0;
-                        while (!inserted && attempts < 3) {
-                            attempts++;
-                            String sessionId = generateNextSessionId(conn);
-                            try (PreparedStatement insertPs = conn.prepareStatement(insertSql)) {
-                                insertPs.setString(1, sessionId);
-                                insertPs.setDate(2, sessionDate);
-                                insertPs.setString(3, bookingId);
-                                inserted = insertPs.executeUpdate() > 0;
-                            } catch (SQLIntegrityConstraintViolationException duplicateKey) {
-                                inserted = false;
-                            }
-                        }
+                        String linkValue = modern ? rs.getString("bookingId") : rs.getString("scheduleId");
+                        insertSessionRow(conn, insertSql, sessionDate, linkValue);
                     }
                 }
             }
-
             conn.commit();
         } catch (SQLException e) {
             if (conn != null) {
@@ -262,16 +369,13 @@ public class TalaqqiSessionDAO {
      * @return populated TalaqqiSession, or {@code null} if none found
      */
     public TalaqqiSession getUpcomingSessionForStudent(String studentId) {
-        // Step 1: Auto-create any missing talaqqisession rows for this student
         ensureTalaqqiSessionsExistForStudent(studentId);
-
-        String sql = BASE_SELECT +
+        return querySingleSession(
             "WHERE cb.studentId  = ? " +
             "  AND ts.sessionDate >= CURDATE() " +
             "ORDER BY ts.sessionDate ASC, cs.startTime ASC " +
-            "LIMIT 1";
-
-        return querySingleSession(sql, studentId);
+            "LIMIT 1",
+            studentId);
     }
 
     /**
@@ -286,18 +390,17 @@ public class TalaqqiSessionDAO {
         ensureTalaqqiSessionsExistForStudent(studentId);
 
         List<TalaqqiSession> list = new ArrayList<>();
-        String sql = BASE_SELECT +
-            "WHERE cb.studentId  = ? " +
-            "  AND ts.sessionDate >= CURDATE() " +
-            "ORDER BY ts.sessionDate ASC, cs.startTime ASC " +
-            "LIMIT ?";
-
         Connection conn = null;
         PreparedStatement ps = null;
         ResultSet rs = null;
         try {
             conn = DBConnection.getConnection();
             if (conn == null) return list;
+            String sql = baseSelect(conn) +
+                "WHERE cb.studentId  = ? " +
+                "  AND ts.sessionDate >= CURDATE() " +
+                "ORDER BY ts.sessionDate ASC, cs.startTime ASC " +
+                "LIMIT ?";
             ps = conn.prepareStatement(sql);
             ps.setString(1, studentId);
             ps.setInt(2, limit);
@@ -320,17 +423,16 @@ public class TalaqqiSessionDAO {
      */
     public TalaqqiSession getSessionBySessionId(String sessionId, String teacherId) {
         boolean scoped = (teacherId != null && !teacherId.isEmpty());
-        String sql = BASE_SELECT +
-            "WHERE ts.sessionId = ? " +
-            (scoped ? "AND cs.teacherId = ? " : "") +
-            "LIMIT 1";
-
         Connection conn = null;
         PreparedStatement ps = null;
         ResultSet rs = null;
         try {
             conn = DBConnection.getConnection();
             if (conn == null) return null;
+            String sql = baseSelect(conn) +
+                "WHERE ts.sessionId = ? " +
+                (scoped ? "AND cs.teacherId = ? " : "") +
+                "LIMIT 1";
             ps = conn.prepareStatement(sql);
             ps.setString(1, sessionId);
             if (scoped) ps.setString(2, teacherId);
@@ -356,18 +458,17 @@ public class TalaqqiSessionDAO {
         ensureTalaqqiSessionsExist(teacherId);
 
         List<TalaqqiSession> list = new ArrayList<>();
-        String sql = BASE_SELECT +
-            "WHERE cs.teacherId  = ? " +
-            "  AND ts.sessionDate >= CURDATE() " +
-            "ORDER BY ts.sessionDate ASC, cs.startTime ASC " +
-            "LIMIT ?";
-
         Connection conn = null;
         PreparedStatement ps = null;
         ResultSet rs = null;
         try {
             conn = DBConnection.getConnection();
             if (conn == null) return list;
+            String sql = baseSelect(conn) +
+                "WHERE cs.teacherId  = ? " +
+                "  AND ts.sessionDate >= CURDATE() " +
+                "ORDER BY ts.sessionDate ASC, cs.startTime ASC " +
+                "LIMIT ?";
             ps = conn.prepareStatement(sql);
             ps.setString(1, teacherId);
             ps.setInt(2, limit);
@@ -398,21 +499,25 @@ public class TalaqqiSessionDAO {
      */
     public boolean updateQuranReference(String sessionId, String teacherId,
                                         int surahNumber, int ayahStart, int ayahEnd) {
-        // First, update classschedule (for backward compatibility)
-        String sql =
-            "UPDATE classschedule cs " +
-            "JOIN classbooking cb   ON cs.scheduleId = cb.scheduleId " +
-            "JOIN talaqqisession ts ON ts.bookingId  = cb.bookingId " +
-            "SET cs.classSurah = ?, cs.classAyah = ?, cs.classAyahEnd = ? " +
-            "WHERE ts.sessionId = ? AND cs.teacherId = ?";
-
         Connection conn = null;
         PreparedStatement ps = null;
         boolean classScheduleUpdated = false;
-        
+
         try {
             conn = DBConnection.getConnection();
             if (conn == null) return false;
+
+            String sql = usesBookingIdLink(conn)
+                ? "UPDATE classschedule cs "
+                    + "JOIN classbooking cb ON cs.scheduleId = cb.scheduleId "
+                    + "JOIN talaqqisession ts ON ts.bookingId = cb.bookingId "
+                    + "SET cs.classSurah = ?, cs.classAyah = ?, cs.classAyahEnd = ? "
+                    + "WHERE ts.sessionId = ? AND cs.teacherId = ?"
+                : "UPDATE classschedule cs "
+                    + "JOIN talaqqisession ts ON ts.scheduleId = cs.scheduleId "
+                    + "SET cs.classSurah = ?, cs.classAyah = ?, cs.classAyahEnd = ? "
+                    + "WHERE ts.sessionId = ? AND cs.teacherId = ?";
+
             ps = conn.prepareStatement(sql);
             ps.setInt(1, surahNumber);
             ps.setInt(2, ayahStart);
@@ -564,13 +669,15 @@ public class TalaqqiSessionDAO {
      * @return true on success
      */
     public boolean recordSessionStartTime(String sessionId) {
-        String sql = "UPDATE talaqqisession SET sessionStartTime = CURTIME() WHERE sessionId = ?";
-        
         Connection conn = null;
         PreparedStatement ps = null;
         try {
             conn = DBConnection.getConnection();
             if (conn == null) return false;
+            if (!hasSessionTimingColumns(conn)) {
+                return true;
+            }
+            String sql = "UPDATE talaqqisession SET sessionStartTime = CURTIME() WHERE sessionId = ?";
             ps = conn.prepareStatement(sql);
             ps.setString(1, sessionId);
             return ps.executeUpdate() > 0;
@@ -593,29 +700,33 @@ public class TalaqqiSessionDAO {
      * @return true on success
      */
     public boolean completeSession(String sessionId, String teacherId) {
-        // Step 1: Fetch session details - check if sessionStartTime exists
-        String fetchSql = "SELECT ts.sessionStartTime FROM talaqqisession ts WHERE ts.sessionId = ?";
         java.sql.Timestamp sessionStartTime = null;
-        
+
         Connection conn = null;
         PreparedStatement ps = null;
         ResultSet rs = null;
-        
+
         try {
             conn = DBConnection.getConnection();
             if (conn == null) return false;
-            
-            ps = conn.prepareStatement(fetchSql);
-            ps.setString(1, sessionId);
-            rs = ps.executeQuery();
-            
-            if (rs.next()) {
-                sessionStartTime = rs.getTimestamp("sessionStartTime");
+
+            if (hasSessionTimingColumns(conn)) {
+                String fetchSql = "SELECT ts.sessionStartTime FROM talaqqisession ts WHERE ts.sessionId = ?";
+                ps = conn.prepareStatement(fetchSql);
+                ps.setString(1, sessionId);
+                rs = ps.executeQuery();
+                if (rs.next()) {
+                    sessionStartTime = rs.getTimestamp("sessionStartTime");
+                }
+                closeQuietly(rs, ps, null);
+                rs = null;
+                ps = null;
             }
         } catch (SQLException e) {
             System.err.println("[TalaqqiSessionDAO] completeSession (fetch startTime): " + e.getMessage());
         } finally {
             closeQuietly(rs, ps, conn);
+            conn = null;
         }
         
         // Step 2: Close session and calculate duration in fractional minutes
@@ -648,25 +759,44 @@ public class TalaqqiSessionDAO {
         }
         
         // Step 3: Update session with completion date and duration
-        // If sessionStartTime is NULL, set it to NOW() - sessionDuration*60 seconds
-        String updateSql =
-            "UPDATE classbooking cb " +
-            "JOIN talaqqisession ts ON ts.bookingId  = cb.bookingId " +
-            "JOIN classschedule cs  ON cb.scheduleId = cs.scheduleId " +
-            "SET cb.bookingStatus = 'Completed', " +
-            "    ts.sessionDate = CURDATE(), " +
-            "    ts.sessionStartTime = IF(ts.sessionStartTime IS NULL, NOW(), ts.sessionStartTime), " +
-            "    ts.sessionDuration = ? " +
-            "WHERE ts.sessionId = ? AND cs.teacherId = ?";
-
         try {
             conn = DBConnection.getConnection();
             if (conn == null) return false;
-            
+
+            String updateSql;
+            if (usesBookingIdLink(conn) && hasSessionTimingColumns(conn)) {
+                updateSql =
+                    "UPDATE classbooking cb "
+                    + joinSessionToBooking(conn)
+                    + "JOIN classschedule cs ON cb.scheduleId = cs.scheduleId "
+                    + "SET cb.bookingStatus = 'Completed', "
+                    + "    ts.sessionDate = CURDATE(), "
+                    + "    ts.sessionStartTime = IF(ts.sessionStartTime IS NULL, NOW(), ts.sessionStartTime), "
+                    + "    ts.sessionDuration = ? "
+                    + "WHERE ts.sessionId = ? AND cs.teacherId = ?";
+            } else if (usesBookingIdLink(conn)) {
+                updateSql =
+                    "UPDATE classbooking cb "
+                    + joinSessionToBooking(conn)
+                    + "JOIN classschedule cs ON cb.scheduleId = cs.scheduleId "
+                    + "SET cb.bookingStatus = 'Completed', ts.sessionDate = CURDATE() "
+                    + "WHERE ts.sessionId = ? AND cs.teacherId = ?";
+            } else {
+                updateSql =
+                    "UPDATE classbooking cb "
+                    + "JOIN classschedule cs ON cb.scheduleId = cs.scheduleId "
+                    + "JOIN talaqqisession ts ON ts.scheduleId = cs.scheduleId "
+                    + "SET cb.bookingStatus = 'Completed', ts.sessionDate = CURDATE() "
+                    + "WHERE ts.sessionId = ? AND cs.teacherId = ?";
+            }
+
             ps = conn.prepareStatement(updateSql);
-            ps.setDouble(1, durationMinutes);
-            ps.setString(2, sessionId);
-            ps.setString(3, teacherId);
+            int param = 1;
+            if (usesBookingIdLink(conn) && hasSessionTimingColumns(conn)) {
+                ps.setDouble(param++, durationMinutes);
+            }
+            ps.setString(param++, sessionId);
+            ps.setString(param, teacherId);
             
             int rowsUpdated = ps.executeUpdate();
             
@@ -800,20 +930,20 @@ public class TalaqqiSessionDAO {
             return false;
         }
 
-        String sql =
-            "UPDATE attendance a " +
-            "JOIN classbooking cb ON cb.scheduleId = a.scheduleId AND cb.studentId = a.studentId " +
-            "JOIN talaqqisession ts ON ts.bookingId = cb.bookingId " +
-            "SET a.leaveTime = ? " +
-            "WHERE ts.sessionId = ? " +
-            "  AND a.joinTime IS NOT NULL " +
-            "  AND (a.leaveTime IS NULL)";
-
         Connection conn = null;
         PreparedStatement ps = null;
         try {
             conn = DBConnection.getConnection();
             if (conn == null) return false;
+
+            String sql =
+                "UPDATE attendance a "
+                + "JOIN classbooking cb ON cb.scheduleId = a.scheduleId AND cb.studentId = a.studentId "
+                + joinSessionToBooking(conn)
+                + "SET a.leaveTime = ? "
+                + "WHERE ts.sessionId = ? "
+                + "  AND a.joinTime IS NOT NULL "
+                + "  AND (a.leaveTime IS NULL)";
 
             if (studentId != null && !studentId.isEmpty()) {
                 sql += " AND a.studentId = ?";
@@ -842,20 +972,20 @@ public class TalaqqiSessionDAO {
             return 0;
         }
 
-        String sql =
-            "UPDATE attendance a " +
-            "JOIN classbooking cb ON cb.scheduleId = a.scheduleId AND cb.studentId = a.studentId " +
-            "JOIN talaqqisession ts ON ts.bookingId = cb.bookingId " +
-            "SET a.leaveTime = ? " +
-            "WHERE ts.sessionId = ? " +
-            "  AND a.joinTime IS NOT NULL " +
-            "  AND a.leaveTime IS NULL";
-
         Connection conn = null;
         PreparedStatement ps = null;
         try {
             conn = DBConnection.getConnection();
             if (conn == null) return 0;
+
+            String sql =
+                "UPDATE attendance a "
+                + "JOIN classbooking cb ON cb.scheduleId = a.scheduleId AND cb.studentId = a.studentId "
+                + joinSessionToBooking(conn)
+                + "SET a.leaveTime = ? "
+                + "WHERE ts.sessionId = ? "
+                + "  AND a.joinTime IS NOT NULL "
+                + "  AND a.leaveTime IS NULL";
             ps = conn.prepareStatement(sql);
             ps.setTime(1, leaveTime);
             ps.setString(2, sessionId);
@@ -877,18 +1007,19 @@ public class TalaqqiSessionDAO {
      * talaqqisession.sessionId.  Returns null if not found.
      */
     private String getScheduleIdBySessionId(String sessionId) {
-        String sql =
-            "SELECT cb.scheduleId " +
-            "FROM talaqqisession ts " +
-            "JOIN classbooking cb ON ts.bookingId = cb.bookingId " +
-            "WHERE ts.sessionId = ? LIMIT 1";
-
         Connection conn = null;
         PreparedStatement ps = null;
         ResultSet rs = null;
         try {
             conn = DBConnection.getConnection();
             if (conn == null) return null;
+
+            String sql = usesBookingIdLink(conn)
+                ? "SELECT cb.scheduleId FROM talaqqisession ts "
+                    + "JOIN classbooking cb ON ts.bookingId = cb.bookingId "
+                    + "WHERE ts.sessionId = ? LIMIT 1"
+                : "SELECT scheduleId FROM talaqqisession WHERE sessionId = ? LIMIT 1";
+
             ps = conn.prepareStatement(sql);
             ps.setString(1, sessionId);
             rs = ps.executeQuery();
@@ -902,16 +1033,17 @@ public class TalaqqiSessionDAO {
     }
 
     /**
-     * Runs the supplied BASE_SELECT SQL with a single String WHERE parameter
+     * Runs a schema-aware SELECT with a single String WHERE parameter
      * and maps the first result row to a TalaqqiSession.
      */
-    private TalaqqiSession querySingleSession(String sql, String param) {
+    private TalaqqiSession querySingleSession(String whereSuffix, String param) {
         Connection conn = null;
         PreparedStatement ps = null;
         ResultSet rs = null;
         try {
             conn = DBConnection.getConnection();
             if (conn == null) return null;
+            String sql = baseSelect(conn) + whereSuffix;
             ps = conn.prepareStatement(sql);
             ps.setString(1, param);
             rs = ps.executeQuery();
@@ -1008,27 +1140,27 @@ public class TalaqqiSessionDAO {
      */
     public List<java.util.Map<String, Object>> getAllSessions() {
         List<java.util.Map<String, Object>> sessions = new ArrayList<>();
-        
-        String sql = "SELECT ts.sessionId, s.studentName, t.teacherName, cs.className, " +
-                     "       cs.scheduleDate, cs.startTime, cs.endTime, cs.duration, " +
-                     "       qd.currentSurah, qd.currentAyah, qd.currentJuzuk, " +
-                     "       CASE WHEN ts.sessionDate IS NOT NULL THEN 'Completed' ELSE 'Upcoming' END as status, " +
-                     "       'Present' as attendanceStatus, " +
-                     "       ts.sessionDate as completedAt " +
-                     "FROM talaqqisession ts " +
-                     "JOIN classbooking cb ON ts.bookingId = cb.bookingId " +
-                     "JOIN classschedule cs ON cb.scheduleId = cs.scheduleId " +
-                     "LEFT JOIN qurandisplay qd ON ts.sessionId = qd.sessionId " +
-                     "LEFT JOIN student s ON cb.studentId = s.studentId " +
-                     "LEFT JOIN teacher t ON cs.teacherId = t.teacherId " +
-                     "ORDER BY cs.scheduleDate DESC, cs.startTime DESC";
-        
+
         Connection conn = null;
         PreparedStatement ps = null;
         ResultSet rs = null;
-        
+
         try {
             conn = DBConnection.getConnection();
+            if (conn == null) return sessions;
+
+            String sql = "SELECT ts.sessionId, s.studentName, t.teacherName, cs.className, "
+                + "       cs.scheduleDate, cs.startTime, cs.endTime, cs.duration, "
+                + "       qd.currentSurah, qd.currentAyah, qd.currentJuzuk, "
+                + "       CASE WHEN ts.sessionDate IS NOT NULL THEN 'Completed' ELSE 'Upcoming' END as status, "
+                + "       'Present' as attendanceStatus, "
+                + "       ts.sessionDate as completedAt "
+                + adminSessionFromJoin(conn)
+                + "LEFT JOIN qurandisplay qd ON ts.sessionId = qd.sessionId "
+                + "LEFT JOIN student s ON cb.studentId = s.studentId "
+                + "LEFT JOIN teacher t ON cs.teacherId = t.teacherId "
+                + "ORDER BY cs.scheduleDate DESC, cs.startTime DESC";
+
             ps = conn.prepareStatement(sql);
             rs = ps.executeQuery();
             
@@ -1076,27 +1208,27 @@ public class TalaqqiSessionDAO {
      * Fetch a single Talaqqi session by ID for modal detail view.
      */
     public java.util.Map<String, Object> getSessionById(String sessionId) {
-        String sql = "SELECT ts.sessionId, s.studentName, t.teacherName, cs.className, " +
-                     "       cs.scheduleDate, cs.startTime, cs.endTime, cs.duration, " +
-                     "       qd.currentSurah, qd.currentAyah, qd.currentJuzuk, " +
-                     "       cs.classAyahEnd, " +
-                     "       CASE WHEN ts.sessionDate IS NOT NULL THEN 'Completed' ELSE 'Upcoming' END as status, " +
-                     "       'Present' as attendanceStatus, " +
-                     "       ts.sessionDate as completedAt " +
-                     "FROM talaqqisession ts " +
-                     "JOIN classbooking cb ON ts.bookingId = cb.bookingId " +
-                     "JOIN classschedule cs ON cb.scheduleId = cs.scheduleId " +
-                     "LEFT JOIN qurandisplay qd ON ts.sessionId = qd.sessionId " +
-                     "LEFT JOIN student s ON cb.studentId = s.studentId " +
-                     "LEFT JOIN teacher t ON cs.teacherId = t.teacherId " +
-                     "WHERE ts.sessionId = ?";
-        
         Connection conn = null;
         PreparedStatement ps = null;
         ResultSet rs = null;
-        
+
         try {
             conn = DBConnection.getConnection();
+            if (conn == null) return null;
+
+            String sql = "SELECT ts.sessionId, s.studentName, t.teacherName, cs.className, "
+                + "       cs.scheduleDate, cs.startTime, cs.endTime, cs.duration, "
+                + "       qd.currentSurah, qd.currentAyah, qd.currentJuzuk, "
+                + "       cs.classAyahEnd, "
+                + "       CASE WHEN ts.sessionDate IS NOT NULL THEN 'Completed' ELSE 'Upcoming' END as status, "
+                + "       'Present' as attendanceStatus, "
+                + "       ts.sessionDate as completedAt "
+                + adminSessionFromJoin(conn)
+                + "LEFT JOIN qurandisplay qd ON ts.sessionId = qd.sessionId "
+                + "LEFT JOIN student s ON cb.studentId = s.studentId "
+                + "LEFT JOIN teacher t ON cs.teacherId = t.teacherId "
+                + "WHERE ts.sessionId = ?";
+
             ps = conn.prepareStatement(sql);
             ps.setString(1, sessionId);
             rs = ps.executeQuery();
@@ -1150,20 +1282,26 @@ public class TalaqqiSessionDAO {
      */
     public List<String> getAllTeachers() {
         List<String> teachers = new ArrayList<>();
-        
-        String sql = "SELECT DISTINCT t.teacherName FROM teacher t " +
-                     "INNER JOIN classschedule cs ON t.teacherId = cs.teacherId " +
-                     "INNER JOIN classbooking cb ON cs.scheduleId = cb.scheduleId " +
-                     "INNER JOIN talaqqisession ts ON cb.bookingId = ts.bookingId " +
-                     "WHERE t.teacherName IS NOT NULL " +
-                     "ORDER BY t.teacherName ASC";
-        
+
         Connection conn = null;
         PreparedStatement ps = null;
         ResultSet rs = null;
-        
+
         try {
             conn = DBConnection.getConnection();
+            if (conn == null) return teachers;
+
+            String join = usesBookingIdLink(conn)
+                ? "INNER JOIN talaqqisession ts ON cb.bookingId = ts.bookingId "
+                : "INNER JOIN talaqqisession ts ON cb.scheduleId = ts.scheduleId ";
+
+            String sql = "SELECT DISTINCT t.teacherName FROM teacher t "
+                + "INNER JOIN classschedule cs ON t.teacherId = cs.teacherId "
+                + "INNER JOIN classbooking cb ON cs.scheduleId = cb.scheduleId "
+                + join
+                + "WHERE t.teacherName IS NOT NULL "
+                + "ORDER BY t.teacherName ASC";
+
             ps = conn.prepareStatement(sql);
             rs = ps.executeQuery();
             
@@ -1213,17 +1351,23 @@ public class TalaqqiSessionDAO {
      * Get count of active teachers (teachers with completed sessions).
      */
     public int getActiveTeachersCount() {
-        String sql = "SELECT COUNT(DISTINCT t.teacherId) as total FROM teacher t " +
-                     "INNER JOIN classschedule cs ON t.teacherId = cs.teacherId " +
-                     "INNER JOIN classbooking cb ON cs.scheduleId = cb.scheduleId " +
-                     "INNER JOIN talaqqisession ts ON cb.bookingId = ts.bookingId";
-        
         Connection conn = null;
         PreparedStatement ps = null;
         ResultSet rs = null;
-        
+
         try {
             conn = DBConnection.getConnection();
+            if (conn == null) return 0;
+
+            String join = usesBookingIdLink(conn)
+                ? "INNER JOIN talaqqisession ts ON cb.bookingId = ts.bookingId"
+                : "INNER JOIN talaqqisession ts ON cb.scheduleId = ts.scheduleId";
+
+            String sql = "SELECT COUNT(DISTINCT t.teacherId) as total FROM teacher t "
+                + "INNER JOIN classschedule cs ON t.teacherId = cs.teacherId "
+                + "INNER JOIN classbooking cb ON cs.scheduleId = cb.scheduleId "
+                + " " + join;
+
             ps = conn.prepareStatement(sql);
             rs = ps.executeQuery();
             
@@ -1243,16 +1387,22 @@ public class TalaqqiSessionDAO {
      * Get count of active students (students with completed sessions).
      */
     public int getActiveStudentsCount() {
-        String sql = "SELECT COUNT(DISTINCT cb.studentId) as total FROM student s " +
-                     "INNER JOIN classbooking cb ON s.studentId = cb.studentId " +
-                     "INNER JOIN talaqqisession ts ON cb.bookingId = ts.bookingId";
-        
         Connection conn = null;
         PreparedStatement ps = null;
         ResultSet rs = null;
-        
+
         try {
             conn = DBConnection.getConnection();
+            if (conn == null) return 0;
+
+            String join = usesBookingIdLink(conn)
+                ? "INNER JOIN talaqqisession ts ON cb.bookingId = ts.bookingId"
+                : "INNER JOIN talaqqisession ts ON cb.scheduleId = ts.scheduleId";
+
+            String sql = "SELECT COUNT(DISTINCT cb.studentId) as total FROM student s "
+                + "INNER JOIN classbooking cb ON s.studentId = cb.studentId "
+                + " " + join;
+
             ps = conn.prepareStatement(sql);
             rs = ps.executeQuery();
             
@@ -1321,23 +1471,6 @@ public class TalaqqiSessionDAO {
     public int markMissingStudentsAsAbsent(String sessionId, String teacherId) {
         int markedCount = 0;
         
-        // Step 1: Get all students booked for this session who have NO attendance record
-        String findMissingStudentsSql =
-            "SELECT DISTINCT cb.studentId, cb.scheduleId, cs.teacherId, ts.sessionDate " +
-            "FROM talaqqisession ts " +
-            "JOIN classbooking cb ON ts.bookingId = cb.bookingId " +
-            "JOIN classschedule cs ON cb.scheduleId = cs.scheduleId " +
-            "WHERE ts.sessionId = ? " +
-            "  AND cs.teacherId = ? " +
-            "  AND cb.bookingStatus NOT IN ('Cancelled', 'Completed', 'Rescheduled') " +
-            "  AND NOT EXISTS (" +
-            "      SELECT 1 FROM attendance a " +
-            "      WHERE a.scheduleId = cb.scheduleId " +
-            "        AND a.studentId = cb.studentId " +
-            "        AND a.attendanceDate = ts.sessionDate " +
-            "        AND (a.attendanceStatus IN ('Present', 'Late') OR a.joinTime IS NOT NULL)" +
-            "  )";
-
         Connection conn = null;
         PreparedStatement ps = null;
         ResultSet rs = null;
@@ -1345,6 +1478,37 @@ public class TalaqqiSessionDAO {
         try {
             conn = DBConnection.getConnection();
             if (conn == null) return 0;
+
+            String findMissingStudentsSql = usesBookingIdLink(conn)
+                ? "SELECT DISTINCT cb.studentId, cb.scheduleId, cs.teacherId, ts.sessionDate "
+                    + "FROM talaqqisession ts "
+                    + "JOIN classbooking cb ON ts.bookingId = cb.bookingId "
+                    + "JOIN classschedule cs ON cb.scheduleId = cs.scheduleId "
+                    + "WHERE ts.sessionId = ? "
+                    + "  AND cs.teacherId = ? "
+                    + "  AND cb.bookingStatus NOT IN ('Cancelled', 'Completed', 'Rescheduled') "
+                    + "  AND NOT EXISTS ("
+                    + "      SELECT 1 FROM attendance a "
+                    + "      WHERE a.scheduleId = cb.scheduleId "
+                    + "        AND a.studentId = cb.studentId "
+                    + "        AND a.attendanceDate = ts.sessionDate "
+                    + "        AND (a.attendanceStatus IN ('Present', 'Late') OR a.joinTime IS NOT NULL)"
+                    + "  )"
+                : "SELECT DISTINCT cb.studentId, cb.scheduleId, cs.teacherId, ts.sessionDate "
+                    + "FROM talaqqisession ts "
+                    + "JOIN classschedule cs ON ts.scheduleId = cs.scheduleId "
+                    + "LEFT JOIN classbooking cb ON cb.scheduleId = cs.scheduleId "
+                    + "  AND cb.bookingStatus NOT IN ('Cancelled', 'Completed', 'Rescheduled') "
+                    + "WHERE ts.sessionId = ? "
+                    + "  AND cs.teacherId = ? "
+                    + "  AND cb.studentId IS NOT NULL "
+                    + "  AND NOT EXISTS ("
+                    + "      SELECT 1 FROM attendance a "
+                    + "      WHERE a.scheduleId = cb.scheduleId "
+                    + "        AND a.studentId = cb.studentId "
+                    + "        AND a.attendanceDate = ts.sessionDate "
+                    + "        AND (a.attendanceStatus IN ('Present', 'Late') OR a.joinTime IS NOT NULL)"
+                    + "  )";
 
             ps = conn.prepareStatement(findMissingStudentsSql);
             ps.setString(1, sessionId);
@@ -1408,21 +1572,28 @@ public class TalaqqiSessionDAO {
      * Uses MySQL TIMESTAMPDIFF so clock/timezone matches the database server.
      */
     public String determineAttendanceStatus(String sessionId, String studentId) {
-        String sql =
-            "SELECT TIMESTAMPDIFF(SECOND, " +
-            "  TIMESTAMP(COALESCE(ts.sessionDate, cs.scheduleDate), cs.startTime), " +
-            "  NOW()) AS secondsLate " +
-            "FROM talaqqisession ts " +
-            "JOIN classbooking cb ON ts.bookingId = cb.bookingId " +
-            "JOIN classschedule cs ON cb.scheduleId = cs.scheduleId " +
-            "WHERE ts.sessionId = ? LIMIT 1";
-
         Connection conn = null;
         PreparedStatement ps = null;
         ResultSet rs = null;
         try {
             conn = DBConnection.getConnection();
             if (conn == null) return "Present";
+
+            String sql = usesBookingIdLink(conn)
+                ? "SELECT TIMESTAMPDIFF(SECOND, "
+                    + "  TIMESTAMP(COALESCE(ts.sessionDate, cs.scheduleDate), cs.startTime), "
+                    + "  NOW()) AS secondsLate "
+                    + "FROM talaqqisession ts "
+                    + "JOIN classbooking cb ON ts.bookingId = cb.bookingId "
+                    + "JOIN classschedule cs ON cb.scheduleId = cs.scheduleId "
+                    + "WHERE ts.sessionId = ? LIMIT 1"
+                : "SELECT TIMESTAMPDIFF(SECOND, "
+                    + "  TIMESTAMP(COALESCE(ts.sessionDate, cs.scheduleDate), cs.startTime), "
+                    + "  NOW()) AS secondsLate "
+                    + "FROM talaqqisession ts "
+                    + "JOIN classschedule cs ON ts.scheduleId = cs.scheduleId "
+                    + "WHERE ts.sessionId = ? LIMIT 1";
+
             ps = conn.prepareStatement(sql);
             ps.setString(1, sessionId);
             rs = ps.executeQuery();
