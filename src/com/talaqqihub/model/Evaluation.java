@@ -7,7 +7,7 @@ package com.talaqqihub.model;
 public class Evaluation {
     private int evaluationId;
     private String sessionId;
-    private int scheduleId;
+    private String scheduleId;
     private String studentId;
     private String studentIdNum;
     private String studentName;
@@ -83,11 +83,11 @@ public class Evaluation {
         this.sessionId = sessionId;
     }
 
-    public int getScheduleId() {
+    public String getScheduleId() {
         return scheduleId;
     }
 
-    public void setScheduleId(int scheduleId) {
+    public void setScheduleId(String scheduleId) {
         this.scheduleId = scheduleId;
     }
 

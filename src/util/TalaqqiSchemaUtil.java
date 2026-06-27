@@ -135,11 +135,6 @@ public final class TalaqqiSchemaUtil {
 
     public static String leftJoinSessionFromFeedback(Connection conn) {
         String t = sessionTable(conn);
-        if (hasColumn(conn, t, "bookingId")) {
-            return "LEFT JOIN " + t + " ts ON sf.sessionId = ts.sessionId "
-                + "LEFT JOIN classbooking cb ON " + sessionToBookingOnClause(t)
-                + "LEFT JOIN classschedule cs ON cb.scheduleId = cs.scheduleId ";
-        }
         return "LEFT JOIN " + t + " ts ON sf.sessionId = ts.sessionId "
             + "LEFT JOIN classschedule cs ON ts.scheduleId = cs.scheduleId "
             + "LEFT JOIN classbooking cb ON cb.scheduleId = cs.scheduleId AND cb.studentId = sf.studentId ";

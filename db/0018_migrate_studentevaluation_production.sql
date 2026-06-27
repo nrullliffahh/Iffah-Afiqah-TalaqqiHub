@@ -2,10 +2,7 @@
 -- Safe to re-run: ignore "Duplicate column" errors.
 
 ALTER TABLE studentevaluation ADD COLUMN sessionId VARCHAR(50) DEFAULT NULL;
-ALTER TABLE studentevaluation ADD COLUMN scheduleId INT DEFAULT NULL;
-
--- Relax legacy NOT NULL columns when present (ignore errors if already nullable).
-ALTER TABLE studentevaluation MODIFY COLUMN scheduleId INT DEFAULT NULL;
+ALTER TABLE studentevaluation ADD COLUMN scheduleId VARCHAR(10) DEFAULT NULL;
 ALTER TABLE studentevaluation MODIFY COLUMN sessionId VARCHAR(50) DEFAULT NULL;
 
 ALTER TABLE studentevaluation ADD COLUMN class_name VARCHAR(100) DEFAULT NULL;

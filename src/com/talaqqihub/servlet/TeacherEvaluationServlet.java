@@ -314,9 +314,7 @@ public class TeacherEvaluationServlet extends HttpServlet {
         evaluation.setSessionId(request.getParameter("sessionId"));
         String scheduleIdParam = request.getParameter("scheduleId");
         if (scheduleIdParam != null && !scheduleIdParam.trim().isEmpty()) {
-            try {
-                evaluation.setScheduleId(Integer.parseInt(scheduleIdParam.trim().replaceAll("[^0-9]", "")));
-            } catch (NumberFormatException ignored) {}
+            evaluation.setScheduleId(scheduleIdParam.trim());
         }
 
         return evaluation;

@@ -75,7 +75,7 @@ public class TeacherEvaluationDAO {
     private void migrateStudentEvaluationColumns() {
         String[][] columns = {
             {"sessionId", "VARCHAR(50) DEFAULT NULL"},
-            {"scheduleId", "INT DEFAULT NULL"},
+            {"scheduleId", "VARCHAR(10) DEFAULT NULL"},
             {"class_name", "VARCHAR(100) DEFAULT NULL"},
             {"surah", "VARCHAR(100) DEFAULT NULL"},
             {"ayah_range", "VARCHAR(50) DEFAULT NULL"},
@@ -95,7 +95,6 @@ public class TeacherEvaluationDAO {
         for (String[] col : columns) {
             tryAddColumn("studentevaluation", col[0], col[1]);
         }
-        tryModifyColumnNullable("studentevaluation", "scheduleId", "INT DEFAULT NULL");
         tryModifyColumnNullable("studentevaluation", "sessionId", "VARCHAR(50) DEFAULT NULL");
     }
 
@@ -497,9 +496,13 @@ public class TeacherEvaluationDAO {
         }
     }
 
-    private void sqlAddInt(EvalSqlParts parts, String column, Integer value) {
-        if (hasEvalColumn(column)) {
-            parts.add(column, value != null ? value : 0);
+    private void sqlAddScheduleId(EvalSqlParts parts, Evaluation evaluation) {
+        if (!hasEvalColumn("scheduleId")) {
+            return;
+        }
+        String scheduleId = resolveScheduleIdString(evaluation);
+        if (scheduleId != null) {
+            parts.add("scheduleId", scheduleId);
         }
     }
 
@@ -507,55 +510,101 @@ public class TeacherEvaluationDAO {
         if (evaluation == null) {
             return;
         }
-        if (evaluation.getScheduleId() <= 0) {
-            Integer scheduleId = lookupScheduleIdForSession(evaluation.getSessionId());
-            if (scheduleId != null && scheduleId > 0) {
+        if (isBlank(evaluation.getScheduleId())) {
+            String scheduleId = lookupScheduleIdForSession(
+                evaluation.getSessionId(), resolveStudentId(evaluation));
+            if (scheduleId != null) {
                 evaluation.setScheduleId(scheduleId);
             }
         }
     }
 
-    private Integer lookupScheduleIdForSession(String sessionId) {
+    private boolean isBlank(String value) {
+        return value == null || value.trim().isEmpty();
+    }
+
+    private String lookupScheduleIdForSession(String sessionId, String studentId) {
         if (sessionId == null || sessionId.trim().isEmpty()) {
             return null;
         }
         String table = TalaqqiSchemaUtil.sessionTable(connection);
-        String sql = "SELECT scheduleId FROM " + table + " WHERE sessionId = ? LIMIT 1";
-        try (PreparedStatement stmt = connection.prepareStatement(sql)) {
+        String directSql = "SELECT scheduleId FROM " + table + " WHERE sessionId = ? LIMIT 1";
+        try (PreparedStatement stmt = connection.prepareStatement(directSql)) {
             stmt.setString(1, sessionId.trim());
             try (ResultSet rs = stmt.executeQuery()) {
                 if (rs.next()) {
-                    return parseScheduleIdValue(rs.getObject("scheduleId"));
+                    String scheduleId = readScheduleIdColumn(rs);
+                    if (scheduleIdExistsInClassSchedule(scheduleId)) {
+                        return scheduleId;
+                    }
                 }
             }
         } catch (SQLException e) {
-            System.err.println("[TeacherEvaluationDAO] lookupScheduleIdForSession: " + e.getMessage());
+            System.err.println("[TeacherEvaluationDAO] lookupScheduleIdForSession direct: " + e.getMessage());
+        }
+
+        if (studentId != null && !studentId.trim().isEmpty()) {
+            String bookingSql =
+                "SELECT cb.scheduleId FROM " + table + " ts "
+                + "JOIN classbooking cb ON cb.scheduleId = ts.scheduleId "
+                + "WHERE ts.sessionId = ? AND cb.studentId = ? "
+                + "ORDER BY cb.bookingDate DESC, cb.bookingTime DESC LIMIT 1";
+            try (PreparedStatement stmt = connection.prepareStatement(bookingSql)) {
+                stmt.setString(1, sessionId.trim());
+                stmt.setString(2, studentId.trim());
+                try (ResultSet rs = stmt.executeQuery()) {
+                    if (rs.next()) {
+                        String scheduleId = readScheduleIdColumn(rs);
+                        if (scheduleIdExistsInClassSchedule(scheduleId)) {
+                            return scheduleId;
+                        }
+                    }
+                }
+            } catch (SQLException e) {
+                System.err.println("[TeacherEvaluationDAO] lookupScheduleIdForSession booking: " + e.getMessage());
+            }
         }
         return null;
     }
 
-    private Integer resolveScheduleId(Evaluation evaluation) {
+    private String resolveScheduleIdString(Evaluation evaluation) {
         hydrateLegacyKeys(evaluation);
-        if (evaluation.getScheduleId() > 0) {
-            return evaluation.getScheduleId();
+        String scheduleId = evaluation.getScheduleId();
+        if (isBlank(scheduleId)) {
+            return null;
         }
-        return 0;
+        scheduleId = scheduleId.trim();
+        return scheduleIdExistsInClassSchedule(scheduleId) ? scheduleId : null;
     }
 
-    private Integer parseScheduleIdValue(Object value) {
+    private boolean scheduleIdExistsInClassSchedule(String scheduleId) {
+        if (isBlank(scheduleId)) {
+            return false;
+        }
+        try (PreparedStatement stmt = connection.prepareStatement(
+                "SELECT 1 FROM classschedule WHERE scheduleId = ? LIMIT 1")) {
+            stmt.setString(1, scheduleId.trim());
+            try (ResultSet rs = stmt.executeQuery()) {
+                return rs.next();
+            }
+        } catch (SQLException e) {
+            System.err.println("[TeacherEvaluationDAO] scheduleIdExistsInClassSchedule: " + e.getMessage());
+            return false;
+        }
+    }
+
+    private String readScheduleIdColumn(ResultSet rs) throws SQLException {
+        Object value = rs.getObject("scheduleId");
         if (value == null) {
             return null;
         }
-        if (value instanceof Number) {
-            int num = ((Number) value).intValue();
-            return num > 0 ? num : null;
-        }
-        String digits = value.toString().replaceAll("[^0-9]", "");
-        if (digits.isEmpty()) {
-            return null;
-        }
-        int num = Integer.parseInt(digits);
-        return num > 0 ? num : null;
+        String scheduleId = value.toString().trim();
+        return scheduleId.isEmpty() ? null : scheduleId;
+    }
+
+    private boolean isScheduleIdConstraintError(SQLException e) {
+        String msg = e.getMessage();
+        return msg != null && msg.contains("fk_StudentEvaluation_scheduleId");
     }
 
     private void bindParams(PreparedStatement stmt, List<Object> values) throws SQLException {
@@ -587,7 +636,7 @@ public class TeacherEvaluationDAO {
         parts.add("studentId", resolveStudentId(evaluation));
         parts.add("teacherId", resolveTeacherId(evaluation));
         sqlAdd(parts, "sessionId", nullToEmpty(evaluation.getSessionId()));
-        sqlAddInt(parts, "scheduleId", resolveScheduleId(evaluation));
+        sqlAddScheduleId(parts, evaluation);
         sqlAdd(parts, "class_name", nullToEmpty(evaluation.getClassName()));
         sqlAdd(parts, "surah", nullToEmpty(evaluation.getSurah()));
         sqlAdd(parts, "ayah_range", nullToEmpty(evaluation.getAyahRange()));
@@ -627,7 +676,7 @@ public class TeacherEvaluationDAO {
         parts.add("studentId", resolveStudentId(evaluation));
         parts.add("teacherId", resolveTeacherId(evaluation));
         sqlAdd(parts, "sessionId", nullToEmpty(evaluation.getSessionId()));
-        sqlAddInt(parts, "scheduleId", resolveScheduleId(evaluation));
+        sqlAddScheduleId(parts, evaluation);
         sqlAdd(parts, "tajweedScore", evaluation.getTajweedScore());
         sqlAdd(parts, "fluencyScore", evaluation.getFluencyScore());
         sqlAdd(parts, "accuracyScore", evaluation.getAccuracyScore());
@@ -637,7 +686,6 @@ public class TeacherEvaluationDAO {
         sqlAdd(parts, "nextTarget", nullToEmpty(evaluation.getNextTarget()));
         sqlAdd(parts, "comments", nullToEmpty(evaluation.getComments()));
         sqlAdd(parts, "status", resolvedEvalStatus(evaluation));
-        sqlAdd(parts, "sessionId", nullToEmpty(evaluation.getSessionId()));
 
         String sql = "INSERT INTO studentevaluation (" + parts.columns + ") VALUES (" + parts.placeholders + ")";
         try (PreparedStatement stmt = connection.prepareStatement(sql)) {
@@ -683,6 +731,21 @@ public class TeacherEvaluationDAO {
                 }
             }
             System.err.println("[TeacherEvaluationDAO] insertEvaluation primary failed: " + e.getMessage());
+            if (isScheduleIdConstraintError(e)) {
+                evaluation.setScheduleId(null);
+                EvalSqlParts retryParts = buildEvaluationInsertParts(evaluation);
+                String retrySql = "INSERT INTO studentevaluation (" + retryParts.columns + ") VALUES ("
+                    + retryParts.placeholders + ")";
+                try (PreparedStatement retryStmt = connection.prepareStatement(retrySql)) {
+                    bindParams(retryStmt, retryParts.values);
+                    if (retryStmt.executeUpdate() > 0) {
+                        return true;
+                    }
+                } catch (SQLException retryError) {
+                    System.err.println("[TeacherEvaluationDAO] insertEvaluation retry without scheduleId: "
+                        + retryError.getMessage());
+                }
+            }
             if (insertLegacyEvaluation(evaluation)) {
                 return true;
             }
@@ -709,7 +772,10 @@ public class TeacherEvaluationDAO {
             helper.addSet("sessionId", nullToEmpty(evaluation.getSessionId()), setClause, params);
         }
         if (hasEvalColumn("scheduleId")) {
-            helper.addSet("scheduleId", resolveScheduleId(evaluation), setClause, params);
+            String scheduleId = resolveScheduleIdString(evaluation);
+            if (scheduleId != null) {
+                helper.addSet("scheduleId", scheduleId, setClause, params);
+            }
         }
         if (hasEvalColumn("class_name")) {
             helper.addSet("class_name", nullToEmpty(evaluation.getClassName()), setClause, params);
@@ -987,7 +1053,7 @@ public class TeacherEvaluationDAO {
 
                 Evaluation evaluation = new Evaluation();
                 evaluation.setSessionId(rs.getString("sessionId"));
-                Integer scheduleId = parseScheduleIdValue(rs.getObject("scheduleId"));
+                String scheduleId = readScheduleIdColumn(rs);
                 if (scheduleId != null) {
                     evaluation.setScheduleId(scheduleId);
                 }
@@ -1018,7 +1084,6 @@ public class TeacherEvaluationDAO {
         String teacherIdStr = resolveTeacherId(evaluation);
         String studentIdStr = resolveStudentId(evaluation);
         String sessionId = nullToEmpty(evaluation.getSessionId());
-        Integer scheduleId = resolveScheduleId(evaluation);
 
         EvalSqlParts parts = new EvalSqlParts();
         if (hasEvalColumn("studentEvaluationId")) {
@@ -1027,7 +1092,7 @@ public class TeacherEvaluationDAO {
         parts.add("studentId", studentIdStr);
         parts.add("teacherId", teacherIdStr);
         sqlAdd(parts, "sessionId", sessionId);
-        sqlAddInt(parts, "scheduleId", scheduleId);
+        sqlAddScheduleId(parts, evaluation);
         if (hasEvalColumn("status")) {
             parts.add("status", "PENDING");
         }
@@ -1050,7 +1115,7 @@ public class TeacherEvaluationDAO {
         fallback.add("studentId", studentIdStr);
         fallback.add("teacherId", teacherIdStr);
         sqlAdd(fallback, "sessionId", sessionId);
-        sqlAddInt(fallback, "scheduleId", scheduleId);
+        sqlAddScheduleId(fallback, evaluation);
         if (hasEvalColumn("status")) {
             fallback.add("status", "PENDING");
         }
