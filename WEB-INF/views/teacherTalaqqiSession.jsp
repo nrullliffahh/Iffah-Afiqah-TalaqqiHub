@@ -573,11 +573,22 @@
             headers: { "Content-Type": "application/x-www-form-urlencoded" },
             body: "action=endSession&sessionId=" + encodeURIComponent(SESSION_ID)
                 + "&studentId=" + encodeURIComponent(STUDENT_ID)
-        }).then(function () {
+        }).then(function (r) {
+            return r.json();
+        }).then(function (data) {
             stopSessionUI();
-            toast("Session ended", "info");
+            if (data && (data.success || data.pendingEvaluation)) {
+                toast("Session ended. Opening student evaluation...", "success");
+                var evalUrl = (data && data.evaluationUrl) ? data.evaluationUrl : (CTX + "/teacher/evaluation");
+                setTimeout(function () {
+                    window.location.href = evalUrl;
+                }, 1200);
+                return;
+            }
+            toast((data && data.message) ? data.message : "Session ended", "info");
         }).catch(function () {
             stopSessionUI();
+            toast("Session ended", "info");
         });
     }
 

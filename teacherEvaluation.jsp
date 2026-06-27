@@ -204,10 +204,7 @@
             <c:if test="${empty completedEvaluations && empty studentFeedbackList && empty pendingEvaluations}">
                 <div class="mx-0 mb-6 bg-amber-50 border border-amber-200 rounded-lg p-4 text-amber-900 text-sm">
                     Logged in as <strong><c:out value="${teacherName}"/></strong> (<c:out value="${teacherId}"/>).
-                    No evaluation data for this teacher account yet.
-                    <c:if test="${teacherId != 'T003'}">
-                        Sample data is under <strong>T003 / Ustazah Asma' Harun</strong> (login: asma@gmail.com).
-                    </c:if>
+                    No pending evaluations yet. After you <strong>End Session</strong> in Talaqqi Session, the student will appear here for you to evaluate (Tajweed, Fluency, Accuracy).
                 </div>
             </c:if>
 

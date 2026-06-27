@@ -121,7 +121,9 @@ public class TalaqqiSessionDAO {
                     + "JOIN classschedule cs ON cb.scheduleId = cs.scheduleId "
                     + "WHERE cs.teacherId = ? "
                     + "  AND cb.bookingStatus IN " + util.BookingStatus.SQL_ACTIVE + " "
-                    + "  AND NOT EXISTS (SELECT 1 FROM talaqqisession ts2 WHERE ts2.bookingId = cb.bookingId) "
+                    + "  AND NOT EXISTS (SELECT 1 FROM talaqqisession ts2 WHERE "
+                    + "    (ts2.bookingId IS NOT NULL AND ts2.bookingId <> '' AND ts2.bookingId = cb.bookingId) "
+                    + "    OR ((ts2.bookingId IS NULL OR ts2.bookingId = '') AND ts2.scheduleId = cb.scheduleId)) "
                     + "ORDER BY cs.scheduleDate ASC, cb.bookingTime ASC, cb.bookingId ASC"
                 : "SELECT cb.scheduleId, cs.scheduleDate "
                     + "FROM classbooking cb "
@@ -242,7 +244,9 @@ public class TalaqqiSessionDAO {
                     + "JOIN classschedule cs ON cb.scheduleId = cs.scheduleId "
                     + "WHERE cb.studentId = ? "
                     + "  AND cb.bookingStatus IN " + util.BookingStatus.SQL_ACTIVE + " "
-                    + "  AND NOT EXISTS (SELECT 1 FROM talaqqisession ts2 WHERE ts2.bookingId = cb.bookingId) "
+                    + "  AND NOT EXISTS (SELECT 1 FROM talaqqisession ts2 WHERE "
+                    + "    (ts2.bookingId IS NOT NULL AND ts2.bookingId <> '' AND ts2.bookingId = cb.bookingId) "
+                    + "    OR ((ts2.bookingId IS NULL OR ts2.bookingId = '') AND ts2.scheduleId = cb.scheduleId)) "
                     + "ORDER BY cs.scheduleDate ASC, cb.bookingTime ASC, cb.bookingId ASC"
                 : "SELECT cb.scheduleId, cs.scheduleDate "
                     + "FROM classbooking cb "
@@ -742,7 +746,12 @@ public class TalaqqiSessionDAO {
             
             int rowsUpdated = ps.executeUpdate();
             
+            if (rowsUpdated <= 0) {
+                rowsUpdated = completeSessionFallback(conn, sessionId, teacherId, durationMinutes);
+            }
+
             if (rowsUpdated > 0) {
+                backfillSessionBookingId(conn, sessionId);
                 System.out.println("[TalaqqiSessionDAO] completeSession: sessionId=" + sessionId + 
                     ", startTime=" + (sessionStartTime != null ? sessionStartTime : "NOW()") + 
                     ", duration=" + durationMinutes + " minutes (with fractional precision)");
@@ -754,6 +763,72 @@ public class TalaqqiSessionDAO {
             return false;
         } finally {
             closeQuietly(null, ps, conn);
+        }
+    }
+
+    /** Fallback when the primary completeSession UPDATE matches zero rows (hybrid schema). */
+    private int completeSessionFallback(Connection conn, String sessionId, String teacherId, double durationMinutes)
+            throws SQLException {
+        String sessionTable = util.TalaqqiSchemaUtil.sessionTable(conn);
+        String linkClause =
+            "((ts.bookingId IS NOT NULL AND ts.bookingId <> '' AND ts.bookingId = cb.bookingId) "
+            + "OR ((ts.bookingId IS NULL OR ts.bookingId = '') AND ts.scheduleId = cb.scheduleId))";
+
+        String updateSql;
+        if (hasSessionTimingColumns(conn)) {
+            updateSql =
+                "UPDATE classbooking cb "
+                + "JOIN classschedule cs ON cb.scheduleId = cs.scheduleId "
+                + "JOIN " + sessionTable + " ts ON ts.sessionId = ? "
+                + "SET cb.bookingStatus = 'Completed', "
+                + "    ts.sessionDate = CURDATE(), "
+                + "    ts.sessionStartTime = IF(ts.sessionStartTime IS NULL, NOW(), ts.sessionStartTime), "
+                + "    ts.sessionDuration = ? "
+                + "WHERE cs.teacherId = ? AND " + linkClause;
+        } else {
+            updateSql =
+                "UPDATE classbooking cb "
+                + "JOIN classschedule cs ON cb.scheduleId = cs.scheduleId "
+                + "JOIN " + sessionTable + " ts ON ts.sessionId = ? "
+                + "SET cb.bookingStatus = 'Completed', ts.sessionDate = CURDATE() "
+                + "WHERE cs.teacherId = ? AND " + linkClause;
+        }
+
+        try (PreparedStatement ps = conn.prepareStatement(util.TalaqqiSchemaUtil.sql(updateSql, conn))) {
+            int param = 1;
+            ps.setString(param++, sessionId);
+            if (hasSessionTimingColumns(conn)) {
+                ps.setDouble(param++, durationMinutes);
+            }
+            ps.setString(param, teacherId);
+            int rows = ps.executeUpdate();
+            if (rows > 0) {
+                System.out.println("[TalaqqiSessionDAO] completeSessionFallback: sessionId=" + sessionId
+                    + ", rows=" + rows);
+            }
+            return rows;
+        }
+    }
+
+    /** Link legacy session rows to their bookingId for future joins. */
+    private void backfillSessionBookingId(Connection conn, String sessionId) {
+        String sessionTable = util.TalaqqiSchemaUtil.sessionTable(conn);
+        if (!util.TalaqqiSchemaUtil.hasColumn(conn, sessionTable, "bookingId")) {
+            return;
+        }
+        String sql =
+            "UPDATE " + sessionTable + " ts "
+            + "JOIN classbooking cb ON cb.scheduleId = ts.scheduleId "
+            + "SET ts.bookingId = cb.bookingId "
+            + "WHERE ts.sessionId = ? "
+            + "  AND (ts.bookingId IS NULL OR ts.bookingId = '') "
+            + "  AND cb.bookingStatus = 'Completed' "
+            + "LIMIT 1";
+        try (PreparedStatement ps = conn.prepareStatement(util.TalaqqiSchemaUtil.sql(sql, conn))) {
+            ps.setString(1, sessionId);
+            ps.executeUpdate();
+        } catch (SQLException e) {
+            System.err.println("[TalaqqiSessionDAO] backfillSessionBookingId: " + e.getMessage());
         }
     }
 

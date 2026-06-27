@@ -203,16 +203,17 @@ public class TeacherTalaqqiSessionServlet extends HttpServlet {
                 // Mark class as Completed in DB
                 boolean completed = talaqqiSessionDAO.completeSession(sessionId, teacherId);
 
-                if (completed) {
-                    try (java.sql.Connection conn = util.DBConnection.getConnection()) {
-                        if (conn != null) {
-                            new com.talaqqihub.dao.TeacherEvaluationDAO(conn)
-                                .ensurePendingEvaluationForSession(sessionId, teacherId);
-                        }
-                    } catch (Exception evalError) {
-                        System.err.println("[TeacherTalaqqiSessionServlet] pending evaluation skipped: "
-                            + evalError.getMessage());
+                boolean pendingCreated = false;
+                try (java.sql.Connection conn = util.DBConnection.getConnection()) {
+                    if (conn != null) {
+                        com.talaqqihub.dao.TeacherEvaluationDAO evalDao =
+                            new com.talaqqihub.dao.TeacherEvaluationDAO(conn);
+                        evalDao.ensureStudentEvaluationSchema();
+                        pendingCreated = evalDao.ensurePendingEvaluationForSession(sessionId, teacherId);
                     }
+                } catch (Exception evalError) {
+                    System.err.println("[TeacherTalaqqiSessionServlet] pending evaluation skipped: "
+                        + evalError.getMessage());
                 }
 
                 talaqqiSessionDAO.clearLiveSessionStart(sessionId);
@@ -221,9 +222,12 @@ public class TeacherTalaqqiSessionServlet extends HttpServlet {
                 httpSession.removeAttribute(SESSION_KEY);
 
                 sendJson(response, 200,
-                    "{\"success\":" + completed + "," +
+                    "{\"success\":" + (completed || pendingCreated) + "," +
+                    "\"completed\":" + completed + "," +
+                    "\"pendingEvaluation\":" + pendingCreated + "," +
                     "\"absentMarked\":" + absentMarkedCount + "," +
-                    "\"message\":\"Session ended, " + absentMarkedCount + " student(s) marked absent\"}");
+                    "\"evaluationUrl\":\"" + request.getContextPath() + "/teacher/evaluation\"," +
+                    "\"message\":\"Session ended. Please evaluate your student.\"}");
                 break;
             }
 

@@ -631,10 +631,49 @@ public class TeacherEvaluationDAO {
                 evaluation.setStartTime(rs.getString("start_time"));
                 evaluation.setEndTime(rs.getString("end_time"));
                 evaluation.setStatus("PENDING");
-                return insertEvaluation(evaluation);
+                if (insertEvaluation(evaluation)) {
+                    return true;
+                }
+                return insertMinimalPendingEvaluation(evaluation);
             }
         } catch (SQLException e) {
             setError("Unable to create pending evaluation for session " + sessionId, e);
+            return false;
+        }
+    }
+
+    private boolean insertMinimalPendingEvaluation(Evaluation evaluation) {
+        String evalIdStr = resolveEvaluationId(evaluation);
+        String teacherIdStr = resolveTeacherId(evaluation);
+        String studentIdStr = resolveStudentId(evaluation);
+        String sessionId = nullToEmpty(evaluation.getSessionId());
+
+        String[] queries = {
+            "INSERT INTO studentevaluation (studentEvaluationId, studentId, teacherId, sessionId, status) "
+                + "VALUES (?, ?, ?, ?, 'PENDING')",
+            "INSERT INTO studentevaluation (studentId, teacherId, sessionId, status) "
+                + "VALUES (?, ?, ?, 'PENDING')"
+        };
+
+        try (PreparedStatement stmt = connection.prepareStatement(queries[0])) {
+            stmt.setString(1, evalIdStr);
+            stmt.setString(2, studentIdStr);
+            stmt.setString(3, teacherIdStr);
+            stmt.setString(4, sessionId);
+            if (stmt.executeUpdate() > 0) {
+                return true;
+            }
+        } catch (SQLException e) {
+            System.err.println("[TeacherEvaluationDAO] minimal pending insert (with id): " + e.getMessage());
+        }
+
+        try (PreparedStatement stmt = connection.prepareStatement(queries[1])) {
+            stmt.setString(1, studentIdStr);
+            stmt.setString(2, teacherIdStr);
+            stmt.setString(3, sessionId);
+            return stmt.executeUpdate() > 0;
+        } catch (SQLException e) {
+            setError("Unable to create minimal pending evaluation: " + e.getMessage(), e);
             return false;
         }
     }
