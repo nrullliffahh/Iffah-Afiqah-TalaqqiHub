@@ -1,6 +1,7 @@
 package com.talaqqihub.dao;
 
 import com.talaqqihub.model.Evaluation;
+import util.TalaqqiSchemaUtil;
 import java.sql.*;
 import java.util.*;
 
@@ -168,9 +169,7 @@ public class TeacherEvaluationDAO {
             "se.createdAt, se.updated_at " +
             "FROM studentevaluation se " +
             "LEFT JOIN student s ON se.studentId = s.studentId " +
-            "LEFT JOIN talaqqisession ts ON se.sessionId = ts.sessionId " +
-            "LEFT JOIN classbooking cb ON ts.bookingId = cb.bookingId " +
-            "LEFT JOIN classschedule cs ON cb.scheduleId = cs.scheduleId " +
+            TalaqqiSchemaUtil.leftJoinSessionFromEvaluation(connection) +
             "LEFT JOIN qurandisplay qd ON ts.sessionId = qd.sessionId " +
             "LEFT JOIN teacher t ON COALESCE(NULLIF(se.teacherId, ''), cs.teacherId) = t.teacherId " +
             "WHERE se.teacherId = ? AND se.status = 'PENDING' " +
@@ -232,9 +231,7 @@ public class TeacherEvaluationDAO {
             "se.createdAt, se.updated_at " +
             "FROM studentevaluation se " +
             "LEFT JOIN student s ON se.studentId = s.studentId " +
-            "LEFT JOIN talaqqisession ts ON se.sessionId = ts.sessionId " +
-            "LEFT JOIN classbooking cb ON ts.bookingId = cb.bookingId " +
-            "LEFT JOIN classschedule cs ON cb.scheduleId = cs.scheduleId " +
+            TalaqqiSchemaUtil.leftJoinSessionFromEvaluation(connection) +
             "LEFT JOIN qurandisplay qd ON ts.sessionId = qd.sessionId " +
             "LEFT JOIN teacher t ON COALESCE(NULLIF(se.teacherId, ''), cs.teacherId) = t.teacherId " +
             "WHERE se.teacherId = ? AND se.status = 'COMPLETED'"
@@ -490,10 +487,11 @@ public class TeacherEvaluationDAO {
      */
     public List<Evaluation> getPendingSessionsNeedingEvaluation(String teacherId) {
         List<Evaluation> evaluations = new ArrayList<>();
+        String ayahRange = TalaqqiSchemaUtil.ayahRangeExpr(connection);
         String query =
             "SELECT ts.sessionId, cb.studentId, s.studentName AS student_name, " +
             "cs.className AS class_name, cs.classSurah AS surah, " +
-            "CONCAT(cs.classAyah,'-',COALESCE(cs.classAyahEnd,cs.classAyah)) AS ayah_range, " +
+            ayahRange + " AS ayah_range, " +
             "DATE_FORMAT(cs.scheduleDate,'%Y-%m-%d') AS session_date, " +
             "DATE_FORMAT(cs.startTime,'%H:%i:%s') AS start_time, " +
             "DATE_FORMAT(cs.endTime,'%H:%i:%s') AS end_time, " +
@@ -501,7 +499,7 @@ public class TeacherEvaluationDAO {
             "FROM classbooking cb " +
             "JOIN classschedule cs ON cb.scheduleId = cs.scheduleId " +
             "JOIN student s ON cb.studentId = s.studentId " +
-            "LEFT JOIN talaqqisession ts ON ts.bookingId = cb.bookingId " +
+            TalaqqiSchemaUtil.leftJoinSessionToBooking(connection) +
             "LEFT JOIN studentevaluation se ON se.sessionId = ts.sessionId AND se.teacherId = cs.teacherId " +
             "WHERE cs.teacherId = ? AND LOWER(cb.bookingStatus) = 'completed' " +
             "AND se.studentEvaluationId IS NULL " +
@@ -537,6 +535,7 @@ public class TeacherEvaluationDAO {
      */
     public List<Evaluation> getStudentFeedbackForTeacher(String teacherId) {
         List<Evaluation> evaluations = new ArrayList<>();
+        String ayahRange = TalaqqiSchemaUtil.ayahRangeExpr(connection);
         String query =
             "SELECT sf.feedbackId, sf.sessionId, sf.rating, sf.comments, sf.suggestions, " +
             "DATE_FORMAT(sf.createdAt,'%Y-%m-%d') AS createdAt, " +
@@ -545,12 +544,10 @@ public class TeacherEvaluationDAO {
             "DATE_FORMAT(cs.startTime,'%H:%i:%s') AS start_time, " +
             "DATE_FORMAT(cs.endTime,'%H:%i:%s') AS end_time, " +
             "cs.classSurah AS surah, " +
-            "CONCAT(cs.classAyah,'-',COALESCE(cs.classAyahEnd,cs.classAyah)) AS ayah_range " +
+            ayahRange + " AS ayah_range " +
             "FROM studentfeedback sf " +
             "JOIN student s ON sf.studentId = s.studentId " +
-            "LEFT JOIN talaqqisession ts ON sf.sessionId = ts.sessionId " +
-            "LEFT JOIN classbooking cb ON ts.bookingId = cb.bookingId " +
-            "LEFT JOIN classschedule cs ON cb.scheduleId = cs.scheduleId " +
+            TalaqqiSchemaUtil.leftJoinSessionFromFeedback(connection) +
             "WHERE sf.teacherId = ? " +
             "ORDER BY sf.createdAt DESC";
 

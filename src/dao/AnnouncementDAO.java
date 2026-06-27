@@ -2,6 +2,7 @@ package dao;
 
 import model.Announcement;
 import util.DBConnection;
+import util.TalaqqiSchemaUtil;
 import java.sql.Connection;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
@@ -33,6 +34,7 @@ public class AnnouncementDAO {
         try {
             conn = DBConnection.getConnection();
             if (conn == null) return 0;
+            if (!TalaqqiSchemaUtil.hasAnnouncementTable(conn)) return 0;
 
             pstmt = conn.prepareStatement(
                 "SELECT COUNT(*) AS total FROM announcement WHERE status = 'published'");
@@ -64,6 +66,7 @@ public class AnnouncementDAO {
         try {
             conn = DBConnection.getConnection();
             if (conn == null) return announcements;
+            if (!TalaqqiSchemaUtil.hasAnnouncementTable(conn)) return announcements;
 
             String sql = "SELECT " + SELECT_COLUMNS + BASE_FROM +
                          "WHERE status = 'published' AND (teacherId = ? OR author = ? OR author = 'Talaqqi Admin') " +
@@ -94,6 +97,7 @@ public class AnnouncementDAO {
         try {
             conn = DBConnection.getConnection();
             if (conn == null) return announcements;
+            if (!TalaqqiSchemaUtil.hasAnnouncementTable(conn)) return announcements;
 
             String sql = "SELECT " + SELECT_COLUMNS + BASE_FROM +
                          "WHERE status = 'published' AND (" +
@@ -328,6 +332,7 @@ public class AnnouncementDAO {
         try {
             conn = DBConnection.getConnection();
             if (conn == null) return announcements;
+            if (!TalaqqiSchemaUtil.hasAnnouncementTable(conn)) return announcements;
 
             pstmt = conn.prepareStatement(sql);
             for (int i = 0; i < params.length; i++) {

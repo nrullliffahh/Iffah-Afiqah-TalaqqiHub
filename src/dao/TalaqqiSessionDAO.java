@@ -68,43 +68,8 @@ public class TalaqqiSessionDAO {
         "LEFT JOIN student s ON cb.studentId = s.studentId " +
         "LEFT JOIN teacher t ON cs.teacherId = t.teacherId ";
 
-    private static volatile Boolean linkByBookingId;
-
     private static boolean usesBookingIdLink(Connection conn) {
-        if (linkByBookingId != null) {
-            return linkByBookingId;
-        }
-        synchronized (TalaqqiSessionDAO.class) {
-            if (linkByBookingId != null) {
-                return linkByBookingId;
-            }
-            boolean modern = false;
-            Connection probe = conn;
-            boolean closeProbe = false;
-            try {
-                if (probe == null) {
-                    probe = DBConnection.getConnection();
-                    closeProbe = true;
-                }
-                if (probe != null) {
-                    DatabaseMetaData meta = probe.getMetaData();
-                    try (ResultSet cols = meta.getColumns(probe.getCatalog(), null, "talaqqisession", "bookingId")) {
-                        modern = cols.next();
-                    }
-                }
-            } catch (SQLException e) {
-                modern = false;
-            } finally {
-                if (closeProbe && probe != null) {
-                    try {
-                        probe.close();
-                    } catch (SQLException ignored) {}
-                }
-            }
-            linkByBookingId = modern;
-            System.out.println("[TalaqqiSessionDAO] talaqqisession link column: " + (modern ? "bookingId" : "scheduleId"));
-            return modern;
-        }
+        return util.TalaqqiSchemaUtil.usesBookingIdLink(conn);
     }
 
     private static String baseSelect(Connection conn) {
@@ -113,9 +78,7 @@ public class TalaqqiSessionDAO {
 
     /** Join fragment: talaqqisession ↔ classbooking (alias ts, cb already in query). */
     static String joinSessionToBooking(Connection conn) {
-        return usesBookingIdLink(conn)
-            ? "JOIN talaqqisession ts ON ts.bookingId = cb.bookingId "
-            : "JOIN talaqqisession ts ON ts.scheduleId = cb.scheduleId ";
+        return util.TalaqqiSchemaUtil.joinSessionToBooking(conn);
     }
 
     /** Predicate for inline JOIN/WHERE (both sides already aliased ts, cb). */
@@ -135,42 +98,8 @@ public class TalaqqiSessionDAO {
                 + "  AND cb.bookingStatus NOT IN ('Cancelled','Rejected') ";
     }
 
-    private static volatile Boolean sessionTimingColumns;
-
     private static boolean hasSessionTimingColumns(Connection conn) {
-        if (sessionTimingColumns != null) {
-            return sessionTimingColumns;
-        }
-        synchronized (TalaqqiSessionDAO.class) {
-            if (sessionTimingColumns != null) {
-                return sessionTimingColumns;
-            }
-            boolean has = false;
-            Connection probe = conn;
-            boolean closeProbe = false;
-            try {
-                if (probe == null) {
-                    probe = DBConnection.getConnection();
-                    closeProbe = true;
-                }
-                if (probe != null) {
-                    DatabaseMetaData meta = probe.getMetaData();
-                    try (ResultSet cols = meta.getColumns(probe.getCatalog(), null, "talaqqisession", "sessionStartTime")) {
-                        has = cols.next();
-                    }
-                }
-            } catch (SQLException e) {
-                has = false;
-            } finally {
-                if (closeProbe && probe != null) {
-                    try {
-                        probe.close();
-                    } catch (SQLException ignored) {}
-                }
-            }
-            sessionTimingColumns = has;
-            return has;
-        }
+        return util.TalaqqiSchemaUtil.hasSessionTimingColumns(conn);
     }
 
     // ══════════════════════════════════════════════════════════════════════════
@@ -513,17 +442,31 @@ public class TalaqqiSessionDAO {
                     + "JOIN talaqqisession ts ON ts.bookingId = cb.bookingId "
                     + "SET cs.classSurah = ?, cs.classAyah = ?, cs.classAyahEnd = ? "
                     + "WHERE ts.sessionId = ? AND cs.teacherId = ?"
-                : "UPDATE classschedule cs "
-                    + "JOIN talaqqisession ts ON ts.scheduleId = cs.scheduleId "
-                    + "SET cs.classSurah = ?, cs.classAyah = ?, cs.classAyahEnd = ? "
-                    + "WHERE ts.sessionId = ? AND cs.teacherId = ?";
+                : util.TalaqqiSchemaUtil.hasClassAyahEnd(conn)
+                    ? "UPDATE classschedule cs "
+                        + "JOIN talaqqisession ts ON ts.scheduleId = cs.scheduleId "
+                        + "SET cs.classSurah = ?, cs.classAyah = ?, cs.classAyahEnd = ? "
+                        + "WHERE ts.sessionId = ? AND cs.teacherId = ?"
+                    : "UPDATE classschedule cs "
+                        + "JOIN talaqqisession ts ON ts.scheduleId = cs.scheduleId "
+                        + "SET cs.classSurah = ?, cs.classAyah = ? "
+                        + "WHERE ts.sessionId = ? AND cs.teacherId = ?";
 
             ps = conn.prepareStatement(sql);
             ps.setInt(1, surahNumber);
             ps.setInt(2, ayahStart);
-            if (ayahEnd > 0) ps.setInt(3, ayahEnd); else ps.setNull(3, java.sql.Types.INTEGER);
-            ps.setString(4, sessionId);
-            ps.setString(5, teacherId);
+            if (usesBookingIdLink(conn) || util.TalaqqiSchemaUtil.hasClassAyahEnd(conn)) {
+                if (ayahEnd > 0) {
+                    ps.setInt(3, ayahEnd);
+                } else {
+                    ps.setNull(3, java.sql.Types.INTEGER);
+                }
+                ps.setString(4, sessionId);
+                ps.setString(5, teacherId);
+            } else {
+                ps.setString(3, sessionId);
+                ps.setString(4, teacherId);
+            }
             classScheduleUpdated = ps.executeUpdate() > 0;
         } catch (SQLException e) {
             System.err.println("[TalaqqiSessionDAO] updateQuranReference: " + e.getMessage());

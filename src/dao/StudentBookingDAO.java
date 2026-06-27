@@ -4,6 +4,7 @@ import model.StudentBooking;
 import model.ClassSchedule;
 import util.BookingStatus;
 import util.DBConnection;
+import util.TalaqqiSchemaUtil;
 import java.sql.Connection;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
@@ -19,14 +20,21 @@ public class StudentBookingDAO {
 
     public Map<String, Object> getBookingSummary(String studentId) {
         Map<String, Object> summary = new HashMap<>();
-        int totalSessions = 16;
+        int totalSessions = resolvePackageSessionLimit(studentId);
         int usedSessions = 0;
+        int bookedThisMonth = 0;
 
-        String sql = "SELECT COUNT(*) as used FROM classbooking " +
-                 "WHERE studentId = ? " +
-                 "AND MONTH(bookingDate) = MONTH(CURRENT_DATE()) " +
-                 "AND YEAR(bookingDate) = YEAR(CURRENT_DATE()) " +
-                 "AND bookingStatus = 'Completed'";
+        String completedSql = "SELECT COUNT(*) as used FROM classbooking "
+            + "WHERE studentId = ? "
+            + "AND MONTH(bookingDate) = MONTH(CURRENT_DATE()) "
+            + "AND YEAR(bookingDate) = YEAR(CURRENT_DATE()) "
+            + "AND bookingStatus = 'Completed'";
+
+        String bookedSql = "SELECT COUNT(*) as booked FROM classbooking "
+            + "WHERE studentId = ? "
+            + "AND MONTH(bookingDate) = MONTH(CURRENT_DATE()) "
+            + "AND YEAR(bookingDate) = YEAR(CURRENT_DATE()) "
+            + "AND bookingStatus NOT IN ('Cancelled', 'Rejected')";
 
         Connection conn = null;
         try {
@@ -36,12 +44,20 @@ public class StudentBookingDAO {
                 return summary;
             }
 
-            try (PreparedStatement ps = conn.prepareStatement(sql)) {
+            try (PreparedStatement ps = conn.prepareStatement(completedSql)) {
                 ps.setString(1, studentId);
-
                 try (ResultSet rs = ps.executeQuery()) {
                     if (rs.next()) {
                         usedSessions = rs.getInt("used");
+                    }
+                }
+            }
+
+            try (PreparedStatement ps = conn.prepareStatement(bookedSql)) {
+                ps.setString(1, studentId);
+                try (ResultSet rs = ps.executeQuery()) {
+                    if (rs.next()) {
+                        bookedThisMonth = rs.getInt("booked");
                     }
                 }
             }
@@ -55,15 +71,54 @@ public class StudentBookingDAO {
             }
         }
 
-        int remainingSessions = totalSessions - usedSessions;
+        int remainingSessions = Math.max(0, totalSessions - bookedThisMonth);
         double progressPercentage = totalSessions > 0 ? (usedSessions * 100.0 / totalSessions) : 0;
 
         summary.put("totalSessions", totalSessions);
         summary.put("usedSessions", usedSessions);
+        summary.put("bookedThisMonth", bookedThisMonth);
         summary.put("remainingSessions", remainingSessions);
         summary.put("progressPercentage", String.format("%.0f", progressPercentage));
 
         return summary;
+    }
+
+    private int resolvePackageSessionLimit(String studentId) {
+        int totalSessions = 16;
+        Connection conn = null;
+        PreparedStatement ps = null;
+        ResultSet rs = null;
+        try {
+            conn = DBConnection.getConnection();
+            if (conn == null) {
+                return totalSessions;
+            }
+            ps = conn.prepareStatement(
+                "SELECT p.totalSessions FROM student s "
+                + "LEFT JOIN packages p ON s.packageId = p.packageId "
+                + "WHERE s.studentId = ? LIMIT 1");
+            ps.setString(1, studentId);
+            rs = ps.executeQuery();
+            if (rs.next()) {
+                int pkgTotal = rs.getInt("totalSessions");
+                if (pkgTotal > 0) {
+                    totalSessions = pkgTotal;
+                }
+            }
+        } catch (SQLException e) {
+            System.err.println("resolvePackageSessionLimit: " + e.getMessage());
+        } finally {
+            if (rs != null) {
+                try { rs.close(); } catch (SQLException ignored) {}
+            }
+            if (ps != null) {
+                try { ps.close(); } catch (SQLException ignored) {}
+            }
+            if (conn != null) {
+                try { conn.close(); } catch (SQLException ignored) {}
+            }
+        }
+        return totalSessions;
     }
 
     public List<ClassSchedule> getAvailableSchedulesByDate(LocalDate date) {
@@ -320,9 +375,8 @@ public class StudentBookingDAO {
 
             boolean sessionLinked = ensureTalaqqiSessionForBooking(conn, bookingId, scheduleId, bookingDate);
             if (!sessionLinked) {
-                conn.rollback();
-                System.err.println("bookSession: talaqqisession link failed for bookingId=" + bookingId);
-                return false;
+                System.err.println("bookSession: talaqqisession link failed for bookingId="
+                    + bookingId + " — booking kept (session row can be auto-created later)");
             }
 
             conn.commit();

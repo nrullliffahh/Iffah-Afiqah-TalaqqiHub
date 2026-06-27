@@ -2,6 +2,7 @@ package dao;
 
 import model.Evaluation;
 import util.DBConnection;
+import util.TalaqqiSchemaUtil;
 import java.sql.*;
 import java.util.*;
 
@@ -173,47 +174,57 @@ public class EvaluationDAO {
      */
     public List<Evaluation> getCompletedSessionsForStudent(String studentId) {
         List<Evaluation> list = new ArrayList<>();
-        String sql =
-            "SELECT ts.sessionId, cb.scheduleId, cs.teacherId, t.teacherName, " +
-            "       DATE_FORMAT(cs.scheduleDate,'%b %d, %Y') AS sessionDate, " +
-            "       DATE_FORMAT(cs.startTime,'%I:%i %p')     AS startTime, " +
-            "       DATE_FORMAT(cs.endTime,'%I:%i %p')       AS endTime, " +
-            "       cs.classSurah AS surahName, " +
-            "       CONCAT(cs.classAyah,'-',COALESCE(cs.classAyahEnd,cs.classAyah)) AS ayahRange " +
-            "FROM talaqqisession ts " +
-            "JOIN classbooking   cb ON ts.bookingId   = cb.bookingId " +
-            "JOIN classschedule  cs ON cb.scheduleId  = cs.scheduleId " +
-            "LEFT JOIN teacher   t  ON cs.teacherId   = t.teacherId " +
-            "WHERE cb.studentId = ? " +
-            "  AND cb.bookingStatus = 'Completed' " +
-            "  AND NOT EXISTS ( " +
-            "      SELECT 1 FROM studentfeedback sf " +
-            "      WHERE sf.sessionId = ts.sessionId AND sf.studentId = cb.studentId " +
-            "  ) " +
-            "ORDER BY cs.scheduleDate DESC, cs.startTime DESC";
+        Connection conn = null;
+        try {
+            conn = DBConnection.getConnection();
+            if (conn == null) {
+                return list;
+            }
+            String ayahRange = TalaqqiSchemaUtil.ayahRangeExpr(conn);
+            String sql =
+                "SELECT ts.sessionId, cb.scheduleId, cs.teacherId, t.teacherName, "
+                + "       DATE_FORMAT(cs.scheduleDate,'%b %d, %Y') AS sessionDate, "
+                + "       DATE_FORMAT(cs.startTime,'%I:%i %p')     AS startTime, "
+                + "       DATE_FORMAT(cs.endTime,'%I:%i %p')       AS endTime, "
+                + "       cs.classSurah AS surahName, "
+                + "       " + ayahRange + " AS ayahRange "
+                + TalaqqiSchemaUtil.innerSessionBookingSchedule(conn)
+                + "LEFT JOIN teacher   t  ON cs.teacherId   = t.teacherId "
+                + "WHERE cb.studentId = ? "
+                + "  AND cb.bookingStatus = 'Completed' "
+                + "  AND NOT EXISTS ( "
+                + "      SELECT 1 FROM studentfeedback sf "
+                + "      WHERE sf.sessionId = ts.sessionId AND sf.studentId = cb.studentId "
+                + "  ) "
+                + "ORDER BY cs.scheduleDate DESC, cs.startTime DESC";
 
-        try (Connection conn = DBConnection.getConnection();
-             PreparedStatement ps = conn.prepareStatement(sql)) {
-            if (conn == null) return list;
-            ps.setString(1, studentId);
-            try (ResultSet rs = ps.executeQuery()) {
-                while (rs.next()) {
-                    Evaluation e = new Evaluation();
-                    e.setSessionId(rs.getString("sessionId"));
-                    e.setScheduleId(rs.getString("scheduleId"));
-                    e.setTeacherId(rs.getString("teacherId"));
-                    e.setTeacherName(rs.getString("teacherName"));
-                    e.setSessionDate(rs.getString("sessionDate"));
-                    e.setStartTime(rs.getString("startTime"));
-                    e.setEndTime(rs.getString("endTime"));
-                    e.setSurahName(resolveSurahDisplay(rs.getString("surahName")));
-                    e.setAyahRange(rs.getString("ayahRange"));
-                    list.add(e);
+            try (PreparedStatement ps = conn.prepareStatement(sql)) {
+                ps.setString(1, studentId);
+                try (ResultSet rs = ps.executeQuery()) {
+                    while (rs.next()) {
+                        Evaluation e = new Evaluation();
+                        e.setSessionId(rs.getString("sessionId"));
+                        e.setScheduleId(rs.getString("scheduleId"));
+                        e.setTeacherId(rs.getString("teacherId"));
+                        e.setTeacherName(rs.getString("teacherName"));
+                        e.setSessionDate(rs.getString("sessionDate"));
+                        e.setStartTime(rs.getString("startTime"));
+                        e.setEndTime(rs.getString("endTime"));
+                        e.setSurahName(resolveSurahDisplay(rs.getString("surahName")));
+                        e.setAyahRange(rs.getString("ayahRange"));
+                        list.add(e);
+                    }
                 }
             }
         } catch (SQLException ex) {
             System.err.println("EvaluationDAO.getCompletedSessionsForStudent: " + ex.getMessage());
             ex.printStackTrace();
+        } finally {
+            if (conn != null) {
+                try {
+                    conn.close();
+                } catch (SQLException ignored) {}
+            }
         }
         return list;
     }
@@ -224,39 +235,49 @@ public class EvaluationDAO {
      */
     public List<Map<String, Object>> getPendingEvaluationSessions(String studentId) {
         List<Map<String, Object>> list = new ArrayList<>();
-        String sql =
-            "SELECT ts.sessionId, cs.teacherId, t.teacherName, " +
-            "       cs.classSurah AS surah, " +
-            "       CONCAT(cs.classAyah,'-',COALESCE(cs.classAyahEnd,cs.classAyah)) AS ayah " +
-            "FROM talaqqisession ts " +
-            "JOIN classbooking   cb ON ts.bookingId  = cb.bookingId " +
-            "JOIN classschedule  cs ON cb.scheduleId = cs.scheduleId " +
-            "LEFT JOIN teacher   t  ON cs.teacherId  = t.teacherId " +
-            "WHERE cb.studentId = ? " +
-            "  AND cb.bookingStatus = 'Completed' " +
-            "  AND NOT EXISTS ( " +
-            "      SELECT 1 FROM studentfeedback sf " +
-            "      WHERE sf.sessionId = ts.sessionId AND sf.studentId = cb.studentId " +
-            "  ) " +
-            "ORDER BY cs.scheduleDate DESC LIMIT 20";
+        Connection conn = null;
+        try {
+            conn = DBConnection.getConnection();
+            if (conn == null) {
+                return list;
+            }
+            String ayahRange = TalaqqiSchemaUtil.ayahRangeExpr(conn);
+            String sql =
+                "SELECT ts.sessionId, cs.teacherId, t.teacherName, "
+                + "       cs.classSurah AS surah, "
+                + "       " + ayahRange + " AS ayah "
+                + TalaqqiSchemaUtil.innerSessionBookingSchedule(conn)
+                + "LEFT JOIN teacher   t  ON cs.teacherId  = t.teacherId "
+                + "WHERE cb.studentId = ? "
+                + "  AND cb.bookingStatus = 'Completed' "
+                + "  AND NOT EXISTS ( "
+                + "      SELECT 1 FROM studentfeedback sf "
+                + "      WHERE sf.sessionId = ts.sessionId AND sf.studentId = cb.studentId "
+                + "  ) "
+                + "ORDER BY cs.scheduleDate DESC LIMIT 20";
 
-        try (Connection conn = DBConnection.getConnection();
-             PreparedStatement ps = conn.prepareStatement(sql)) {
-            if (conn == null) return list;
-            ps.setString(1, studentId);
-            try (ResultSet rs = ps.executeQuery()) {
-                while (rs.next()) {
-                    Map<String, Object> row = new HashMap<>();
-                    row.put("sessionId",   rs.getString("sessionId"));
-                    row.put("teacherId",   rs.getString("teacherId"));
-                    row.put("teacherName", rs.getString("teacherName"));
-                    row.put("surah",       rs.getString("surah"));
-                    row.put("ayah",        rs.getString("ayah"));
-                    list.add(row);
+            try (PreparedStatement ps = conn.prepareStatement(sql)) {
+                ps.setString(1, studentId);
+                try (ResultSet rs = ps.executeQuery()) {
+                    while (rs.next()) {
+                        Map<String, Object> row = new HashMap<>();
+                        row.put("sessionId",   rs.getString("sessionId"));
+                        row.put("teacherId",   rs.getString("teacherId"));
+                        row.put("teacherName", rs.getString("teacherName"));
+                        row.put("surah",       rs.getString("surah"));
+                        row.put("ayah",        rs.getString("ayah"));
+                        list.add(row);
+                    }
                 }
             }
         } catch (SQLException e) {
             System.err.println("EvaluationDAO.getPendingEvaluationSessions: " + e.getMessage());
+        } finally {
+            if (conn != null) {
+                try {
+                    conn.close();
+                } catch (SQLException ignored) {}
+            }
         }
         return list;
     }
@@ -329,51 +350,61 @@ public class EvaluationDAO {
     public List<Evaluation> getStudentSubmittedFeedback(String studentId) {
         List<Evaluation> list = new ArrayList<>();
         ensureFeedbackTableExists();
-        String sql =
-            "SELECT sf.feedbackId, sf.studentId, sf.teacherId, sf.sessionId, " +
-            "       sf.rating, sf.comments, sf.suggestions, " +
-            "       DATE_FORMAT(sf.createdAt,'%b %d, %Y') AS createdAt, " +
-            "       t.teacherName, " +
-            "       DATE_FORMAT(cs.scheduleDate,'%Y-%m-%d') AS sessionDate, " +
-            "       DATE_FORMAT(cs.startTime,'%H:%i:%s') AS startTime, " +
-            "       DATE_FORMAT(cs.endTime,'%H:%i:%s') AS endTime, " +
-            "       cs.classSurah AS surahName, " +
-            "       CONCAT(cs.classAyah,'-',COALESCE(cs.classAyahEnd, cs.classAyah)) AS ayahRange " +
-            "FROM studentfeedback sf " +
-            "LEFT JOIN teacher      t  ON sf.teacherId  = t.teacherId " +
-            "LEFT JOIN talaqqisession ts ON sf.sessionId = ts.sessionId " +
-            "LEFT JOIN classbooking  cb ON ts.bookingId  = cb.bookingId " +
-            "LEFT JOIN classschedule cs ON cb.scheduleId = cs.scheduleId " +
-            "WHERE sf.studentId = ? " +
-            "ORDER BY sf.createdAt DESC";
+        Connection conn = null;
+        try {
+            conn = DBConnection.getConnection();
+            if (conn == null) {
+                return list;
+            }
+            String ayahRange = TalaqqiSchemaUtil.ayahRangeExpr(conn);
+            String sql =
+                "SELECT sf.feedbackId, sf.studentId, sf.teacherId, sf.sessionId, "
+                + "       sf.rating, sf.comments, sf.suggestions, "
+                + "       DATE_FORMAT(sf.createdAt,'%b %d, %Y') AS createdAt, "
+                + "       t.teacherName, "
+                + "       DATE_FORMAT(cs.scheduleDate,'%Y-%m-%d') AS sessionDate, "
+                + "       DATE_FORMAT(cs.startTime,'%H:%i:%s') AS startTime, "
+                + "       DATE_FORMAT(cs.endTime,'%H:%i:%s') AS endTime, "
+                + "       cs.classSurah AS surahName, "
+                + "       " + ayahRange + " AS ayahRange "
+                + "FROM studentfeedback sf "
+                + "LEFT JOIN teacher      t  ON sf.teacherId  = t.teacherId "
+                + TalaqqiSchemaUtil.leftJoinSessionFromFeedback(conn)
+                + "WHERE sf.studentId = ? "
+                + "ORDER BY sf.createdAt DESC";
 
-        try (Connection conn = DBConnection.getConnection();
-             PreparedStatement ps = conn.prepareStatement(sql)) {
-            if (conn == null) return list;
-            ps.setString(1, studentId);
-            try (ResultSet rs = ps.executeQuery()) {
-                while (rs.next()) {
-                    Evaluation e = new Evaluation();
-                    e.setFeedbackId(rs.getString("feedbackId"));
-                    e.setStudentId(rs.getString("studentId"));
-                    e.setTeacherId(rs.getString("teacherId"));
-                    e.setSessionId(rs.getString("sessionId"));
-                    e.setRating(rs.getInt("rating"));
-                    e.setComments(rs.getString("comments"));
-                    e.setSuggestions(rs.getString("suggestions"));
-                    e.setCreatedAt(rs.getString("createdAt"));
-                    e.setTeacherName(rs.getString("teacherName"));
-                    e.setSessionDate(rs.getString("sessionDate"));
-                    e.setStartTime(rs.getString("startTime"));
-                    e.setEndTime(rs.getString("endTime"));
-                    e.setSurahName(resolveSurahDisplay(rs.getString("surahName")));
-                    e.setAyahRange(rs.getString("ayahRange"));
-                    list.add(e);
+            try (PreparedStatement ps = conn.prepareStatement(sql)) {
+                ps.setString(1, studentId);
+                try (ResultSet rs = ps.executeQuery()) {
+                    while (rs.next()) {
+                        Evaluation e = new Evaluation();
+                        e.setFeedbackId(rs.getString("feedbackId"));
+                        e.setStudentId(rs.getString("studentId"));
+                        e.setTeacherId(rs.getString("teacherId"));
+                        e.setSessionId(rs.getString("sessionId"));
+                        e.setRating(rs.getInt("rating"));
+                        e.setComments(rs.getString("comments"));
+                        e.setSuggestions(rs.getString("suggestions"));
+                        e.setCreatedAt(rs.getString("createdAt"));
+                        e.setTeacherName(rs.getString("teacherName"));
+                        e.setSessionDate(rs.getString("sessionDate"));
+                        e.setStartTime(rs.getString("startTime"));
+                        e.setEndTime(rs.getString("endTime"));
+                        e.setSurahName(resolveSurahDisplay(rs.getString("surahName")));
+                        e.setAyahRange(rs.getString("ayahRange"));
+                        list.add(e);
+                    }
                 }
             }
         } catch (SQLException ex) {
             System.err.println("EvaluationDAO.getStudentSubmittedFeedback: " + ex.getMessage());
             ex.printStackTrace();
+        } finally {
+            if (conn != null) {
+                try {
+                    conn.close();
+                } catch (SQLException ignored) {}
+            }
         }
         return list;
     }
