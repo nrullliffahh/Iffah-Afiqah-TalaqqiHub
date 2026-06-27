@@ -584,7 +584,10 @@
     // ── Poll for Quran reference updates (teacher-to-student sync) ─────────
 
     // Track current Quran reference to detect changes
-    const STUDENT_SESSION_ID = '<c:out value="${not empty talaqqiSession ? talaqqiSession.sessionId : ''}" />';
+    const jitsiContainerEl = document.getElementById('jitsiContainer');
+    const STUDENT_SESSION_ID = '<c:out value="${not empty talaqqiSession ? talaqqiSession.sessionId : ''}" />'
+        || (jitsiContainerEl ? jitsiContainerEl.getAttribute('data-session-id') : '')
+        || '';
     let currentQuranState = {
         surah: parseInt(new URLSearchParams(window.location.search).get('surah') || '<c:out value="${not empty talaqqiSession ? talaqqiSession.currentSurahNumber : ''}" />') || 2,
         ayah:  parseInt(new URLSearchParams(window.location.search).get('ayah') || '<c:out value="${not empty talaqqiSession ? talaqqiSession.currentAyahNumber : ''}" />') || 1,
@@ -719,10 +722,12 @@
     }
 
     function startPollingQuranUpdates() {
-        <c:if test="${not empty talaqqiSession}">
+        if (!STUDENT_SESSION_ID) {
+            console.warn('[Quran Sync] No sessionId — polling disabled. Select the same session as your teacher.');
+            return;
+        }
         pollQuranOnce();
         pollTimerId = setInterval(pollQuranOnce, POLL_INTERVAL_MS);
-        </c:if>
     }
 
     /**

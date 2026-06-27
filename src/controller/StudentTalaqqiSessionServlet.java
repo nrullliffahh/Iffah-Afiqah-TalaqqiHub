@@ -241,38 +241,36 @@ public class StudentTalaqqiSessionServlet extends HttpServlet {
             }
 
             case "getCurrentQuran": {
-                // Fetch the current session's Quran reference and return as JSON
-                // Used by JavaScript polling to detect when teacher updates the verse
                 String sessionId = request.getParameter("sessionId");
-                
-                TalaqqiSession session = null;
+
+                TalaqqiSessionDAO.LiveQuranRef quranRef = null;
+                String resolvedSessionId = null;
+
                 if (sessionId != null && !sessionId.trim().isEmpty()) {
-                    session = talaqqiSessionDAO.getSessionBySessionId(sessionId.trim(), null);
-                    if (session != null && !studentId.equals(session.getStudentId())) {
-                        session = null;
+                    TalaqqiSession owned = talaqqiSessionDAO.getSessionBySessionId(sessionId.trim(), null);
+                    if (owned != null && studentId.equals(owned.getStudentId())) {
+                        quranRef = talaqqiSessionDAO.getLiveQuranReference(sessionId.trim());
+                        resolvedSessionId = owned.getSessionId();
                     }
                 }
-                
-                if (session == null) {
-                    session = talaqqiSessionDAO.getUpcomingSessionForStudent(studentId);
-                }
-                
-                if (session != null) {
-                    int surah = session.getCurrentSurahNumber();
-                    int ayah = session.getCurrentAyahNumber();
-                    int ayahEnd = session.getCurrentAyahEnd();
-                    int juzuk = session.getCurrentJuzukNumber();
-                    if (juzuk <= 0) {
-                        juzuk = 1;
+
+                if (quranRef == null) {
+                    TalaqqiSession upcoming = talaqqiSessionDAO.getUpcomingSessionForStudent(studentId);
+                    if (upcoming != null) {
+                        quranRef = talaqqiSessionDAO.getLiveQuranReference(upcoming.getSessionId());
+                        resolvedSessionId = upcoming.getSessionId();
                     }
-                    
+                }
+
+                if (quranRef != null) {
+                    int juzuk = quranRef.juzuk > 0 ? quranRef.juzuk : 1;
                     response.getWriter().write(
                         "{\"success\": true, " +
-                        "\"surah\": " + surah + ", " +
-                        "\"ayah\": " + ayah + ", " +
-                        "\"ayahEnd\": " + ayahEnd + ", " +
+                        "\"surah\": " + quranRef.surah + ", " +
+                        "\"ayah\": " + quranRef.ayah + ", " +
+                        "\"ayahEnd\": " + quranRef.ayahEnd + ", " +
                         "\"juzuk\": " + juzuk + ", " +
-                        "\"sessionId\": \"" + escapeJson(session.getSessionId()) + "\"}"
+                        "\"sessionId\": \"" + escapeJson(resolvedSessionId) + "\"}"
                     );
                 } else {
                     response.getWriter().write(

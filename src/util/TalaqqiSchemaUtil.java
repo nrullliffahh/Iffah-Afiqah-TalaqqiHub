@@ -21,6 +21,9 @@ public final class TalaqqiSchemaUtil {
     private static volatile Boolean classAyahEndColumn;
     private static volatile Boolean announcementTable;
     private static volatile Boolean quranDisplayTable;
+    private static volatile Boolean quranDisplaySessionIdColumn;
+    private static volatile Boolean quranDisplayScheduleIdColumn;
+    private static volatile Boolean quranDisplayAyahEndColumn;
 
     private TalaqqiSchemaUtil() {
     }
@@ -233,11 +236,11 @@ public final class TalaqqiSchemaUtil {
         String ayahEndCol = ayahEnd ? "cs.classAyahEnd, " : "NULL AS classAyahEnd, ";
         boolean quranDisplay = hasQuranDisplayTable(conn);
         String quranDisplayCols = quranDisplay
-            ? "qd.currentSurah AS displaySurah, qd.currentAyah AS displayAyah, qd.currentJuzuk AS displayJuzuk, "
-            : "NULL AS displaySurah, NULL AS displayAyah, NULL AS displayJuzuk, ";
-        String quranDisplayJoin = quranDisplay
-            ? "LEFT JOIN qurandisplay qd ON ts.sessionId = qd.sessionId "
-            : "";
+            ? "qd.currentSurah AS displaySurah, qd.currentAyah AS displayAyah, "
+                + (quranDisplayHasAyahEnd(conn) ? "qd.currentAyahEnd AS displayAyahEnd, " : "NULL AS displayAyahEnd, ")
+                + "qd.currentJuzuk AS displayJuzuk, "
+            : "NULL AS displaySurah, NULL AS displayAyah, NULL AS displayAyahEnd, NULL AS displayJuzuk, ";
+        String quranDisplayJoin = quranDisplayJoinClause("ts", conn);
 
         String sql;
         if (byBooking) {
@@ -343,6 +346,92 @@ public final class TalaqqiSchemaUtil {
             }
             return quranDisplayTable;
         }
+    }
+
+    public static boolean quranDisplayHasSessionId(Connection conn) {
+        if (!hasQuranDisplayTable(conn)) {
+            return false;
+        }
+        if (quranDisplaySessionIdColumn != null) {
+            return quranDisplaySessionIdColumn;
+        }
+        synchronized (TalaqqiSchemaUtil.class) {
+            if (quranDisplaySessionIdColumn != null) {
+                return quranDisplaySessionIdColumn;
+            }
+            quranDisplaySessionIdColumn = hasColumn(conn, "qurandisplay", "sessionId");
+            return quranDisplaySessionIdColumn;
+        }
+    }
+
+    public static boolean quranDisplayHasScheduleId(Connection conn) {
+        if (!hasQuranDisplayTable(conn)) {
+            return false;
+        }
+        if (quranDisplayScheduleIdColumn != null) {
+            return quranDisplayScheduleIdColumn;
+        }
+        synchronized (TalaqqiSchemaUtil.class) {
+            if (quranDisplayScheduleIdColumn != null) {
+                return quranDisplayScheduleIdColumn;
+            }
+            quranDisplayScheduleIdColumn = hasColumn(conn, "qurandisplay", "scheduleId");
+            return quranDisplayScheduleIdColumn;
+        }
+    }
+
+    public static boolean quranDisplayHasAyahEnd(Connection conn) {
+        if (!hasQuranDisplayTable(conn)) {
+            return false;
+        }
+        if (quranDisplayAyahEndColumn != null) {
+            return quranDisplayAyahEndColumn;
+        }
+        synchronized (TalaqqiSchemaUtil.class) {
+            if (quranDisplayAyahEndColumn != null) {
+                return quranDisplayAyahEndColumn;
+            }
+            quranDisplayAyahEndColumn = hasColumn(conn, "qurandisplay", "currentAyahEnd");
+            return quranDisplayAyahEndColumn;
+        }
+    }
+
+    /** Adds {@code currentAyahEnd} when production qurandisplay predates live range sync. */
+    public static void ensureQuranDisplayAyahEndColumn(Connection conn) {
+        if (!hasQuranDisplayTable(conn)) {
+            return;
+        }
+        if (hasColumn(conn, "qurandisplay", "currentAyahEnd")) {
+            quranDisplayAyahEndColumn = true;
+            return;
+        }
+        Connection probe = probe(conn);
+        try (Statement st = probe.createStatement()) {
+            st.execute("ALTER TABLE qurandisplay ADD COLUMN currentAyahEnd INT DEFAULT NULL");
+            quranDisplayAyahEndColumn = true;
+        } catch (SQLException e) {
+            if (e.getMessage() == null || !e.getMessage().contains("Duplicate column")) {
+                System.err.println("[TalaqqiSchemaUtil] ensureQuranDisplayAyahEndColumn: " + e.getMessage());
+            } else {
+                quranDisplayAyahEndColumn = true;
+            }
+        } finally {
+            closeIfOwned(probe, conn);
+        }
+    }
+
+    /** JOIN qurandisplay to talaqqisession / classschedule (handles sessionId or scheduleId FK). */
+    public static String quranDisplayJoinClause(String tsAlias, Connection conn) {
+        if (!hasQuranDisplayTable(conn)) {
+            return "";
+        }
+        if (quranDisplayHasSessionId(conn)) {
+            return "LEFT JOIN qurandisplay qd ON " + tsAlias + ".sessionId = qd.sessionId ";
+        }
+        if (quranDisplayHasScheduleId(conn)) {
+            return "LEFT JOIN qurandisplay qd ON cs.scheduleId = qd.scheduleId ";
+        }
+        return "";
     }
 
     /** {@code se.createdAt} or {@code se.created_at}, whichever exists. */

@@ -650,8 +650,8 @@ public class TalaqqiSessionDAO {
             classScheduleUpdated = updateQuranOnScheduleFallback(sessionId, teacherId, surahNumber, ayahStart, ayahEnd);
         }
 
-        // Save to qurandisplay (start ayah only — end range lives on classschedule.classAyahEnd)
-        boolean savedDisplay = saveQuranDisplay(sessionId, surahNumber, ayahStart);
+        // Save live teacher display (surah, ayah, ayah range end when column exists)
+        boolean savedDisplay = saveQuranDisplay(sessionId, surahNumber, ayahStart, ayahEnd);
 
         return classScheduleUpdated || savedDisplay;
     }
@@ -702,22 +702,31 @@ public class TalaqqiSessionDAO {
 
     private static void applyResolvedQuranReference(TalaqqiSession ts,
             int dbSurah, int dbAyah, int dbAyahEnd,
-            int displaySurah, int displayAyah, int displayJuzuk) {
+            int displaySurah, int displayAyah, int displayAyahEnd, int displayJuzuk) {
         // Live teacher control is stored in qurandisplay on Apply; classschedule holds
         // defaults and ayah range end. Prefer display when the teacher has applied settings.
         int resolvedSurah;
         int resolvedAyah;
+        int resolvedAyahEnd;
         if (displaySurah > 0) {
             resolvedSurah = displaySurah;
             resolvedAyah = displayAyah > 0 ? displayAyah : 1;
+            if (displayAyahEnd > displayAyah) {
+                resolvedAyahEnd = displayAyahEnd;
+            } else if (dbAyahEnd > resolvedAyah) {
+                resolvedAyahEnd = dbAyahEnd;
+            } else {
+                resolvedAyahEnd = 0;
+            }
         } else {
             resolvedSurah = dbSurah > 0 ? dbSurah : 2;
             resolvedAyah = dbAyah > 0 ? dbAyah : 1;
+            resolvedAyahEnd = dbAyahEnd > 0 ? dbAyahEnd : 0;
         }
 
         ts.setCurrentSurahNumber(resolvedSurah);
         ts.setCurrentAyahNumber(resolvedAyah);
-        ts.setCurrentAyahEnd(dbAyahEnd > 0 ? dbAyahEnd : 0);
+        ts.setCurrentAyahEnd(resolvedAyahEnd);
         ts.setCurrentJuzukNumber(displayJuzuk > 0 ? displayJuzuk : 0);
 
         TalaqqiSession.QuranReference qRef = new TalaqqiSession.QuranReference(
@@ -725,27 +734,79 @@ public class TalaqqiSessionDAO {
         ts.setCurrentQuranReference(qRef);
     }
 
+    /** Live Quran reference for student polling (direct read, same resolution rules as mapRow). */
+    public static final class LiveQuranRef {
+        public final int surah;
+        public final int ayah;
+        public final int ayahEnd;
+        public final int juzuk;
+
+        public LiveQuranRef(int surah, int ayah, int ayahEnd, int juzuk) {
+            this.surah = surah;
+            this.ayah = ayah;
+            this.ayahEnd = ayahEnd;
+            this.juzuk = juzuk;
+        }
+    }
+
+    public LiveQuranRef getLiveQuranReference(String sessionId) {
+        if (sessionId == null || sessionId.trim().isEmpty()) {
+            return null;
+        }
+        TalaqqiSession session = getSessionBySessionId(sessionId.trim(), null);
+        if (session == null) {
+            return null;
+        }
+        int juzuk = session.getCurrentJuzukNumber();
+        if (juzuk <= 0) {
+            juzuk = 1;
+        }
+        return new LiveQuranRef(
+            session.getCurrentSurahNumber(),
+            session.getCurrentAyahNumber(),
+            session.getCurrentAyahEnd(),
+            juzuk);
+    }
+
     /**
      * Save or update Quran display data to the qurandisplay table.
      * This is where the teacher's Quran control during sessions is stored.
      * DisplayIds are sequential: Q001, Q002, Q003, etc.
      */
-    public boolean saveQuranDisplay(String sessionId, int surah, int ayah) {
-        // Check if qurandisplay record already exists for this session
-        String checkSql = "SELECT displayId FROM qurandisplay WHERE sessionId = ?";
+    public boolean saveQuranDisplay(String sessionId, int surah, int ayah, int ayahEnd) {
+        if (sessionId == null || sessionId.trim().isEmpty()) {
+            return false;
+        }
+
         Connection conn = null;
         PreparedStatement ps = null;
         ResultSet rs = null;
         String existingDisplayId = null;
-        
+
         try {
             conn = DBConnection.getConnection();
-            if (conn == null) return false;
-            
+            if (conn == null || !util.TalaqqiSchemaUtil.hasQuranDisplayTable(conn)) {
+                return false;
+            }
+            util.TalaqqiSchemaUtil.ensureQuranDisplayAyahEndColumn(conn);
+
+            boolean bySession = util.TalaqqiSchemaUtil.quranDisplayHasSessionId(conn);
+            boolean bySchedule = util.TalaqqiSchemaUtil.quranDisplayHasScheduleId(conn);
+            boolean hasAyahEndCol = util.TalaqqiSchemaUtil.quranDisplayHasAyahEnd(conn);
+            if (!bySession && !bySchedule) {
+                return false;
+            }
+
+            String linkColumn = bySession ? "sessionId" : "scheduleId";
+            String linkValue = bySession ? sessionId.trim() : getScheduleIdBySessionId(sessionId.trim());
+            if (linkValue == null || linkValue.isEmpty()) {
+                return false;
+            }
+
+            String checkSql = "SELECT displayId FROM qurandisplay WHERE " + linkColumn + " = ?";
             ps = conn.prepareStatement(util.TalaqqiSchemaUtil.sql(checkSql, conn));
-            ps.setString(1, sessionId);
+            ps.setString(1, linkValue);
             rs = ps.executeQuery();
-            
             if (rs.next()) {
                 existingDisplayId = rs.getString("displayId");
             }
@@ -756,40 +817,70 @@ public class TalaqqiSessionDAO {
             closeQuietly(rs, ps, conn);
         }
 
-        // If record exists, update it; otherwise, insert new record with sequential displayId
-        String sql;
-        if (existingDisplayId != null) {
-            // UPDATE existing record
-            sql = "UPDATE qurandisplay SET currentSurah = ?, currentAyah = ? WHERE sessionId = ?";
-        } else {
-            // INSERT new record with sequential displayId (Q001, Q002, Q003, etc.)
-            sql = "INSERT INTO qurandisplay (displayId, currentSurah, currentAyah, currentJuzuk, sessionId) " +
-                  "VALUES (?, ?, ?, 1, ?)";
-        }
-
         conn = null;
         ps = null;
-        
+
         try {
             conn = DBConnection.getConnection();
-            if (conn == null) return false;
-            
-            ps = conn.prepareStatement(util.TalaqqiSchemaUtil.sql(sql, conn));
-            
-            if (existingDisplayId != null) {
-                // UPDATE case
-                ps.setInt(1, surah);
-                ps.setInt(2, ayah);
-                ps.setString(3, sessionId);
-            } else {
-                // INSERT case - generate sequential displayId (Q001, Q002, etc.)
-                String displayId = generateNextDisplayId();
-                ps.setString(1, displayId);
-                ps.setInt(2, surah);
-                ps.setInt(3, ayah);
-                ps.setString(4, sessionId);
+            if (conn == null) {
+                return false;
             }
-            
+
+            boolean bySession = util.TalaqqiSchemaUtil.quranDisplayHasSessionId(conn);
+            boolean bySchedule = util.TalaqqiSchemaUtil.quranDisplayHasScheduleId(conn);
+            boolean hasAyahEndCol = util.TalaqqiSchemaUtil.quranDisplayHasAyahEnd(conn);
+            String linkColumn = bySession ? "sessionId" : "scheduleId";
+            String linkValue = bySession ? sessionId.trim() : getScheduleIdBySessionId(sessionId.trim());
+            if (linkValue == null || linkValue.isEmpty()) {
+                return false;
+            }
+
+            String sql;
+            if (existingDisplayId != null) {
+                sql = "UPDATE qurandisplay SET currentSurah = ?, currentAyah = ?";
+                if (hasAyahEndCol) {
+                    sql += ", currentAyahEnd = ?";
+                }
+                sql += " WHERE " + linkColumn + " = ?";
+            } else {
+                StringBuilder cols = new StringBuilder("displayId, currentSurah, currentAyah");
+                StringBuilder vals = new StringBuilder("?, ?, ?");
+                if (hasAyahEndCol) {
+                    cols.append(", currentAyahEnd");
+                    vals.append(", ?");
+                }
+                cols.append(", currentJuzuk, ").append(linkColumn);
+                vals.append(", 1, ?");
+                sql = "INSERT INTO qurandisplay (" + cols + ") VALUES (" + vals + ")";
+            }
+
+            ps = conn.prepareStatement(util.TalaqqiSchemaUtil.sql(sql, conn));
+            int idx = 1;
+            if (existingDisplayId != null) {
+                ps.setInt(idx++, surah);
+                ps.setInt(idx++, ayah);
+                if (hasAyahEndCol) {
+                    if (ayahEnd > ayah) {
+                        ps.setInt(idx++, ayahEnd);
+                    } else {
+                        ps.setNull(idx++, java.sql.Types.INTEGER);
+                    }
+                }
+                ps.setString(idx, linkValue);
+            } else {
+                ps.setString(idx++, generateNextDisplayId());
+                ps.setInt(idx++, surah);
+                ps.setInt(idx++, ayah);
+                if (hasAyahEndCol) {
+                    if (ayahEnd > ayah) {
+                        ps.setInt(idx++, ayahEnd);
+                    } else {
+                        ps.setNull(idx++, java.sql.Types.INTEGER);
+                    }
+                }
+                ps.setString(idx, linkValue);
+            }
+
             return ps.executeUpdate() > 0;
         } catch (SQLException e) {
             System.err.println("[TalaqqiSessionDAO] saveQuranDisplay: " + e.getMessage());
@@ -1386,6 +1477,7 @@ public class TalaqqiSessionDAO {
 
         int displaySurah = 0;
         int displayAyah = 0;
+        int displayAyahEnd = 0;
         int displayJuzuk = 0;
         try {
             Object surahObj = rs.getObject("displaySurah");
@@ -1400,13 +1492,20 @@ public class TalaqqiSessionDAO {
             }
         } catch (SQLException ignored) {}
         try {
+            Object ayahEndObj = rs.getObject("displayAyahEnd");
+            if (ayahEndObj instanceof Number) {
+                displayAyahEnd = ((Number) ayahEndObj).intValue();
+            }
+        } catch (SQLException ignored) {}
+        try {
             Object juzObj = rs.getObject("displayJuzuk");
             if (juzObj instanceof Number) {
                 displayJuzuk = ((Number) juzObj).intValue();
             }
         } catch (SQLException ignored) {}
 
-        applyResolvedQuranReference(ts, dbSurah, dbAyah, dbAyahEnd, displaySurah, displayAyah, displayJuzuk);
+        applyResolvedQuranReference(ts, dbSurah, dbAyah, dbAyahEnd,
+            displaySurah, displayAyah, displayAyahEnd, displayJuzuk);
 
         // ── Generate Jitsi room name from sessionId ───────────────────────────
         ts.setRoomName(ts.generateRoomName());
