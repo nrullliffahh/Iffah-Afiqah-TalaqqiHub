@@ -223,14 +223,8 @@ public class TalaqqiSessionDAO {
      * @return populated TalaqqiSession, or {@code null} if none found
      */
     public TalaqqiSession getUpcomingSessionForTeacher(String teacherId) {
-        ensureTalaqqiSessionsExist(teacherId);
-        return querySingleSession(
-            "WHERE cs.teacherId  = ? " +
-            "  AND ts.sessionDate >= CURDATE() " +
-            ACTIVE_SESSION_FILTER +
-            "ORDER BY ts.sessionDate ASC, cs.startTime ASC " +
-            "LIMIT 1",
-            teacherId);
+        List<TalaqqiSession> sessions = getUpcomingSessionsList(teacherId, 1);
+        return sessions.isEmpty() ? null : sessions.get(0);
     }
 
     private void ensureTalaqqiSessionsExistForStudent(String studentId) {
@@ -300,14 +294,8 @@ public class TalaqqiSessionDAO {
      * @return populated TalaqqiSession, or {@code null} if none found
      */
     public TalaqqiSession getUpcomingSessionForStudent(String studentId) {
-        ensureTalaqqiSessionsExistForStudent(studentId);
-        return querySingleSession(
-            "WHERE cb.studentId  = ? " +
-            "  AND ts.sessionDate >= CURDATE() " +
-            ACTIVE_SESSION_FILTER +
-            "ORDER BY ts.sessionDate ASC, cs.startTime ASC " +
-            "LIMIT 1",
-            studentId);
+        List<TalaqqiSession> sessions = getUpcomingSessionsListForStudent(studentId, 1);
+        return sessions.isEmpty() ? null : sessions.get(0);
     }
 
     /**
@@ -354,6 +342,9 @@ public class TalaqqiSessionDAO {
             .thenComparing(b -> b.getBookingTime() != null ? b.getBookingTime() : LocalTime.MIN));
 
         for (StudentBooking booking : switchable) {
+            if (!booking.isFutureSession()) {
+                continue;
+            }
             ensureSessionForBooking(booking);
             TalaqqiSession session = resolveSessionForBooking(
                 booking,
