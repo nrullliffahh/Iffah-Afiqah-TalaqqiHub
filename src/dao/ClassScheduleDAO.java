@@ -541,13 +541,16 @@ public class ClassScheduleDAO {
 
             String sql;
             if (bookingId != null && !bookingId.trim().isEmpty()) {
-                sql = "SELECT cs.scheduleDate, cs.startTime FROM classbooking cb " +
-                      "INNER JOIN classschedule cs ON cb.scheduleId = cs.scheduleId " +
-                      "WHERE cb.bookingId = ? LIMIT 1";
+                sql = "SELECT COALESCE(cb.bookingDate, cs.scheduleDate) AS classDate, "
+                    + "COALESCE(cb.bookingTime, cs.startTime) AS classTime "
+                    + "FROM classbooking cb "
+                    + "INNER JOIN classschedule cs ON cb.scheduleId = cs.scheduleId "
+                    + "WHERE cb.bookingId = ? LIMIT 1";
                 ps = conn.prepareStatement(sql);
                 ps.setString(1, bookingId);
             } else if (scheduleId != null && !scheduleId.trim().isEmpty()) {
-                sql = "SELECT scheduleDate, startTime FROM classschedule WHERE scheduleId = ? LIMIT 1";
+                sql = "SELECT scheduleDate AS classDate, startTime AS classTime "
+                    + "FROM classschedule WHERE scheduleId = ? LIMIT 1";
                 ps = conn.prepareStatement(sql);
                 ps.setString(1, scheduleId);
             } else {
@@ -557,8 +560,8 @@ public class ClassScheduleDAO {
             rs = ps.executeQuery();
             if (!rs.next()) return null;
 
-            LocalDate date = rs.getDate("scheduleDate").toLocalDate();
-            Time time = rs.getTime("startTime");
+            LocalDate date = rs.getDate("classDate").toLocalDate();
+            Time time = rs.getTime("classTime");
             if (time == null) return null;
             return LocalDateTime.of(date, time.toLocalTime());
         } catch (SQLException e) {

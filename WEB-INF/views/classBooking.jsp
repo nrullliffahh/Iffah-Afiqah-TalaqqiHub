@@ -927,7 +927,7 @@
                         <!-- Upcoming bookings -->
                         <c:forEach var="booking" items="${upcomingBookings}">
                             <c:set var="borderClass" value="border-blue-200 bg-blue-50" />
-                            <div class="border-2 rounded-xl p-5 ${borderClass} booking-entry" data-booking-id="${booking.bookingId}" data-booking-date="${booking.bookingDate}" data-booking-time="${booking.bookingTime}" data-teacher-name="${booking.teacherName}" data-class-type="${booking.className}" data-booking-status="${booking.bookingStatus}" data-attendance-status="${booking.attendanceStatus}" data-can-cancel="${booking.cancellationAllowed}">
+                            <div class="border-2 rounded-xl p-5 ${borderClass} booking-entry" data-booking-id="${booking.bookingId}" data-booking-date="${booking.bookingDate}" data-booking-time="${booking.bookingTime}" data-teacher-name="${booking.teacherName}" data-class-type="${booking.className}" data-booking-status="${booking.bookingStatus}" data-attendance-status="${booking.attendanceStatus}">
                                 <div class="flex items-start justify-between">
                                     <div class="flex-1">
                                         <div class="flex items-center gap-3 mb-3">
@@ -968,7 +968,7 @@
                                         <button type="button" onclick="openDetailsModal('${booking.bookingId}')" class="px-4 py-2 border-2 border-gray-300 bg-white text-gray-700 rounded-lg text-sm font-semibold hover:bg-gray-100 transition-colors">
                                             View Details
                                         </button>
-                                        <button type="button" onclick="openCancelModal('${booking.bookingId}')" class="cancel-booking-btn px-4 py-2 bg-red-500 text-white rounded-lg text-sm font-semibold hover:bg-red-600 transition-colors">
+                                        <button type="button" onclick="openCancelModal('${booking.bookingId}')" class="cancel-booking-btn px-4 py-2 bg-red-500 text-white rounded-lg text-sm font-semibold hover:bg-red-600 transition-colors disabled:hover:bg-red-500">
                                             Cancel Booking
                                         </button>
                                     </div>
@@ -979,7 +979,7 @@
                         <!-- Rescheduled bookings (new slot + replaced old slot) -->
                         <c:forEach var="booking" items="${rescheduledBookings}">
                             <c:set var="borderClass" value="border-teal-200 bg-teal-50" />
-                            <div class="border-2 rounded-xl p-5 ${borderClass} booking-entry" data-booking-id="${booking.bookingId}" data-booking-date="${booking.bookingDate}" data-booking-time="${booking.bookingTime}" data-teacher-name="${booking.teacherName}" data-teacher-id="${booking.teacherId}" data-schedule-id="${booking.scheduleId}" data-class-type="${booking.className}" data-booking-status="Rescheduled" data-can-cancel="${booking.cancellationAllowed}">
+                            <div class="border-2 rounded-xl p-5 ${borderClass} booking-entry" data-booking-id="${booking.bookingId}" data-booking-date="${booking.bookingDate}" data-booking-time="${booking.bookingTime}" data-teacher-name="${booking.teacherName}" data-teacher-id="${booking.teacherId}" data-schedule-id="${booking.scheduleId}" data-class-type="${booking.className}" data-booking-status="Rescheduled">
                                 <div class="flex items-start justify-between">
                                     <div class="flex-1">
                                         <div class="flex items-center gap-3 mb-3">
@@ -1023,8 +1023,8 @@
                                         <button type="button" onclick="openDetailsModal('${booking.bookingId}')" class="px-4 py-2 border-2 border-gray-300 bg-white text-gray-700 rounded-lg text-sm font-semibold hover:bg-gray-100 transition-colors">
                                             View Details
                                         </button>
-                                        <c:if test="${booking.rescheduledReplacement and booking.cancellationAllowed}">
-                                            <button type="button" onclick="openCancelModal('${booking.bookingId}')" class="cancel-booking-btn px-4 py-2 bg-red-500 text-white rounded-lg text-sm font-semibold hover:bg-red-600 transition-colors">
+                                        <c:if test="${booking.rescheduledReplacement}">
+                                            <button type="button" onclick="openCancelModal('${booking.bookingId}')" class="cancel-booking-btn px-4 py-2 bg-red-500 text-white rounded-lg text-sm font-semibold hover:bg-red-600 transition-colors disabled:hover:bg-red-500">
                                                 Cancel Booking
                                             </button>
                                         </c:if>
@@ -1324,11 +1324,25 @@
     </div>
     
     <script>
+        const CANCEL_MIN_HOURS = 12;
         const CANCEL_TOO_LATE_MSG = 'Classes cannot be cancelled less than 12 hours before the start time.';
+
+        function canCancelByPolicy(isoDate, time24) {
+            if (!isoDate || !time24) return false;
+            const normalized = time24.length === 5 ? time24 + ':00' : time24;
+            const classStart = new Date(isoDate.substring(0, 10) + 'T' + normalized);
+            if (isNaN(classStart.getTime())) return false;
+            const hoursUntil = (classStart.getTime() - Date.now()) / (1000 * 60 * 60);
+            return hoursUntil >= CANCEL_MIN_HOURS;
+        }
 
         function isCancelAllowed(entry) {
             if (!entry) return false;
-            return entry.dataset.canCancel === 'true';
+            const status = (entry.dataset.bookingStatus || '').toLowerCase();
+            if (status === 'completed' || status === 'cancelled') return false;
+            const isoDate = (entry.dataset.bookingDate || '').substring(0, 10);
+            const time24 = (entry.dataset.bookingTime || '').substring(0, 5);
+            return canCancelByPolicy(isoDate, time24);
         }
 
         function updateStudentCancelButtons() {
@@ -1341,13 +1355,13 @@
                     return;
                 }
                 btn.style.display = '';
-                btn.disabled = false;
                 const allowed = isCancelAllowed(entry);
+                btn.disabled = !allowed;
                 if (!allowed) {
-                    btn.classList.add('opacity-50');
+                    btn.classList.add('opacity-50', 'cursor-not-allowed');
                     btn.title = CANCEL_TOO_LATE_MSG;
                 } else {
-                    btn.classList.remove('opacity-50');
+                    btn.classList.remove('opacity-50', 'cursor-not-allowed');
                     btn.title = '';
                 }
             });
