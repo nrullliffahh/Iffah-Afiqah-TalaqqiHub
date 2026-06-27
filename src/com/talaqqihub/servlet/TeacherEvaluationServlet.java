@@ -312,6 +312,12 @@ public class TeacherEvaluationServlet extends HttpServlet {
         evaluation.setTeacherComments(request.getParameter("teacherComments"));
         evaluation.setStatus(request.getParameter("status"));
         evaluation.setSessionId(request.getParameter("sessionId"));
+        String scheduleIdParam = request.getParameter("scheduleId");
+        if (scheduleIdParam != null && !scheduleIdParam.trim().isEmpty()) {
+            try {
+                evaluation.setScheduleId(Integer.parseInt(scheduleIdParam.trim().replaceAll("[^0-9]", "")));
+            } catch (NumberFormatException ignored) {}
+        }
 
         return evaluation;
     }

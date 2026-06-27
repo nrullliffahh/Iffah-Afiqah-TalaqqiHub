@@ -3,6 +3,11 @@
 
 ALTER TABLE studentevaluation ADD COLUMN sessionId VARCHAR(50) DEFAULT NULL;
 ALTER TABLE studentevaluation ADD COLUMN scheduleId INT DEFAULT NULL;
+
+-- Relax legacy NOT NULL columns when present (ignore errors if already nullable).
+ALTER TABLE studentevaluation MODIFY COLUMN scheduleId INT DEFAULT NULL;
+ALTER TABLE studentevaluation MODIFY COLUMN sessionId VARCHAR(50) DEFAULT NULL;
+
 ALTER TABLE studentevaluation ADD COLUMN class_name VARCHAR(100) DEFAULT NULL;
 ALTER TABLE studentevaluation ADD COLUMN surah VARCHAR(100) DEFAULT NULL;
 ALTER TABLE studentevaluation ADD COLUMN ayah_range VARCHAR(50) DEFAULT NULL;
