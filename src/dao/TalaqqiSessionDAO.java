@@ -73,8 +73,7 @@ public class TalaqqiSessionDAO {
     }
 
     private static String baseSelect(Connection conn) {
-        return util.TalaqqiSchemaUtil.sql(
-            usesBookingIdLink(conn) ? MODERN_BASE_SELECT : LEGACY_BASE_SELECT, conn);
+        return util.TalaqqiSchemaUtil.sessionBaseSelect(conn);
     }
 
     /** Join fragment: talaqqisession ↔ classbooking (alias ts, cb already in query). */

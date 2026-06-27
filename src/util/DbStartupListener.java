@@ -29,7 +29,9 @@ public class DbStartupListener implements ServletContextListener {
             System.out.println("DbStartupListener: talaqqi session table="
                 + TalaqqiSchemaUtil.sessionTable(conn)
                 + ", link="
-                + (TalaqqiSchemaUtil.usesBookingIdLink(conn) ? "bookingId" : "scheduleId"));
+                + (TalaqqiSchemaUtil.usesBookingIdLink(conn) ? "bookingId" : "scheduleId")
+                + ", timing="
+                + (TalaqqiSchemaUtil.hasSessionTimingColumns(conn) ? "yes" : "no"));
             DBConnection.closeConnection(conn);
         } else {
             System.err.println(

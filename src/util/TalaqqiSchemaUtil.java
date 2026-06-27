@@ -84,6 +84,8 @@ public final class TalaqqiSchemaUtil {
                 return sessionTimingColumns;
             }
             sessionTimingColumns = columnExists(probe(conn), sessionTable(conn), "sessionStartTime");
+            System.out.println("[TalaqqiSchemaUtil] session timing columns: "
+                + (sessionTimingColumns ? "present" : "absent (using NULL aliases)"));
             return sessionTimingColumns;
         }
     }
@@ -185,6 +187,51 @@ public final class TalaqqiSchemaUtil {
             return "CONCAT(cs.classAyah,'-',COALESCE(cs.classAyahEnd,cs.classAyah))";
         }
         return "CAST(cs.classAyah AS CHAR)";
+    }
+
+    /**
+     * Full row SELECT for TalaqqiSessionDAO mapRow(). Handles hybrid production schema
+     * (e.g. bookingId present but sessionStartTime/sessionDuration absent).
+     */
+    public static String sessionBaseSelect(Connection conn) {
+        boolean byBooking = usesBookingIdLink(conn);
+        boolean timing = hasSessionTimingColumns(conn);
+        boolean ayahEnd = hasClassAyahEnd(conn);
+
+        String timingCols = timing
+            ? "ts.sessionStartTime, ts.sessionDuration, "
+            : "NULL AS sessionStartTime, NULL AS sessionDuration, ";
+        String ayahEndCol = ayahEnd ? "cs.classAyahEnd, " : "NULL AS classAyahEnd, ";
+
+        String sql;
+        if (byBooking) {
+            sql = "SELECT ts.sessionId, ts.sessionType, ts.sessionDate AS tsDate, "
+                + timingCols
+                + "ts.bookingId, "
+                + "cb.studentId, cb.scheduleId, cb.bookingStatus, "
+                + "cs.teacherId, cs.className, cs.startTime, cs.endTime, cs.duration, "
+                + "cs.classSurah, cs.classAyah, " + ayahEndCol
+                + "s.studentName, t.teacherName AS teacherName "
+                + "FROM talaqqisession ts "
+                + "JOIN classbooking cb ON ts.bookingId = cb.bookingId "
+                + "JOIN classschedule cs ON cb.scheduleId = cs.scheduleId "
+                + "LEFT JOIN student s ON cb.studentId = s.studentId "
+                + "LEFT JOIN teacher t ON cs.teacherId = t.teacherId ";
+        } else {
+            sql = "SELECT ts.sessionId, ts.sessionType, ts.sessionDate AS tsDate, "
+                + timingCols
+                + "cb.bookingId, cb.studentId, cs.scheduleId, cb.bookingStatus, "
+                + "cs.teacherId, cs.className, cs.startTime, cs.endTime, cs.duration, "
+                + "cs.classSurah, cs.classAyah, " + ayahEndCol
+                + "s.studentName, t.teacherName AS teacherName "
+                + "FROM talaqqisession ts "
+                + "JOIN classschedule cs ON ts.scheduleId = cs.scheduleId "
+                + "LEFT JOIN classbooking cb ON cb.scheduleId = cs.scheduleId "
+                + "  AND cb.bookingStatus NOT IN ('Cancelled','Rejected') "
+                + "LEFT JOIN student s ON cb.studentId = s.studentId "
+                + "LEFT JOIN teacher t ON cs.teacherId = t.teacherId ";
+        }
+        return sql(sql, conn);
     }
 
     public static boolean isTableMissing(SQLException e) {
