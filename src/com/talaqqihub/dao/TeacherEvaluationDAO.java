@@ -196,10 +196,11 @@ public class TeacherEvaluationDAO {
     }
 
     private String evalSurahExpr() {
+        String surahFromSession = "CAST(" + quranSurahNumberSql("ts.sessionId") + " AS CHAR)";
         if (hasEvalColumn("surah")) {
-            return "COALESCE(NULLIF(se.surah, ''), CAST(cs.classSurah AS CHAR), '') AS surah";
+            return "COALESCE(NULLIF(se.surah, ''), NULLIF(" + surahFromSession + ", '0'), '') AS surah";
         }
-        return "COALESCE(CAST(cs.classSurah AS CHAR), '') AS surah";
+        return "COALESCE(NULLIF(" + surahFromSession + ", '0'), '') AS surah";
     }
 
     private String evalAyahExpr() {
@@ -210,11 +211,56 @@ public class TeacherEvaluationDAO {
         return "COALESCE(" + ayahRange + ", '') AS ayah_range";
     }
 
+    /** Surah number from live session display, then schedule. */
+    private String quranSurahNumberSql(String sessionIdExpr) {
+        if (TalaqqiSchemaUtil.hasQuranDisplayTable(connection)) {
+            return "COALESCE("
+                + "(SELECT NULLIF(qd.currentSurah, 0) FROM qurandisplay qd "
+                + "WHERE qd.sessionId = " + sessionIdExpr + " LIMIT 1), "
+                + "NULLIF(cs.classSurah, 0), 0)";
+        }
+        return "COALESCE(NULLIF(cs.classSurah, 0), 0)";
+    }
+
+    /** Ayah number from live session display, then schedule. */
+    private String quranAyahNumberSql(String sessionIdExpr) {
+        if (TalaqqiSchemaUtil.hasQuranDisplayTable(connection)) {
+            return "COALESCE("
+                + "(SELECT NULLIF(qd.currentAyah, 0) FROM qurandisplay qd "
+                + "WHERE qd.sessionId = " + sessionIdExpr + " LIMIT 1), "
+                + "NULLIF(cs.classAyah, 0), 0)";
+        }
+        return "COALESCE(NULLIF(cs.classAyah, 0), 0)";
+    }
+
+    private String pendingSessionSurahColumns(String sessionIdExpr) {
+        String surahNum = quranSurahNumberSql(sessionIdExpr);
+        return "CAST(" + surahNum + " AS CHAR) AS surah, "
+            + surahNum + " AS quran_surah_number, "
+            + quranAyahNumberSql(sessionIdExpr) + " AS quran_ayah_number, ";
+    }
+
     private String evalSessionDateExpr() {
         if (hasEvalColumn("session_date")) {
             return "COALESCE(NULLIF(se.session_date, ''), DATE_FORMAT(ts.sessionDate, '%Y-%m-%d'), DATE_FORMAT(cs.scheduleDate, '%Y-%m-%d'), '') AS session_date";
         }
         return "COALESCE(DATE_FORMAT(ts.sessionDate, '%Y-%m-%d'), DATE_FORMAT(cs.scheduleDate, '%Y-%m-%d'), '') AS session_date";
+    }
+
+    private String evalStartTimeExpr() {
+        String fromSchedule = "DATE_FORMAT(cs.startTime,'%H:%i:%s')";
+        if (hasEvalColumn("start_time")) {
+            return "COALESCE(NULLIF(DATE_FORMAT(se.start_time,'%H:%i:%s'), ''), " + fromSchedule + ", '') AS start_time";
+        }
+        return "COALESCE(" + fromSchedule + ", '') AS start_time";
+    }
+
+    private String evalEndTimeExpr() {
+        String fromSchedule = "DATE_FORMAT(cs.endTime,'%H:%i:%s')";
+        if (hasEvalColumn("end_time")) {
+            return "COALESCE(NULLIF(DATE_FORMAT(se.end_time,'%H:%i:%s'), ''), " + fromSchedule + ", '') AS end_time";
+        }
+        return "COALESCE(" + fromSchedule + ", '') AS end_time";
     }
 
     private String evalNotExistsBlocksPending() {
@@ -1171,7 +1217,8 @@ public class TeacherEvaluationDAO {
         String teacherClause = teacherIdMatchClause("cs.teacherId", teacherIds);
         String query =
             "SELECT DISTINCT cb.bookingId, ts.sessionId, cb.studentId, s.studentName AS student_name, " +
-            "cs.className AS class_name, cs.classSurah AS surah, " +
+            "cs.className AS class_name, " +
+            pendingSessionSurahColumns("ts.sessionId") +
             ayahRange + " AS ayah_range, " +
             "DATE_FORMAT(cs.scheduleDate,'%Y-%m-%d') AS session_date, " +
             "DATE_FORMAT(cs.startTime,'%H:%i:%s') AS start_time, " +
@@ -1194,19 +1241,7 @@ public class TeacherEvaluationDAO {
             bindTeacherIdVariants(stmt, 1, teacherId);
             ResultSet rs = stmt.executeQuery();
             while (rs.next()) {
-                Evaluation evaluation = new Evaluation();
-                evaluation.setSessionId(rs.getString("sessionId"));
-                evaluation.setStudentId(rs.getString("studentId"));
-                evaluation.setStudentName(rs.getString("student_name"));
-                evaluation.setClassName(rs.getString("class_name"));
-                evaluation.setSurah(resolveSurahDisplay(rs.getString("surah")));
-                evaluation.setAyahRange(rs.getString("ayah_range"));
-                evaluation.setSessionDate(rs.getString("session_date"));
-                evaluation.setStartTime(rs.getString("start_time"));
-                evaluation.setEndTime(rs.getString("end_time"));
-                evaluation.setTeacherId(rs.getString("teacherId"));
-                evaluation.setStatus("PENDING");
-                evaluations.add(evaluation);
+                evaluations.add(mapPendingSessionRow(rs));
             }
         } catch (SQLException e) {
             setError("Unable to load completed sessions needing evaluation", e);
@@ -1219,6 +1254,193 @@ public class TeacherEvaluationDAO {
         return evaluations;
     }
 
+    /**
+     * Combine DB pending rows with completed sessions still needing evaluation.
+     * Fills missing date/time/surah on existing rows from session schedule data.
+     */
+    public List<Evaluation> mergePendingWithSessions(List<Evaluation> pendingEvaluations,
+                                                     List<Evaluation> pendingSessions) {
+        if (pendingEvaluations == null) {
+            pendingEvaluations = new ArrayList<>();
+        }
+        if (pendingSessions == null || pendingSessions.isEmpty()) {
+            enrichPendingEvaluations(pendingEvaluations);
+            return pendingEvaluations;
+        }
+
+        for (Evaluation sessionRow : pendingSessions) {
+            if (sessionRow == null) {
+                continue;
+            }
+            Evaluation matched = findMatchingPendingEvaluation(pendingEvaluations, sessionRow);
+            if (matched != null) {
+                fillMissingEvaluationDetails(matched, sessionRow);
+            } else {
+                pendingEvaluations.add(sessionRow);
+            }
+        }
+        enrichPendingEvaluations(pendingEvaluations);
+        return pendingEvaluations;
+    }
+
+    /** Backfill date/time/surah when join or minimal insert left fields empty. */
+    public void enrichPendingEvaluations(List<Evaluation> evaluations) {
+        if (evaluations == null || evaluations.isEmpty()) {
+            return;
+        }
+        for (Evaluation evaluation : evaluations) {
+            if (needsSessionMetadata(evaluation)) {
+                enrichSinglePendingEvaluation(evaluation);
+            }
+        }
+    }
+
+    private boolean needsSessionMetadata(Evaluation evaluation) {
+        return isBlank(evaluation.getSessionDate())
+            || isBlank(evaluation.getStartTime())
+            || isBlank(evaluation.getEndTime())
+            || isBlank(evaluation.getSurah());
+    }
+
+    private Evaluation findMatchingPendingEvaluation(List<Evaluation> pendingEvaluations,
+                                                     Evaluation sessionRow) {
+        String sessionId = sessionRow.getSessionId();
+        if (!isBlank(sessionId)) {
+            for (Evaluation existing : pendingEvaluations) {
+                if (sessionId.equals(existing.getSessionId())) {
+                    return existing;
+                }
+            }
+        }
+        if (!isBlank(sessionRow.getStudentId())) {
+            for (Evaluation existing : pendingEvaluations) {
+                if (sessionRow.getStudentId().equals(existing.getStudentId())
+                        && isBlank(existing.getSessionDate())
+                        && isBlank(existing.getStartTime())) {
+                    return existing;
+                }
+            }
+        }
+        return null;
+    }
+
+    private void fillMissingEvaluationDetails(Evaluation target, Evaluation source) {
+        if (isBlank(target.getSessionDate()) && !isBlank(source.getSessionDate())) {
+            target.setSessionDate(source.getSessionDate());
+        }
+        if (isBlank(target.getStartTime()) && !isBlank(source.getStartTime())) {
+            target.setStartTime(source.getStartTime());
+        }
+        if (isBlank(target.getEndTime()) && !isBlank(source.getEndTime())) {
+            target.setEndTime(source.getEndTime());
+        }
+        if (isBlank(target.getClassName()) && !isBlank(source.getClassName())) {
+            target.setClassName(source.getClassName());
+        }
+        if (isBlank(target.getSurah()) && !isBlank(source.getSurah())) {
+            target.setSurah(source.getSurah());
+        }
+        if (isBlank(target.getAyahRange()) && !isBlank(source.getAyahRange())) {
+            target.setAyahRange(source.getAyahRange());
+        }
+        if (target.getSurahNumber() <= 0 && source.getSurahNumber() > 0) {
+            target.setSurahNumber(source.getSurahNumber());
+        }
+        if (target.getAyahNumber() <= 0 && source.getAyahNumber() > 0) {
+            target.setAyahNumber(source.getAyahNumber());
+        }
+        if (isBlank(target.getSessionId()) && !isBlank(source.getSessionId())) {
+            target.setSessionId(source.getSessionId());
+        }
+        if (isBlank(target.getTeacherName()) && !isBlank(source.getTeacherName())) {
+            target.setTeacherName(source.getTeacherName());
+        }
+    }
+
+    private void enrichSinglePendingEvaluation(Evaluation evaluation) {
+        if (evaluation == null) {
+            return;
+        }
+        String sessionId = evaluation.getSessionId();
+        if (!isBlank(sessionId)) {
+            if (loadSessionMetadataIntoEvaluation(evaluation, sessionId, null)) {
+                return;
+            }
+        }
+        String scheduleId = evaluation.getScheduleId();
+        if (isBlank(scheduleId) && !isBlank(sessionId)) {
+            scheduleId = lookupScheduleIdForSession(sessionId, evaluation.getStudentId());
+            if (!isBlank(scheduleId)) {
+                evaluation.setScheduleId(scheduleId);
+            }
+        }
+        if (!isBlank(scheduleId)) {
+            loadSessionMetadataIntoEvaluation(evaluation, null, scheduleId);
+        }
+    }
+
+    private boolean loadSessionMetadataIntoEvaluation(Evaluation evaluation,
+                                                      String sessionId,
+                                                      String scheduleId) {
+        String ayahRange = TalaqqiSchemaUtil.ayahRangeExpr(connection);
+        String sessionTable = TalaqqiSchemaUtil.sessionTable(connection);
+        String query;
+        if (!isBlank(sessionId)) {
+            query = "SELECT DATE_FORMAT(COALESCE(ts.sessionDate, cs.scheduleDate),'%Y-%m-%d') AS session_date, "
+                + "DATE_FORMAT(cs.startTime,'%H:%i:%s') AS start_time, "
+                + "DATE_FORMAT(cs.endTime,'%H:%i:%s') AS end_time, "
+                + "cs.className AS class_name, "
+                + pendingSessionSurahColumns("ts.sessionId")
+                + ayahRange + " AS ayah_range "
+                + "FROM " + sessionTable + " ts "
+                + "JOIN classschedule cs ON ts.scheduleId = cs.scheduleId "
+                + "WHERE ts.sessionId = ? LIMIT 1";
+        } else {
+            query = "SELECT DATE_FORMAT(cs.scheduleDate,'%Y-%m-%d') AS session_date, "
+                + "DATE_FORMAT(cs.startTime,'%H:%i:%s') AS start_time, "
+                + "DATE_FORMAT(cs.endTime,'%H:%i:%s') AS end_time, "
+                + "cs.className AS class_name, "
+                + pendingSessionSurahColumns(
+                    "(SELECT ts2.sessionId FROM " + sessionTable + " ts2 "
+                    + "WHERE ts2.scheduleId = cs.scheduleId LIMIT 1)")
+                + ayahRange + " AS ayah_range "
+                + "FROM classschedule cs "
+                + "WHERE cs.scheduleId = ? LIMIT 1";
+        }
+
+        try (PreparedStatement stmt = connection.prepareStatement(query)) {
+            if (!isBlank(sessionId)) {
+                stmt.setString(1, sessionId.trim());
+            } else {
+                stmt.setString(1, scheduleId.trim());
+            }
+            try (ResultSet rs = stmt.executeQuery()) {
+                if (!rs.next()) {
+                    return false;
+                }
+                if (isBlank(evaluation.getSessionDate())) {
+                    evaluation.setSessionDate(rs.getString("session_date"));
+                }
+                if (isBlank(evaluation.getStartTime())) {
+                    evaluation.setStartTime(rs.getString("start_time"));
+                }
+                if (isBlank(evaluation.getEndTime())) {
+                    evaluation.setEndTime(rs.getString("end_time"));
+                }
+                if (isBlank(evaluation.getClassName())) {
+                    evaluation.setClassName(rs.getString("class_name"));
+                }
+                if (isBlank(evaluation.getSurah()) || isBlank(evaluation.getAyahRange())) {
+                    applyQuranFieldsFromResultSet(evaluation, rs);
+                }
+                return true;
+            }
+        } catch (SQLException e) {
+            System.err.println("[TeacherEvaluationDAO] enrichSinglePendingEvaluation: " + e.getMessage());
+            return false;
+        }
+    }
+
     /** Completed bookings without evaluation — does not require talaqqisession join. */
     private List<Evaluation> getPendingSessionsFallback(String teacherId) {
         List<Evaluation> evaluations = new ArrayList<>();
@@ -1228,8 +1450,8 @@ public class TeacherEvaluationDAO {
         String teacherClause = teacherIdMatchClause("cs.teacherId", teacherIds);
         String query =
             "SELECT cb.bookingId, " + sessionLookup + " AS sessionId, cb.studentId, "
-            + "s.studentName AS student_name, cs.className AS class_name, cs.classSurah AS surah, "
-            + ayahRange + " AS ayah_range, "
+            + "s.studentName AS student_name, cs.className AS class_name, "
+            + pendingSessionSurahColumns(sessionLookup) + ayahRange + " AS ayah_range, "
             + "DATE_FORMAT(cs.scheduleDate,'%Y-%m-%d') AS session_date, "
             + "DATE_FORMAT(cs.startTime,'%H:%i:%s') AS start_time, "
             + "DATE_FORMAT(cs.endTime,'%H:%i:%s') AS end_time, cs.teacherId "
@@ -1249,19 +1471,7 @@ public class TeacherEvaluationDAO {
             bindTeacherIdVariants(stmt, 1, teacherId);
             try (ResultSet rs = stmt.executeQuery()) {
                 while (rs.next()) {
-                    Evaluation evaluation = new Evaluation();
-                    evaluation.setSessionId(rs.getString("sessionId"));
-                    evaluation.setStudentId(rs.getString("studentId"));
-                    evaluation.setStudentName(rs.getString("student_name"));
-                    evaluation.setClassName(rs.getString("class_name"));
-                    evaluation.setSurah(resolveSurahDisplay(rs.getString("surah")));
-                    evaluation.setAyahRange(rs.getString("ayah_range"));
-                    evaluation.setSessionDate(rs.getString("session_date"));
-                    evaluation.setStartTime(rs.getString("start_time"));
-                    evaluation.setEndTime(rs.getString("end_time"));
-                    evaluation.setTeacherId(rs.getString("teacherId"));
-                    evaluation.setStatus("PENDING");
-                    evaluations.add(evaluation);
+                    evaluations.add(mapPendingSessionRow(rs));
                 }
             }
         } catch (SQLException e) {
@@ -1284,8 +1494,8 @@ public class TeacherEvaluationDAO {
         String sessionLookup = "ts.sessionId";
         String query =
             "SELECT cb.bookingId, ts.sessionId, cb.studentId, s.studentName AS student_name, "
-            + "cs.className AS class_name, cs.classSurah AS surah, "
-            + ayahRange + " AS ayah_range, "
+            + "cs.className AS class_name, "
+            + pendingSessionSurahColumns("ts.sessionId") + ayahRange + " AS ayah_range, "
             + "DATE_FORMAT(COALESCE(ts.sessionDate, cs.scheduleDate),'%Y-%m-%d') AS session_date, "
             + "DATE_FORMAT(cs.startTime,'%H:%i:%s') AS start_time, "
             + "DATE_FORMAT(cs.endTime,'%H:%i:%s') AS end_time, cs.teacherId "
@@ -1304,19 +1514,7 @@ public class TeacherEvaluationDAO {
             bindTeacherIdVariants(stmt, 1, teacherId);
             try (ResultSet rs = stmt.executeQuery()) {
                 while (rs.next()) {
-                    Evaluation evaluation = new Evaluation();
-                    evaluation.setSessionId(rs.getString("sessionId"));
-                    evaluation.setStudentId(rs.getString("studentId"));
-                    evaluation.setStudentName(rs.getString("student_name"));
-                    evaluation.setClassName(rs.getString("class_name"));
-                    evaluation.setSurah(resolveSurahDisplay(rs.getString("surah")));
-                    evaluation.setAyahRange(rs.getString("ayah_range"));
-                    evaluation.setSessionDate(rs.getString("session_date"));
-                    evaluation.setStartTime(rs.getString("start_time"));
-                    evaluation.setEndTime(rs.getString("end_time"));
-                    evaluation.setTeacherId(rs.getString("teacherId"));
-                    evaluation.setStatus("PENDING");
-                    evaluations.add(evaluation);
+                    evaluations.add(mapPendingSessionRow(rs));
                 }
             }
         } catch (SQLException e) {
@@ -1342,7 +1540,7 @@ public class TeacherEvaluationDAO {
         String ayahRange = TalaqqiSchemaUtil.ayahRangeExpr(connection);
         String query =
             "SELECT ts.sessionId, cb.scheduleId, cb.studentId, cs.teacherId, cs.className, " +
-            "CAST(cs.classSurah AS CHAR) AS surah, " + ayahRange + " AS ayah_range, " +
+            pendingSessionSurahColumns("ts.sessionId") + ayahRange + " AS ayah_range, " +
             "DATE_FORMAT(cs.scheduleDate,'%Y-%m-%d') AS session_date, " +
             "DATE_FORMAT(cs.startTime,'%H:%i:%s') AS start_time, " +
             "DATE_FORMAT(cs.endTime,'%H:%i:%s') AS end_time, " +
@@ -1369,8 +1567,7 @@ public class TeacherEvaluationDAO {
                 evaluation.setTeacherId(rs.getString("teacherId"));
                 evaluation.setStudentName(rs.getString("student_name"));
                 evaluation.setClassName(rs.getString("className"));
-                evaluation.setSurah(resolveSurahDisplay(rs.getString("surah")));
-                evaluation.setAyahRange(rs.getString("ayah_range"));
+                applyQuranFieldsFromResultSet(evaluation, rs);
                 evaluation.setSessionDate(rs.getString("session_date"));
                 evaluation.setStartTime(rs.getString("start_time"));
                 evaluation.setEndTime(rs.getString("end_time"));
@@ -1397,7 +1594,7 @@ public class TeacherEvaluationDAO {
         String teacherClause = teacherIdMatchClause("cs.teacherId", teacherIds);
         String query =
             "SELECT ts.sessionId, cb.scheduleId, cb.studentId, cs.teacherId, cs.className, "
-            + "CAST(cs.classSurah AS CHAR) AS surah, " + ayahRange + " AS ayah_range, "
+            + pendingSessionSurahColumns("ts.sessionId") + ayahRange + " AS ayah_range, "
             + "DATE_FORMAT(COALESCE(ts.sessionDate, cs.scheduleDate),'%Y-%m-%d') AS session_date, "
             + "DATE_FORMAT(cs.startTime,'%H:%i:%s') AS start_time, "
             + "DATE_FORMAT(cs.endTime,'%H:%i:%s') AS end_time, "
@@ -1425,8 +1622,7 @@ public class TeacherEvaluationDAO {
                 evaluation.setTeacherId(rs.getString("teacherId"));
                 evaluation.setStudentName(rs.getString("student_name"));
                 evaluation.setClassName(rs.getString("className"));
-                evaluation.setSurah(resolveSurahDisplay(rs.getString("surah")));
-                evaluation.setAyahRange(rs.getString("ayah_range"));
+                applyQuranFieldsFromResultSet(evaluation, rs);
                 evaluation.setSessionDate(rs.getString("session_date"));
                 evaluation.setStartTime(rs.getString("start_time"));
                 evaluation.setEndTime(rs.getString("end_time"));
@@ -1457,6 +1653,12 @@ public class TeacherEvaluationDAO {
         parts.add("teacherId", teacherIdStr);
         sqlAdd(parts, "sessionId", sessionId);
         sqlAddScheduleId(parts, evaluation);
+        sqlAddNullable(parts, "session_date", evaluation.getSessionDate());
+        sqlAddNullable(parts, "start_time", evaluation.getStartTime());
+        sqlAddNullable(parts, "end_time", evaluation.getEndTime());
+        sqlAddNullable(parts, "surah", evaluation.getSurah());
+        sqlAddNullable(parts, "ayah_range", evaluation.getAyahRange());
+        sqlAddNullable(parts, "class_name", evaluation.getClassName());
         if (hasEvalColumn("status")) {
             parts.add("status", "PENDING");
         }
@@ -1480,6 +1682,12 @@ public class TeacherEvaluationDAO {
         fallback.add("teacherId", teacherIdStr);
         sqlAdd(fallback, "sessionId", sessionId);
         sqlAddScheduleId(fallback, evaluation);
+        sqlAddNullable(fallback, "session_date", evaluation.getSessionDate());
+        sqlAddNullable(fallback, "start_time", evaluation.getStartTime());
+        sqlAddNullable(fallback, "end_time", evaluation.getEndTime());
+        sqlAddNullable(fallback, "surah", evaluation.getSurah());
+        sqlAddNullable(fallback, "ayah_range", evaluation.getAyahRange());
+        sqlAddNullable(fallback, "class_name", evaluation.getClassName());
         if (hasEvalColumn("status")) {
             fallback.add("status", "PENDING");
         }
@@ -1507,13 +1715,14 @@ public class TeacherEvaluationDAO {
             evalSurahExpr() + ", " +
             evalAyahExpr() + ", " +
             evalSessionDateExpr() + ", " +
-            (hasEvalColumn("start_time") ? "COALESCE(NULLIF(se.start_time, ''), cs.startTime, '') AS start_time" : "COALESCE(cs.startTime, '') AS start_time") + ", " +
-            (hasEvalColumn("end_time") ? "COALESCE(NULLIF(se.end_time, ''), cs.endTime, '') AS end_time" : "COALESCE(cs.endTime, '') AS end_time") + ", " +
-            "COALESCE(cs.classSurah, 0) AS quran_surah_number, " +
-            "COALESCE(cs.classAyah, 0) AS quran_ayah_number, " +
+            evalStartTimeExpr() + ", " +
+            evalEndTimeExpr() + ", " +
+            quranSurahNumberSql("ts.sessionId") + " AS quran_surah_number, " +
+            quranAyahNumberSql("ts.sessionId") + " AS quran_ayah_number, " +
             "COALESCE(NULLIF(se.teacherId, ''), cs.teacherId, '') AS teacherId, " +
             "COALESCE(NULLIF(t.teacherName, ''), '') AS teacher_name, " +
-            (hasEvalColumn("sessionId") ? "se.sessionId" : "NULL AS sessionId") + ", se.tajweedScore, se.fluencyScore, se.accuracyScore, " +
+            (hasEvalColumn("sessionId") ? "se.sessionId" : "NULL AS sessionId") + ", " +
+            (hasEvalColumn("scheduleId") ? "se.scheduleId" : "NULL AS scheduleId") + ", se.tajweedScore, se.fluencyScore, se.accuracyScore, " +
             evalSelectColumn("overall_score") + ", " +
             evalSelectColumn("rating") + ", " +
             evalSelectColumnOrAlias("strength", "strength") + ", " +
@@ -1646,8 +1855,7 @@ public class TeacherEvaluationDAO {
             + "DATE_FORMAT(cs.scheduleDate,'%Y-%m-%d') AS session_date, "
             + "DATE_FORMAT(cs.startTime,'%H:%i:%s') AS start_time, "
             + "DATE_FORMAT(cs.endTime,'%H:%i:%s') AS end_time, "
-            + "cs.classSurah AS surah, "
-            + ayahRange + " AS ayah_range "
+            + pendingSessionSurahColumns("sf.sessionId") + ayahRange + " AS ayah_range "
             + "FROM studentfeedback sf "
             + "JOIN student s ON sf.studentId = s.studentId "
             + TalaqqiSchemaUtil.leftJoinSessionFromFeedback(connection)
@@ -1715,8 +1923,7 @@ public class TeacherEvaluationDAO {
             evaluation.setSessionDate(rs.getString("session_date"));
             evaluation.setStartTime(rs.getString("start_time"));
             evaluation.setEndTime(rs.getString("end_time"));
-            evaluation.setSurah(resolveSurahDisplay(rs.getString("surah")));
-            evaluation.setAyahRange(rs.getString("ayah_range"));
+            applyQuranFieldsFromResultSet(evaluation, rs);
         } catch (SQLException ignored) {
             // Fallback query omits schedule/session join columns.
         }
@@ -1864,13 +2071,103 @@ public class TeacherEvaluationDAO {
 
         if (trimmed.matches("\\d+")) {
             try {
-                return getSurahName(Integer.parseInt(trimmed));
+                int surahNumber = Integer.parseInt(trimmed);
+                if (surahNumber <= 0) {
+                    return "";
+                }
+                return getSurahName(surahNumber);
             } catch (NumberFormatException e) {
                 return trimmed;
             }
         }
 
         return trimmed;
+    }
+
+    private Evaluation mapPendingSessionRow(ResultSet rs) throws SQLException {
+        Evaluation evaluation = new Evaluation();
+        evaluation.setSessionId(rs.getString("sessionId"));
+        evaluation.setStudentId(rs.getString("studentId"));
+        evaluation.setStudentName(rs.getString("student_name"));
+        evaluation.setClassName(rs.getString("class_name"));
+        evaluation.setSessionDate(rs.getString("session_date"));
+        evaluation.setStartTime(rs.getString("start_time"));
+        evaluation.setEndTime(rs.getString("end_time"));
+        evaluation.setTeacherId(rs.getString("teacherId"));
+        evaluation.setStatus("PENDING");
+        applyQuranFieldsFromResultSet(evaluation, rs);
+        return evaluation;
+    }
+
+    private void applyQuranFieldsFromResultSet(Evaluation evaluation, ResultSet rs) throws SQLException {
+        int quranSurahNumber = 0;
+        try {
+            quranSurahNumber = rs.getInt("quran_surah_number");
+            if (rs.wasNull()) {
+                quranSurahNumber = 0;
+            }
+        } catch (SQLException ignored) {
+        }
+
+        int quranAyahNumber = 0;
+        try {
+            quranAyahNumber = rs.getInt("quran_ayah_number");
+            if (rs.wasNull()) {
+                quranAyahNumber = 0;
+            }
+        } catch (SQLException ignored) {
+        }
+
+        String surahValue = null;
+        try {
+            surahValue = rs.getString("surah");
+        } catch (SQLException ignored) {
+        }
+
+        if (surahValue == null || surahValue.trim().isEmpty() || "0".equals(surahValue.trim())) {
+            if (quranSurahNumber > 0) {
+                surahValue = getSurahName(quranSurahNumber);
+            } else {
+                surahValue = "";
+            }
+        }
+        evaluation.setSurah(resolveSurahDisplay(surahValue));
+
+        if (quranSurahNumber > 0) {
+            evaluation.setSurahNumber(quranSurahNumber);
+        } else if (surahValue != null && surahValue.trim().matches("\\d+")) {
+            try {
+                evaluation.setSurahNumber(Integer.parseInt(surahValue.trim()));
+            } catch (NumberFormatException ignored) {
+                evaluation.setSurahNumber(0);
+            }
+        } else {
+            evaluation.setSurahNumber(0);
+        }
+
+        String ayahValue = null;
+        try {
+            ayahValue = rs.getString("ayah_range");
+        } catch (SQLException ignored) {
+        }
+
+        if (isBlankOrZeroAyah(ayahValue)) {
+            if (quranAyahNumber > 0) {
+                ayahValue = String.valueOf(quranAyahNumber);
+            } else {
+                ayahValue = "";
+            }
+        }
+        evaluation.setAyahRange(ayahValue != null ? ayahValue : "");
+        evaluation.setAyahNumber(quranAyahNumber);
+    }
+
+    private boolean isBlankOrZeroAyah(String ayahValue) {
+        if (ayahValue == null || ayahValue.trim().isEmpty()) {
+            return true;
+        }
+        String trimmed = ayahValue.trim();
+        return "0".equals(trimmed) || "0-0".equals(trimmed);
     }
 
     private String getSurahName(int surahNumber) {
@@ -1967,6 +2264,14 @@ public class TeacherEvaluationDAO {
         }
 
         try {
+            String scheduleId = readScheduleIdColumn(rs);
+            if (scheduleId != null) {
+                evaluation.setScheduleId(scheduleId);
+            }
+        } catch (SQLException ignored) {
+        }
+
+        try {
             evaluation.setStudentName(rs.getString("student_name"));
         } catch (SQLException e) {
             evaluation.setStudentName("");
@@ -1985,48 +2290,11 @@ public class TeacherEvaluationDAO {
         }
         
         try {
-            String surahValue = rs.getString("surah");
-            if (surahValue == null || surahValue.trim().isEmpty()) {
-                int quranSurahNumber = 0;
-                try {
-                    quranSurahNumber = rs.getInt("quran_surah_number");
-                } catch (SQLException ignored) {
-                }
-                if (quranSurahNumber > 0) {
-                    surahValue = getSurahName(quranSurahNumber);
-                }
-            }
-            evaluation.setSurah(resolveSurahDisplay(surahValue));
+            applyQuranFieldsFromResultSet(evaluation, rs);
         } catch (SQLException e) {
             evaluation.setSurah("");
-        }
-        
-        try {
-            String ayahValue = rs.getString("ayah_range");
-            if (ayahValue == null || ayahValue.trim().isEmpty()) {
-                int quranAyahNumber = 0;
-                try {
-                    quranAyahNumber = rs.getInt("quran_ayah_number");
-                } catch (SQLException ignored) {
-                }
-                if (quranAyahNumber > 0) {
-                    ayahValue = String.valueOf(quranAyahNumber);
-                }
-            }
-            evaluation.setAyahRange(ayahValue != null ? ayahValue : "");
-        } catch (SQLException e) {
             evaluation.setAyahRange("");
-        }
-
-        try {
-            evaluation.setSurahNumber(rs.getInt("quran_surah_number"));
-        } catch (SQLException e) {
             evaluation.setSurahNumber(0);
-        }
-
-        try {
-            evaluation.setAyahNumber(rs.getInt("quran_ayah_number"));
-        } catch (SQLException e) {
             evaluation.setAyahNumber(0);
         }
         

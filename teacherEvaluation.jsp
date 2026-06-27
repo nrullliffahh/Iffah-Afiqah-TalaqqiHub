@@ -307,8 +307,14 @@
                                   data-ayah-range="${evaluation.ayahRange}"
                                 data-teacher-name="${evaluation.teacherName}">
                                 <span class="hidden-surah-label" style="display:none">
-                                    <c:out value="${evaluation.surah}" />
-                                    <c:if test="${not empty evaluation.ayahRange}">, Ayah <c:out value="${evaluation.ayahRange}" /></c:if>
+                                    <c:choose>
+                                        <c:when test="${not empty evaluation.surah}">
+                                            <c:out value="${evaluation.surah}" /><c:if test="${not empty evaluation.ayahRange}">, Ayah <c:out value="${evaluation.ayahRange}" /></c:if>
+                                        </c:when>
+                                        <c:when test="${not empty evaluation.ayahRange}">
+                                            Ayah <c:out value="${evaluation.ayahRange}" />
+                                        </c:when>
+                                    </c:choose>
                                 </span>
                                 <div class="flex items-center space-x-4">
                                     <div class="w-16 h-16 bg-gradient-to-br from-purple-300 to-pink-300 rounded-xl flex items-center justify-center">
@@ -316,8 +322,28 @@
                                     </div>
                                     <div>
                                         <h4 class="text-lg font-bold text-gray-800">${evaluation.studentName}</h4>
-                                        <p class="text-gray-600 text-sm">${evaluation.sessionDate} • ${evaluation.startTime} - ${evaluation.endTime}</p>
-                                        <p class="text-gray-600 text-sm">Surah ${evaluation.surah}, Ayah ${evaluation.ayahRange}</p>
+                                        <p class="text-gray-600 text-sm">
+                                            <c:choose>
+                                                <c:when test="${not empty evaluation.sessionDate}">
+                                                    ${evaluation.sessionDate}<c:if test="${not empty evaluation.startTime}"> • ${evaluation.startTime}<c:if test="${not empty evaluation.endTime}"> - ${evaluation.endTime}</c:if></c:if>
+                                                </c:when>
+                                                <c:when test="${not empty evaluation.startTime}">
+                                                    ${evaluation.startTime}<c:if test="${not empty evaluation.endTime}"> - ${evaluation.endTime}</c:if>
+                                                </c:when>
+                                                <c:otherwise>Date/time not set</c:otherwise>
+                                            </c:choose>
+                                        </p>
+                                        <p class="text-gray-600 text-sm">
+                                            <c:choose>
+                                                <c:when test="${not empty evaluation.surah}">
+                                                    Surah ${evaluation.surah}<c:if test="${not empty evaluation.ayahRange}">, Ayah ${evaluation.ayahRange}</c:if>
+                                                </c:when>
+                                                <c:when test="${not empty evaluation.ayahRange}">
+                                                    Ayah ${evaluation.ayahRange}
+                                                </c:when>
+                                                <c:otherwise>Surah not set</c:otherwise>
+                                            </c:choose>
+                                        </p>
                                         <span class="inline-block bg-yellow-100 text-yellow-800 text-xs font-semibold px-3 py-1 rounded-full mt-2">Pending Evaluation</span>
                                         
                                     </div>
@@ -396,7 +422,17 @@
                                                 </span>
                                             </div>
                                             <p class="text-gray-600 text-sm mb-3">${evaluation.sessionDate} • ${evaluation.startTime} - ${evaluation.endTime}</p>
-                                            <p class="text-gray-600 text-sm">Surah ${evaluation.surah}, Ayah ${evaluation.ayahRange}</p>
+                                            <p class="text-gray-600 text-sm">
+                                            <c:choose>
+                                                <c:when test="${not empty evaluation.surah}">
+                                                    Surah ${evaluation.surah}<c:if test="${not empty evaluation.ayahRange}">, Ayah ${evaluation.ayahRange}</c:if>
+                                                </c:when>
+                                                <c:when test="${not empty evaluation.ayahRange}">
+                                                    Ayah ${evaluation.ayahRange}
+                                                </c:when>
+                                                <c:otherwise>Surah not set</c:otherwise>
+                                            </c:choose>
+                                        </p>
                                             
                                             <!-- Performance Scores -->
                                             <div class="grid grid-cols-4 gap-4 mt-4">
@@ -827,8 +863,10 @@
                 console.log('Computed labels ->', { surahLabel, ayahLabel, surahLabel_json: JSON.stringify(surahLabel), ayahLabel_json: ayahLabelJson, ayahLabelCharCodes, surahType: typeof surahLabel, ayahType: typeof ayahLabel, surahLength: (surahLabel||'').length, ayahLength: (ayahLabel||'').length });
                 // Prefer server-rendered composed label when available (authoritative). Otherwise compute client-side.
                 let composedLabel = '';
-                if (evalData.surahLabel && evalData.surahLabel.toString().trim()) {
-                    composedLabel = evalData.surahLabel.toString().trim();
+                const serverSurahLabel = (evalData.surahLabel || '').toString().trim();
+                const validServerLabel = serverSurahLabel && !/^,\s*(Ayah|$)/i.test(serverSurahLabel);
+                if (validServerLabel) {
+                    composedLabel = serverSurahLabel;
                     // If the server-rendered label doesn't already include the ayahRange, append it
                     if (evalData.ayahRange && evalData.ayahRange.toString().trim()) {
                         const ar = evalData.ayahRange.toString().trim();
@@ -1172,11 +1210,19 @@
             t = t.replace(/\s+,/g, ',');
             // ensure there is a space after comma
             t = t.replace(/,([^\s])/g, ', $1');
-            // normalize 'Ayah' casing and spacing
-            t = t.replace(/\s*Ayah\s*/i, ', Ayah ');
+            // Only prefix with comma when a surah name precedes Ayah
+            if (/^Ayah\s/i.test(t)) {
+                return t.replace(/\s*Ayah\s*/i, 'Ayah ').trim();
+            }
+            if (t.includes(',')) {
+                t = t.replace(/\s*Ayah\s*/i, ', Ayah ');
+            } else {
+                t = t.replace(/\s*Ayah\s*/i, 'Ayah ');
+            }
             // collapse any duplicate commas/spaces
             t = t.replace(/,\s*,/g, ',');
-            return t.trim();
+            t = t.replace(/^,\s*/, '').trim();
+            return t;
         }
 
         function openEditModal(evaluationId) {

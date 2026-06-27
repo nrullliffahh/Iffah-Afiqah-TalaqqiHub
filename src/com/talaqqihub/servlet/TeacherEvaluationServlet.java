@@ -66,19 +66,7 @@ public class TeacherEvaluationServlet extends HttpServlet {
 
             List<Evaluation> pendingEvaluations = dao.getPendingEvaluations(teacherId);
             pendingSessions = dao.getPendingSessionsNeedingEvaluation(teacherId);
-            for (Evaluation pendingSession : pendingSessions) {
-                boolean exists = false;
-                for (Evaluation existing : pendingEvaluations) {
-                    if (pendingSession.getSessionId() != null
-                            && pendingSession.getSessionId().equals(existing.getSessionId())) {
-                        exists = true;
-                        break;
-                    }
-                }
-                if (!exists) {
-                    pendingEvaluations.add(pendingSession);
-                }
-            }
+            pendingEvaluations = dao.mergePendingWithSessions(pendingEvaluations, pendingSessions);
             request.setAttribute("pendingEvaluations", pendingEvaluations);
 
             // Get search, filter, and sort parameters

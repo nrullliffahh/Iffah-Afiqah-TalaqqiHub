@@ -150,8 +150,14 @@ public final class TalaqqiSchemaUtil {
         } else {
             sessionJoin = "LEFT JOIN " + t + " ts ON ts.teacherId = se.teacherId ";
         }
+        String scheduleJoin;
+        if (hasColumn(conn, "studentevaluation", "scheduleId")) {
+            scheduleJoin = "LEFT JOIN classschedule cs ON cs.scheduleId = COALESCE(ts.scheduleId, se.scheduleId) ";
+        } else {
+            scheduleJoin = "LEFT JOIN classschedule cs ON ts.scheduleId = cs.scheduleId ";
+        }
         return sessionJoin
-            + "LEFT JOIN classschedule cs ON ts.scheduleId = cs.scheduleId "
+            + scheduleJoin
             + "LEFT JOIN classbooking cb ON cb.scheduleId = cs.scheduleId AND cb.studentId = se.studentId ";
     }
 
