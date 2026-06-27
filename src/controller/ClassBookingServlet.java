@@ -48,8 +48,9 @@ public class ClassBookingServlet extends HttpServlet {
             }
         }
 
-        // Partition: Upcoming (active), Completed (incl. absent → Not Completed), Cancelled/Rescheduled
+        // Partition in display order: Upcoming → Rescheduled → Completed → Cancelled
         java.util.List<StudentBooking> upcomingBookings = new java.util.ArrayList<>();
+        java.util.List<StudentBooking> rescheduledBookings = new java.util.ArrayList<>();
         java.util.List<StudentBooking> completedBookings = new java.util.ArrayList<>();
         java.util.List<StudentBooking> cancelledBookings = new java.util.ArrayList<>();
         if (myBookings != null) {
@@ -59,7 +60,13 @@ public class ClassBookingServlet extends HttpServlet {
                     status = "";
                 }
                 if ("Cancelled".equalsIgnoreCase(status) || "Rescheduled".equalsIgnoreCase(status)) {
-                    cancelledBookings.add(b);
+                    if (b.isRescheduled()) {
+                        rescheduledBookings.add(b);
+                    } else {
+                        cancelledBookings.add(b);
+                    }
+                } else if (b.isRescheduledReplacement()) {
+                    rescheduledBookings.add(b);
                 } else if (b.isNeedsReschedule()) {
                     completedBookings.add(b);
                 } else if ("Completed".equalsIgnoreCase(status)) {
@@ -72,6 +79,12 @@ public class ClassBookingServlet extends HttpServlet {
                     upcomingBookings.add(b);
                 }
             }
+            completedBookings.sort((a, b) -> {
+                if (a.isNeedsReschedule() == b.isNeedsReschedule()) {
+                    return 0;
+                }
+                return a.isNeedsReschedule() ? -1 : 1;
+            });
         }
         
         String selectedDate = request.getParameter("selectedDate");
@@ -89,6 +102,7 @@ public class ClassBookingServlet extends HttpServlet {
         request.setAttribute("summary", summary);
         request.setAttribute("myBookings", myBookings);
         request.setAttribute("upcomingBookings", upcomingBookings);
+        request.setAttribute("rescheduledBookings", rescheduledBookings);
         request.setAttribute("completedBookings", completedBookings);
         request.setAttribute("cancelledBookings", cancelledBookings);
         request.setAttribute("availableSchedules", availableSchedules);

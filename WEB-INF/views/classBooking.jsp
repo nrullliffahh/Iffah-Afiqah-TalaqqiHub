@@ -924,29 +924,15 @@
                     </c:if>
                     
                             <div class="space-y-4">
-                        <!-- Upcoming / rescheduled replacement slots -->
+                        <!-- Upcoming bookings -->
                         <c:forEach var="booking" items="${upcomingBookings}">
-                            <c:choose>
-                                <c:when test="${booking.rescheduledReplacement}">
-                                    <c:set var="borderClass" value="border-teal-200 bg-teal-50" />
-                                </c:when>
-                                <c:otherwise>
-                                    <c:set var="borderClass" value="border-blue-200 bg-blue-50" />
-                                </c:otherwise>
-                            </c:choose>
+                            <c:set var="borderClass" value="border-blue-200 bg-blue-50" />
                             <div class="border-2 rounded-xl p-5 ${borderClass} booking-entry" data-booking-id="${booking.bookingId}" data-booking-date="${booking.bookingDate}" data-booking-time="${booking.bookingTime}" data-teacher-name="${booking.teacherName}" data-class-type="${booking.className}" data-booking-status="${booking.bookingStatus}" data-attendance-status="${booking.attendanceStatus}" data-can-cancel="${booking.cancellationAllowed}">
                                 <div class="flex items-start justify-between">
                                     <div class="flex-1">
                                         <div class="flex items-center gap-3 mb-3">
                                             <h4 class="font-bold text-gray-800 text-lg">${booking.className}</h4>
-                                            <c:choose>
-                                                <c:when test="${booking.rescheduledReplacement}">
-                                                    <span class="px-3 py-1 bg-teal-100 text-teal-800 text-sm font-semibold rounded-full">Rescheduled</span>
-                                                </c:when>
-                                                <c:otherwise>
-                                                    <span class="px-3 py-1 bg-blue-100 text-blue-700 text-sm font-semibold rounded-full">Upcoming</span>
-                                                </c:otherwise>
-                                            </c:choose>
+                                            <span class="px-3 py-1 bg-blue-100 text-blue-700 text-sm font-semibold rounded-full">Upcoming</span>
                                         </div>
                                         <div class="grid grid-cols-3 gap-4">
                                             <div class="flex items-center gap-2">
@@ -977,9 +963,6 @@
                                                 </div>
                                             </div>
                                         </div>
-                                        <c:if test="${booking.rescheduledReplacement and not empty booking.cancellationReason}">
-                                            <div class="mt-3 text-sm text-teal-800">${booking.cancellationReason}</div>
-                                        </c:if>
                                     </div>
                                     <div class="flex flex-col gap-2 ml-4">
                                         <button type="button" onclick="openDetailsModal('${booking.bookingId}')" class="px-4 py-2 border-2 border-gray-300 bg-white text-gray-700 rounded-lg text-sm font-semibold hover:bg-gray-100 transition-colors">
@@ -993,7 +976,64 @@
                             </div>
                         </c:forEach>
 
-                        <!-- Completed bookings (incl. absent → Not Completed + Reschedule) -->
+                        <!-- Rescheduled bookings (new slot + replaced old slot) -->
+                        <c:forEach var="booking" items="${rescheduledBookings}">
+                            <c:set var="borderClass" value="border-teal-200 bg-teal-50" />
+                            <div class="border-2 rounded-xl p-5 ${borderClass} booking-entry" data-booking-id="${booking.bookingId}" data-booking-date="${booking.bookingDate}" data-booking-time="${booking.bookingTime}" data-teacher-name="${booking.teacherName}" data-teacher-id="${booking.teacherId}" data-schedule-id="${booking.scheduleId}" data-class-type="${booking.className}" data-booking-status="Rescheduled" data-can-cancel="${booking.cancellationAllowed}">
+                                <div class="flex items-start justify-between">
+                                    <div class="flex-1">
+                                        <div class="flex items-center gap-3 mb-3">
+                                            <h4 class="font-bold text-gray-800 text-lg">${booking.className}</h4>
+                                            <span class="px-3 py-1 bg-teal-100 text-teal-800 text-sm font-semibold rounded-full">Rescheduled</span>
+                                        </div>
+                                        <div class="grid grid-cols-3 gap-4">
+                                            <div class="flex items-center gap-2">
+                                                <svg class="w-5 h-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
+                                                </svg>
+                                                <div>
+                                                    <p class="text-xs text-gray-500">Teacher</p>
+                                                    <p class="text-sm font-semibold text-gray-700">${booking.teacherName}</p>
+                                                </div>
+                                            </div>
+                                            <div class="flex items-center gap-2">
+                                                <svg class="w-5 h-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                                                </svg>
+                                                <div>
+                                                    <p class="text-xs text-gray-500">Date</p>
+                                                    <p class="text-sm font-semibold text-gray-700 booking-date" data-booking-date="${booking.bookingDate}">${booking.bookingDate}</p>
+                                                </div>
+                                            </div>
+                                            <div class="flex items-center gap-2">
+                                                <svg class="w-5 h-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+                                                </svg>
+                                                <div>
+                                                    <p class="text-xs text-gray-500">Time</p>
+                                                    <p class="text-sm font-semibold text-gray-700 booking-time" data-booking-time="${booking.bookingTime}">${booking.bookingTime}</p>
+                                                </div>
+                                            </div>
+                                        </div>
+                                        <c:if test="${not empty booking.cancellationReason}">
+                                            <div class="mt-3 text-sm text-teal-800">${booking.cancellationReason}</div>
+                                        </c:if>
+                                    </div>
+                                    <div class="flex flex-col gap-2 ml-4">
+                                        <button type="button" onclick="openDetailsModal('${booking.bookingId}')" class="px-4 py-2 border-2 border-gray-300 bg-white text-gray-700 rounded-lg text-sm font-semibold hover:bg-gray-100 transition-colors">
+                                            View Details
+                                        </button>
+                                        <c:if test="${booking.rescheduledReplacement and booking.cancellationAllowed}">
+                                            <button type="button" onclick="openCancelModal('${booking.bookingId}')" class="cancel-booking-btn px-4 py-2 bg-red-500 text-white rounded-lg text-sm font-semibold hover:bg-red-600 transition-colors">
+                                                Cancel Booking
+                                            </button>
+                                        </c:if>
+                                    </div>
+                                </div>
+                            </div>
+                        </c:forEach>
+
+                        <!-- Completed bookings (Not Completed first, then Completed) -->
                         <c:forEach var="booking" items="${completedBookings}">
                             <c:choose>
                                 <c:when test="${booking.needsReschedule}">
@@ -1064,29 +1104,15 @@
                             </div>
                         </c:forEach>
 
-                        <!-- Cancelled / rescheduled bookings (bottom) -->
+                        <!-- Cancelled bookings -->
                         <c:forEach var="booking" items="${cancelledBookings}">
-                            <c:choose>
-                                <c:when test="${booking.rescheduled}">
-                                    <c:set var="borderClass" value="border-teal-200 bg-teal-50" />
-                                </c:when>
-                                <c:otherwise>
-                                    <c:set var="borderClass" value="border-red-200 bg-red-50" />
-                                </c:otherwise>
-                            </c:choose>
+                            <c:set var="borderClass" value="border-red-200 bg-red-50" />
                             <div class="border-2 rounded-xl p-5 ${borderClass} booking-entry" data-booking-id="${booking.bookingId}" data-booking-date="${booking.bookingDate}" data-booking-time="${booking.bookingTime}" data-teacher-name="${booking.teacherName}" data-teacher-id="${booking.teacherId}" data-schedule-id="${booking.scheduleId}" data-class-type="${booking.className}" data-booking-status="${booking.bookingStatus}">
                                 <div class="flex items-start justify-between">
                                     <div class="flex-1">
                                         <div class="flex items-center gap-3 mb-3">
                                             <h4 class="font-bold text-gray-800 text-lg">${booking.className}</h4>
-                                            <c:choose>
-                                                <c:when test="${booking.rescheduled}">
-                                                    <span class="px-3 py-1 bg-teal-100 text-teal-800 text-sm font-semibold rounded-full">Rescheduled</span>
-                                                </c:when>
-                                                <c:otherwise>
-                                                    <span class="px-3 py-1 bg-red-100 text-red-700 text-sm font-semibold rounded-full">Cancelled</span>
-                                                </c:otherwise>
-                                            </c:choose>
+                                            <span class="px-3 py-1 bg-red-100 text-red-700 text-sm font-semibold rounded-full">Cancelled</span>
                                         </div>
                                         <div class="grid grid-cols-3 gap-4">
                                             <div class="flex items-center gap-2">
@@ -1117,14 +1143,9 @@
                                                 </div>
                                             </div>
                                         </div>
-                                        <c:choose>
-                                            <c:when test="${booking.rescheduled}">
-                                                <div class="mt-3 text-sm text-teal-800">${booking.cancellationReason}</div>
-                                            </c:when>
-                                            <c:otherwise>
-                                                <div class="mt-3 text-sm text-red-700">Cancellation reason: ${booking.cancellationReason}</div>
-                                            </c:otherwise>
-                                        </c:choose>
+                                        <c:if test="${not empty booking.cancellationReason}">
+                                            <div class="mt-3 text-sm text-red-700">Cancellation reason: ${booking.cancellationReason}</div>
+                                        </c:if>
                                     </div>
                                         <div class="flex gap-2 ml-4">
                                                 <button type="button" onclick="openDetailsModal('${booking.bookingId}')" class="px-4 py-2 border-2 border-gray-300 bg-white text-gray-700 rounded-lg text-sm font-semibold hover:bg-gray-100 transition-colors">
