@@ -24,6 +24,7 @@ public class EditProfileServlet extends HttpServlet {
         String studentId = (String) session.getAttribute("studentId");
         StudentDAO sdao = new StudentDAO();
         Student student = sdao.getStudentById(studentId);
+        normalizeStudentFields(student);
 
         String initials = "U";
         if (student != null) {
@@ -68,11 +69,26 @@ public class EditProfileServlet extends HttpServlet {
         boolean ok = sdao.updateStudentDetails(studentId, fullName, phoneNumber, dateOfBirth);
 
         if (ok) {
-            // refresh session/student attributes if necessary then redirect to view profile
-            response.sendRedirect(request.getContextPath() + "/student/profile");
+            if (fullName != null && !fullName.trim().isEmpty()) {
+                session.setAttribute("studentName", fullName.trim());
+            }
+            StudentProfilePicUtil.bindToSession(session, getServletContext(), studentId);
+            response.sendRedirect(request.getContextPath() + "/student/profile?saved=1");
         } else {
             request.setAttribute("error", "Unable to update profile. Please try again.");
             doGet(request, response);
+        }
+    }
+
+    private void normalizeStudentFields(Student student) {
+        if (student == null) return;
+        if ((student.getFullName() == null || student.getFullName().trim().isEmpty())
+                && student.getStudentName() != null) {
+            student.setFullName(student.getStudentName());
+        }
+        if ((student.getEmail() == null || student.getEmail().trim().isEmpty())
+                && student.getStudentEmail() != null) {
+            student.setEmail(student.getStudentEmail());
         }
     }
 }

@@ -55,28 +55,46 @@ public class EvaluationDAO {
      */
     public List<Evaluation> getEvaluationHistory(String studentId) {
         List<Evaluation> list = new ArrayList<>();
-        String sql =
-            "SELECT se.studentEvaluationId, se.studentId, se.teacherId, se.sessionId, " +
-            "       se.tajweedScore, se.fluencyScore, se.accuracyScore, " +
-            "       COALESCE(se.overall_score, (COALESCE(se.tajweedScore,0)+COALESCE(se.fluencyScore,0)+COALESCE(se.accuracyScore,0))/3) AS overallScore, " +
-            "       se.strength, se.weakness, se.studentImprovements, se.nextTarget, se.comments, " +
-            "       t.teacherName, " +
-            "       se.surah AS surahName, se.ayah_range AS ayahRange, " +
-            "       DATE_FORMAT(se.createdAt,'%b %d, %Y') AS createdAt " +
-            "FROM studentevaluation se " +
-            "LEFT JOIN teacher t ON se.teacherId = t.teacherId " +
-            "WHERE se.studentId = ? AND se.status = 'COMPLETED' " +
-            "ORDER BY se.createdAt DESC, se.studentEvaluationId DESC";
+        list = queryEvaluationHistory(studentId, true);
+        if (list.isEmpty()) {
+            list = queryEvaluationHistory(studentId, false);
+        }
+        return list;
+    }
 
-        try (Connection conn = DBConnection.getConnection();
-             PreparedStatement ps = conn.prepareStatement(sql)) {
+    private List<Evaluation> queryEvaluationHistory(String studentId, boolean withStatusFilter) {
+        List<Evaluation> list = new ArrayList<>();
+        String statusClause = withStatusFilter
+            ? " AND (se.status IS NULL OR se.status IN ('COMPLETED', 'PENDING', '')) "
+            : "";
+        try (Connection conn = DBConnection.getConnection()) {
             if (conn == null) return list;
-            ps.setString(1, studentId);
-            try (ResultSet rs = ps.executeQuery()) {
-                while (rs.next()) list.add(mapStudentEval(rs));
+            String sql =
+                "SELECT se.studentEvaluationId, se.studentId, se.teacherId, se.sessionId, " +
+                "       se.tajweedScore, se.fluencyScore, se.accuracyScore, " +
+                "       COALESCE(se.overall_score, (COALESCE(se.tajweedScore,0)+COALESCE(se.fluencyScore,0)+COALESCE(se.accuracyScore,0))/3) AS overallScore, " +
+                "       se.strength, se.weakness, se.studentImprovements, se.nextTarget, se.comments, " +
+                "       t.teacherName, " +
+                "       COALESCE(NULLIF(se.surah, ''), CAST(COALESCE(qd.currentSurah, cs.classSurah) AS CHAR)) AS surahName, " +
+                "       COALESCE(NULLIF(se.ayah_range, ''), CAST(COALESCE(qd.currentAyah, cs.classAyah) AS CHAR)) AS ayahRange, " +
+                "       DATE_FORMAT(se.createdAt,'%b %d, %Y') AS createdAt " +
+                "FROM studentevaluation se " +
+                "LEFT JOIN teacher t ON se.teacherId = t.teacherId " +
+                TalaqqiSchemaUtil.leftJoinSessionFromEvaluation(conn) +
+                "LEFT JOIN qurandisplay qd ON qd.sessionId = ts.sessionId " +
+                "WHERE se.studentId = ? " + statusClause +
+                "ORDER BY se.studentEvaluationId DESC";
+            String resolved = TalaqqiSchemaUtil.sql(sql, conn);
+            try (PreparedStatement ps = conn.prepareStatement(resolved)) {
+                ps.setString(1, studentId);
+                try (ResultSet rs = ps.executeQuery()) {
+                    while (rs.next()) list.add(mapStudentEval(rs));
+                }
             }
         } catch (SQLException e) {
-            System.err.println("EvaluationDAO.getEvaluationHistory: " + e.getMessage());
+            if (withStatusFilter) {
+                System.err.println("EvaluationDAO.getEvaluationHistory: " + e.getMessage());
+            }
         }
         return list;
     }
@@ -150,7 +168,8 @@ public class EvaluationDAO {
      * Returns the total number of teacher evaluations for a student.
      */
     public int getTotalEvaluationCount(String studentId) {
-        String sql = "SELECT COUNT(*) AS cnt FROM studentevaluation WHERE studentId = ? AND status = 'COMPLETED'";
+        String sql = "SELECT COUNT(*) AS cnt FROM studentevaluation WHERE studentId = ? "
+            + "AND (status IS NULL OR status IN ('COMPLETED', 'PENDING', ''))";
         try (Connection conn = DBConnection.getConnection();
              PreparedStatement ps = conn.prepareStatement(sql)) {
             if (conn == null) return 0;
@@ -181,14 +200,19 @@ public class EvaluationDAO {
                 return list;
             }
             String ayahRange = TalaqqiSchemaUtil.ayahRangeExpr(conn);
+            String surahCol = "COALESCE(NULLIF(qd.currentSurah, 0), NULLIF(cs.classSurah, 0))";
+            String ayahCol = TalaqqiSchemaUtil.hasClassAyahEnd(conn)
+                ? "COALESCE(NULLIF(qd.currentAyah, 0), " + ayahRange + ")"
+                : "COALESCE(NULLIF(qd.currentAyah, 0), CAST(cs.classAyah AS CHAR))";
             String sql =
                 "SELECT ts.sessionId, cb.scheduleId, cs.teacherId, t.teacherName, "
                 + "       DATE_FORMAT(cs.scheduleDate,'%b %d, %Y') AS sessionDate, "
                 + "       DATE_FORMAT(cs.startTime,'%I:%i %p')     AS startTime, "
                 + "       DATE_FORMAT(cs.endTime,'%I:%i %p')       AS endTime, "
-                + "       cs.classSurah AS surahName, "
-                + "       " + ayahRange + " AS ayahRange "
+                + "       CAST(" + surahCol + " AS CHAR) AS surahName, "
+                + "       CAST(" + ayahCol + " AS CHAR) AS ayahRange "
                 + TalaqqiSchemaUtil.innerSessionBookingSchedule(conn)
+                + "LEFT JOIN qurandisplay qd ON qd.sessionId = ts.sessionId "
                 + "LEFT JOIN teacher   t  ON cs.teacherId   = t.teacherId "
                 + "WHERE cb.studentId = ? "
                 + "  AND cb.bookingStatus = 'Completed' "

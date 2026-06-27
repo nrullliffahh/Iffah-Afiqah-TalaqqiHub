@@ -130,7 +130,7 @@ public class StudentBookingDAO {
                  "cs.duration, cs.classStatus, cs.teacherId, t.teacherName AS teacherName " +
                  "FROM classschedule cs " +
                  "LEFT JOIN teacher t ON cs.teacherId = t.teacherId " +
-                 "LEFT JOIN classbooking cb ON cs.scheduleId = cb.scheduleId " +
+                 "LEFT JOIN classbooking cb ON cs.scheduleId = cb.scheduleId AND cb.bookingStatus NOT IN ('Cancelled', 'Rescheduled') " +
                      "WHERE cs.scheduleDate = ? " +
                      "AND (cb.bookingId IS NULL) " +
                      "AND (cs.classStatus = 'Available' OR (cs.teacherId IS NOT NULL AND cs.classStatus = 'Scheduled')) " +
@@ -196,7 +196,7 @@ public class StudentBookingDAO {
         List<String> dates = new ArrayList<>();
         // Include dates that have either Available slots or teacher-created Scheduled availability
         String sql = "SELECT DISTINCT cs.scheduleDate FROM classschedule cs " +
-                     "LEFT JOIN classbooking cb ON cs.scheduleId = cb.scheduleId " +
+                     "LEFT JOIN classbooking cb ON cs.scheduleId = cb.scheduleId AND cb.bookingStatus NOT IN ('Cancelled', 'Rescheduled') " +
                      "WHERE YEAR(cs.scheduleDate)=? AND MONTH(cs.scheduleDate)=? " +
                      "AND (cb.bookingId IS NULL) " +
                      "AND (cs.classStatus='Available' OR (cs.teacherId IS NOT NULL AND cs.classStatus='Scheduled'))";
@@ -759,8 +759,18 @@ public class StudentBookingDAO {
                 }
             } catch (SQLException ignore) { ignore.printStackTrace(); }
 
+            if (rowsUpdated > 0) {
+                try (PreparedStatement psDel = conn.prepareStatement(
+                        "DELETE FROM talaqqisession WHERE bookingId = ?")) {
+                    psDel.setString(1, bookingId);
+                    psDel.executeUpdate();
+                } catch (SQLException ignore) {
+                    ignore.printStackTrace();
+                }
+            }
+
             conn.commit();
-            // restore teacher slot as available for booking
+            // Student cancel: unlock slot so another student can book
             if (rowsUpdated > 0 && scheduleId != null) {
                 try { new ClassScheduleDAO().updateClassStatus(scheduleId, "Scheduled"); } catch (Exception ignore) { ignore.printStackTrace(); }
             }

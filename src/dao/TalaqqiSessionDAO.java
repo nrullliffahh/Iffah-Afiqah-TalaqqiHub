@@ -12,6 +12,7 @@ import java.time.LocalTime;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
+import java.util.concurrent.ConcurrentHashMap;
 
 /**
  * TalaqqiSessionDAO
@@ -35,8 +36,13 @@ public class TalaqqiSessionDAO {
 
     /** Minutes after teacher starts before a joining student is marked Late. */
     public static final int LATE_THRESHOLD_MINUTES = 5;
-    /** Seconds after scheduled start before marking Late (> 5 minutes). */
+    /** Seconds after teacher starts before marking Late (> 5 minutes). */
     private static final long LATE_THRESHOLD_SECONDS = LATE_THRESHOLD_MINUTES * 60L;
+    private static final ConcurrentHashMap<String, Long> LIVE_SESSION_START_EPOCH = new ConcurrentHashMap<>();
+
+    private static final String ACTIVE_SESSION_FILTER =
+        "  AND cb.bookingStatus NOT IN ('Cancelled', 'Rescheduled') " +
+        "  AND cs.classStatus NOT IN ('Cancelled') ";
 
     // ── Common SELECT: modern (bookingId FK) vs legacy production (scheduleId FK) ──
     private static final String MODERN_BASE_SELECT =
@@ -216,6 +222,7 @@ public class TalaqqiSessionDAO {
         return querySingleSession(
             "WHERE cs.teacherId  = ? " +
             "  AND ts.sessionDate >= CURDATE() " +
+            ACTIVE_SESSION_FILTER +
             "ORDER BY ts.sessionDate ASC, cs.startTime ASC " +
             "LIMIT 1",
             teacherId);
@@ -290,6 +297,7 @@ public class TalaqqiSessionDAO {
         return querySingleSession(
             "WHERE cb.studentId  = ? " +
             "  AND ts.sessionDate >= CURDATE() " +
+            ACTIVE_SESSION_FILTER +
             "ORDER BY ts.sessionDate ASC, cs.startTime ASC " +
             "LIMIT 1",
             studentId);
@@ -316,6 +324,7 @@ public class TalaqqiSessionDAO {
             String sql = baseSelect(conn) +
                 "WHERE cb.studentId  = ? " +
                 "  AND ts.sessionDate >= CURDATE() " +
+                ACTIVE_SESSION_FILTER +
                 "ORDER BY ts.sessionDate ASC, cs.startTime ASC " +
                 "LIMIT ?";
             ps = conn.prepareStatement(util.TalaqqiSchemaUtil.sql(sql, conn));
@@ -384,6 +393,7 @@ public class TalaqqiSessionDAO {
             String sql = baseSelect(conn) +
                 "WHERE cs.teacherId  = ? " +
                 "  AND ts.sessionDate >= CURDATE() " +
+                ACTIVE_SESSION_FILTER +
                 "ORDER BY ts.sessionDate ASC, cs.startTime ASC " +
                 "LIMIT ?";
             ps = conn.prepareStatement(util.TalaqqiSchemaUtil.sql(sql, conn));
@@ -600,6 +610,7 @@ public class TalaqqiSessionDAO {
      * @return true on success
      */
     public boolean recordSessionStartTime(String sessionId) {
+        LIVE_SESSION_START_EPOCH.put(sessionId, System.currentTimeMillis());
         Connection conn = null;
         PreparedStatement ps = null;
         try {
@@ -608,7 +619,7 @@ public class TalaqqiSessionDAO {
             if (!hasSessionTimingColumns(conn)) {
                 return true;
             }
-            String sql = "UPDATE talaqqisession SET sessionStartTime = CURTIME() WHERE sessionId = ?";
+            String sql = "UPDATE talaqqisession SET sessionStartTime = COALESCE(sessionStartTime, NOW()) WHERE sessionId = ?";
             ps = conn.prepareStatement(util.TalaqqiSchemaUtil.sql(sql, conn));
             ps.setString(1, sessionId);
             return ps.executeUpdate() > 0;
@@ -781,8 +792,8 @@ public class TalaqqiSessionDAO {
             "VALUES (?, ?, ?, ?, ?, ?, ?, ?) " +
             "ON DUPLICATE KEY UPDATE " +
             "  attendanceStatus   = CASE " +
-            "    WHEN VALUES(attendanceStatus) = 'Late' OR attendanceStatus = 'Late' THEN 'Late' " +
-            "    WHEN VALUES(attendanceStatus) = 'Present' OR attendanceStatus = 'Present' THEN 'Present' " +
+            "    WHEN attendanceStatus = 'Late' OR VALUES(attendanceStatus) = 'Late' THEN 'Late' " +
+            "    WHEN attendanceStatus = 'Present' OR VALUES(attendanceStatus) = 'Present' THEN 'Present' " +
             "    ELSE VALUES(attendanceStatus) END, " +
             "  joinTime           = COALESCE(VALUES(joinTime), joinTime), " +
             "  markAutoAttendance = VALUES(markAutoAttendance)";
@@ -1510,31 +1521,68 @@ public class TalaqqiSessionDAO {
     }
 
     /**
-     * Present if student joins within 5 minutes of the teacher starting the live session.
-     * Falls back to scheduled class start when sessionStartTime is not recorded yet.
+     * Present if student joins within 5 minutes of teacher starting the live session.
      */
-    public String determineAttendanceStatus(String sessionId, String studentId) {
+    public String determineAttendanceStatus(String sessionId, String studentId, Time joinTime) {
+        if (joinTime == null) {
+            joinTime = new Time(System.currentTimeMillis());
+        }
+        LocalDateTime sessionStart = resolveLiveSessionStart(sessionId);
+        if (sessionStart == null) {
+            System.out.println("[TalaqqiSessionDAO] determineAttendanceStatus: no start time for " + sessionId);
+            return "Present";
+        }
+
+        LocalDateTime studentJoin = LocalDateTime.of(sessionStart.toLocalDate(), joinTime.toLocalTime());
+        long secondsLate = Duration.between(sessionStart, studentJoin).getSeconds();
+
+        if (secondsLate <= 0) {
+            return "Present";
+        }
+        if (secondsLate > LATE_THRESHOLD_SECONDS) {
+            System.out.println("[TalaqqiSessionDAO] Student " + studentId
+                    + " joined " + (secondsLate / 60) + " min after teacher start — Late");
+            return "Late";
+        }
+        System.out.println("[TalaqqiSessionDAO] Student " + studentId
+                + " joined within 5 min of teacher start — Present");
+        return "Present";
+    }
+
+    public void clearLiveSessionStart(String sessionId) {
+        if (sessionId != null) {
+            LIVE_SESSION_START_EPOCH.remove(sessionId);
+        }
+    }
+
+    private LocalDateTime resolveLiveSessionStart(String sessionId) {
+        LocalDateTime fromDb = getSessionStartDateTime(sessionId);
+        if (fromDb != null) {
+            return fromDb;
+        }
+        Long epoch = LIVE_SESSION_START_EPOCH.get(sessionId);
+        if (epoch != null) {
+            return LocalDateTime.ofInstant(
+                java.time.Instant.ofEpochMilli(epoch), java.time.ZoneId.systemDefault());
+        }
+        return getScheduledStartDateTime(sessionId);
+    }
+
+    private LocalDateTime getScheduledStartDateTime(String sessionId) {
         Connection conn = null;
         PreparedStatement ps = null;
         ResultSet rs = null;
         try {
             conn = DBConnection.getConnection();
-            if (conn == null) return "Present";
-
-            boolean timing = hasSessionTimingColumns(conn);
-            String startExpr = timing
-                ? "CASE WHEN ts.sessionStartTime IS NOT NULL "
-                    + "THEN TIMESTAMP(COALESCE(ts.sessionDate, cs.scheduleDate, CURDATE()), ts.sessionStartTime) "
-                    + "ELSE TIMESTAMP(COALESCE(ts.sessionDate, cs.scheduleDate, CURDATE()), cs.startTime) END"
-                : "TIMESTAMP(COALESCE(ts.sessionDate, cs.scheduleDate, CURDATE()), cs.startTime)";
+            if (conn == null) return null;
 
             String sql = usesBookingIdLink(conn)
-                ? "SELECT TIMESTAMPDIFF(SECOND, " + startExpr + ", NOW()) AS secondsLate "
+                ? "SELECT COALESCE(ts.sessionDate, cs.scheduleDate) AS sessionDate, cs.startTime "
                     + "FROM talaqqisession ts "
                     + "JOIN classbooking cb ON ts.bookingId = cb.bookingId "
                     + "JOIN classschedule cs ON cb.scheduleId = cs.scheduleId "
                     + "WHERE ts.sessionId = ? LIMIT 1"
-                : "SELECT TIMESTAMPDIFF(SECOND, " + startExpr + ", NOW()) AS secondsLate "
+                : "SELECT COALESCE(ts.sessionDate, cs.scheduleDate) AS sessionDate, cs.startTime "
                     + "FROM talaqqisession ts "
                     + "JOIN classschedule cs ON ts.scheduleId = cs.scheduleId "
                     + "WHERE ts.sessionId = ? LIMIT 1";
@@ -1542,33 +1590,15 @@ public class TalaqqiSessionDAO {
             ps = conn.prepareStatement(util.TalaqqiSchemaUtil.sql(sql, conn));
             ps.setString(1, sessionId);
             rs = ps.executeQuery();
-            if (!rs.next()) {
-                System.out.println("[TalaqqiSessionDAO] determineAttendanceStatus: session not found " + sessionId);
-                return "Present";
-            }
+            if (!rs.next()) return null;
 
-            long secondsLate = rs.getLong("secondsLate");
-            if (rs.wasNull()) {
-                return "Present";
-            }
-
-            if (secondsLate <= 0) {
-                return "Present";
-            }
-
-            if (secondsLate > LATE_THRESHOLD_SECONDS) {
-                long minutesLate = secondsLate / 60;
-                System.out.println("[TalaqqiSessionDAO] Student " + studentId
-                        + " joined " + minutesLate + " min after session start — Late");
-                return "Late";
-            }
-
-            System.out.println("[TalaqqiSessionDAO] Student " + studentId
-                    + " joined within 5 min of session start — Present");
-            return "Present";
+            java.sql.Date sessionDate = rs.getDate("sessionDate");
+            Time startTime = rs.getTime("startTime");
+            if (sessionDate == null || startTime == null) return null;
+            return LocalDateTime.of(sessionDate.toLocalDate(), startTime.toLocalTime());
         } catch (SQLException e) {
-            System.err.println("[TalaqqiSessionDAO] determineAttendanceStatus: " + e.getMessage());
-            return "Present";
+            System.err.println("[TalaqqiSessionDAO] getScheduledStartDateTime: " + e.getMessage());
+            return null;
         } finally {
             closeQuietly(rs, ps, conn);
         }
@@ -1591,6 +1621,10 @@ public class TalaqqiSessionDAO {
             if (!rs.next()) return null;
 
             java.sql.Date sessionDate = rs.getDate("sessionDate");
+            java.sql.Timestamp startTs = rs.getTimestamp("sessionStartTime");
+            if (startTs != null) {
+                return startTs.toLocalDateTime();
+            }
             Time startTime = rs.getTime("sessionStartTime");
             if (sessionDate == null || startTime == null) return null;
 

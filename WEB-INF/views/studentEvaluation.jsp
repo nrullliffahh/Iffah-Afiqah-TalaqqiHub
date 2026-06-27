@@ -639,7 +639,7 @@
                             </div>
                         </div>
                         
-                        <button class="evaluation-button" onclick="openEvaluationModal('${evaluation.evaluationId}')">View Details</button>
+                        <button type="button" class="evaluation-button history-view-btn" data-evaluation-id="${evaluation.evaluationId}">View Details</button>
                     </div>
                 </c:forEach>
             </c:if>
@@ -672,12 +672,13 @@
                     <div style="flex: 1;">
                         <div class="evaluation-title">${session.teacherName}</div>
                         <div class="session-time">${session.sessionDate} • ${session.startTime} - ${session.endTime}</div>
-                        <div class="session-surah">${session.surahName} - Ayah ${session.ayahRange}</div>
+                        <div class="session-surah"><c:choose><c:when test="${not empty session.surahName}">${session.surahName}<c:if test="${not empty session.ayahRange}"> - Ayah ${session.ayahRange}</c:if></c:when><c:otherwise>Lesson not recorded</c:otherwise></c:choose></div>
                     </div>
                     
                     <c:set var="safeTeacherName"><c:out value="${session.teacherName}"/></c:set>
                     <button class="evaluation-button eval-session-btn"
                             data-session-id="${session.sessionId}"
+                            data-schedule-id="${session.scheduleId}"
                             data-teacher-id="${session.teacherId}"
                             data-teacher-name="${safeTeacherName}"
                             data-session-date="${session.sessionDate}"
@@ -1459,9 +1460,10 @@
             ayahRange: ''
         };
 
-        function openTeacherEvaluationModal(sessionId, teacherId, teacherName, sessionDate, startTime, endTime, surahName, ayahRange) {
+        function openTeacherEvaluationModal(sessionId, teacherId, teacherName, sessionDate, startTime, endTime, surahName, ayahRange, scheduleId) {
             currentTeacherSession = {
                 sessionId: sessionId || '',
+                scheduleId: scheduleId || sessionId || '',
                 teacherId: teacherId || '',
                 teacherName: teacherName || 'Teacher',
                 sessionDate: sessionDate || '',
@@ -1472,18 +1474,22 @@
                 ayahRange: ayahRange || ''
             };
 
+            const lessonText = currentTeacherSession.surahName
+                ? (currentTeacherSession.surahName + (currentTeacherSession.ayahRange ? ' - Ayah ' + currentTeacherSession.ayahRange : ''))
+                : 'Lesson not recorded';
+
             document.getElementById('studentTeacherEvalSessionId').value = currentTeacherSession.sessionId;
             document.getElementById('studentTeacherEvalTeacherId').value = currentTeacherSession.teacherId;
-            document.getElementById('studentTeacherEvalScheduleId').value = currentTeacherSession.sessionId;
+            document.getElementById('studentTeacherEvalScheduleId').value = currentTeacherSession.scheduleId;
             document.getElementById('studentTeacherEvalTeacher').textContent = currentTeacherSession.teacherName;
             document.getElementById('studentTeacherEvalSession').textContent = currentTeacherSession.sessionDate + ' • ' + currentTeacherSession.sessionTime;
-            document.getElementById('studentTeacherEvalLesson').textContent = currentTeacherSession.surahName + ' - Ayah ' + currentTeacherSession.ayahRange;
+            document.getElementById('studentTeacherEvalLesson').textContent = lessonText;
             document.getElementById('studentTeacherEvalSubtitle').textContent = 'Session completed with ' + currentTeacherSession.teacherName;
 
             document.getElementById('studentTeacherEvaluationForm').reset();
             document.getElementById('studentTeacherEvalSessionId').value = currentTeacherSession.sessionId;
             document.getElementById('studentTeacherEvalTeacherId').value = currentTeacherSession.teacherId;
-            document.getElementById('studentTeacherEvalScheduleId').value = currentTeacherSession.sessionId;
+            document.getElementById('studentTeacherEvalScheduleId').value = currentTeacherSession.scheduleId;
             setStudentTeacherRating(0);
 
             document.getElementById('studentTeacherEvaluationModal').classList.remove('hidden');
@@ -1532,8 +1538,15 @@
                 btn.dataset.startTime,
                 btn.dataset.endTime,
                 btn.dataset.surahName,
-                btn.dataset.ayahRange
+                btn.dataset.ayahRange,
+                btn.dataset.scheduleId
             );
+        });
+
+        document.addEventListener('click', function(e) {
+            const btn = e.target.closest('.history-view-btn');
+            if (!btn) return;
+            openEvaluationModal(btn.dataset.evaluationId);
         });
 
         function closeTeacherEvaluationModal() {

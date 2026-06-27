@@ -263,15 +263,15 @@ public class StudentAttendanceDAO {
         Map<String, Integer> trendDetails = new LinkedHashMap<>();
         // Calculate weeks as: days 1-7 = Week 1, days 8-14 = Week 2, etc.
         String query = "SELECT " +
-                      "CONCAT('Week ', CEIL(DAY(attendanceDate) / 7.0)) as week, " +
+                      "CONCAT('Week ', LEAST(4, CEIL(DAY(attendanceDate) / 7.0))) as week, " +
                       "attendanceStatus, " +
                       "COUNT(*) as count " +
                       "FROM attendance " +
                       "WHERE studentId = ? " +
                       "AND MONTH(attendanceDate) = MONTH(CURDATE()) " +
                       "AND YEAR(attendanceDate) = YEAR(CURDATE()) " +
-                      "GROUP BY CEIL(DAY(attendanceDate) / 7.0), attendanceStatus " +
-                      "ORDER BY CEIL(DAY(attendanceDate) / 7.0), attendanceStatus";
+                      "GROUP BY LEAST(4, CEIL(DAY(attendanceDate) / 7.0)), attendanceStatus " +
+                      "ORDER BY LEAST(4, CEIL(DAY(attendanceDate) / 7.0)), attendanceStatus";
         
         Connection conn = null;
         PreparedStatement ps = null;

@@ -48,8 +48,16 @@ public class UploadProfilePicServlet extends HttpServlet {
             }
 
             String profilesDir = getServletContext().getRealPath("/images/profiles");
+            if (profilesDir == null) {
+                String base = System.getProperty("catalina.base", System.getProperty("user.dir", "."));
+                profilesDir = base + "/webapps/ROOT/images/profiles";
+            }
             File dir = new File(profilesDir);
-            if (!dir.exists()) dir.mkdirs();
+            if (!dir.exists() && !dir.mkdirs()) {
+                System.err.println("UploadProfilePicServlet: could not create " + profilesDir);
+                response.sendRedirect(request.getContextPath() + "/student/edit-profile?photoError=1");
+                return;
+            }
 
             // Remove previous extensions so only one avatar file remains
             for (String oldExt : new String[] { ".jpg", ".jpeg", ".png", ".webp", ".gif" }) {

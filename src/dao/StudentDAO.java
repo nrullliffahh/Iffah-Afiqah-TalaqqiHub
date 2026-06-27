@@ -382,6 +382,8 @@ public class StudentDAO {
                 student.setStudentId(rs.getString("studentId"));
                 student.setStudentName(rs.getString("studentName"));
                 student.setStudentEmail(rs.getString("studentEmail"));
+                student.setFullName(rs.getString("studentName"));
+                student.setEmail(rs.getString("studentEmail"));
                 student.setPhoneNumber(rs.getString("studentPhoneNo"));
                 student.setDateOfBirth(rs.getString("studentDateofBirth"));
                 student.setRegistrationDate(rs.getString("registrationDate"));

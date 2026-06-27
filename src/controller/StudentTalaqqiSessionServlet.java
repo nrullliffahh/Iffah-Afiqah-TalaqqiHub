@@ -176,13 +176,12 @@ public class StudentTalaqqiSessionServlet extends HttpServlet {
                     return;
                 }
 
-                // Determine if student is late (joined > 5 minutes after session start)
-                String attendanceStatus = talaqqiSessionDAO.determineAttendanceStatus(sessionId, studentId);
+                // Determine if student is late (joined > 5 minutes after teacher started)
+                java.sql.Time joinTime = new java.sql.Time(System.currentTimeMillis());
+                String attendanceStatus = talaqqiSessionDAO.determineAttendanceStatus(
+                    sessionId, studentId, joinTime);
                 
                 // Record join time
-                java.sql.Time joinTime = new java.sql.Time(System.currentTimeMillis());
-                
-                // Record attendance with the determined status (Present or Late)
                 boolean recorded = talaqqiSessionDAO.recordAttendance(
                     sessionId, studentId, session.getTeacherId(), attendanceStatus, joinTime, true);
 

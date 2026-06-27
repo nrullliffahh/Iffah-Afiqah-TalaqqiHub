@@ -203,6 +203,8 @@ public class TeacherTalaqqiSessionServlet extends HttpServlet {
                 // Mark class as Completed in DB
                 boolean completed = talaqqiSessionDAO.completeSession(sessionId, teacherId);
 
+                talaqqiSessionDAO.clearLiveSessionStart(sessionId);
+
                 // Clear the active session from HTTP session
                 httpSession.removeAttribute(SESSION_KEY);
 
@@ -273,13 +275,13 @@ public class TeacherTalaqqiSessionServlet extends HttpServlet {
                 }
 
                 boolean auto = "true".equalsIgnoreCase(autoParam);
+                Time joinTime = currentSqlTime();
                 String status;
                 if (auto) {
-                    status = talaqqiSessionDAO.determineAttendanceStatus(sessionId, studentId);
+                    status = talaqqiSessionDAO.determineAttendanceStatus(sessionId, studentId, joinTime);
                 } else {
                     status = (statusParam != null && !statusParam.isEmpty()) ? statusParam : "Present";
                 }
-                Time joinTime = currentSqlTime();
 
                 // Fetch teacherId from the session to ensure correct scope
                 TalaqqiSession ts = talaqqiSessionDAO.getSessionBySessionId(sessionId, teacherId);
