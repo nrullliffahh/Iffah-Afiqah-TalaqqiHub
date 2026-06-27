@@ -443,8 +443,23 @@ public class ClassScheduleDAO {
                     int inserted = insertCancellationStmt.executeUpdate();
                     System.out.println("Cancellation reason inserted, rows affected: " + inserted);
                 }
-                
-                System.out.println("Booking cancelled successfully");
+
+                try (PreparedStatement psDel = conn.prepareStatement(
+                        "DELETE FROM talaqqisession WHERE bookingId = ?")) {
+                    psDel.setString(1, bookingId);
+                    psDel.executeUpdate();
+                } catch (SQLException ignore) {
+                    ignore.printStackTrace();
+                }
+
+                String unlockSql = "UPDATE classschedule SET classStatus = 'Scheduled' WHERE scheduleId = ? AND teacherId = ?";
+                try (PreparedStatement unlockStmt = conn.prepareStatement(unlockSql)) {
+                    unlockStmt.setString(1, scheduleId);
+                    unlockStmt.setString(2, teacherId);
+                    unlockStmt.executeUpdate();
+                }
+
+                System.out.println("Booking cancelled successfully; slot unlocked for rebooking");
                 
             } else {
                 // Slot is not booked - delete it from classschedule

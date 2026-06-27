@@ -703,17 +703,18 @@ public class ClassScheduleServlet extends HttpServlet {
             conn = DBConnection.getConnection();
             conn.setAutoCommit(false); // Start transaction
 
-            // 1. Update classschedule status to Cancelled (ALWAYS DO THIS)
-            String updateScheduleSql = "UPDATE classschedule SET classStatus = 'Cancelled' WHERE scheduleId = ? AND teacherId = ?";
-            int scheduleRowsAffected = 0;
-            try (PreparedStatement ps = conn.prepareStatement(updateScheduleSql)) {
+            // 1. Verify schedule belongs to this teacher
+            String verifyScheduleSql = "SELECT scheduleId FROM classschedule WHERE scheduleId = ? AND teacherId = ?";
+            boolean scheduleFound = false;
+            try (PreparedStatement ps = conn.prepareStatement(verifyScheduleSql)) {
                 ps.setString(1, scheduleId);
                 ps.setString(2, teacherId);
-                scheduleRowsAffected = ps.executeUpdate();
-                System.out.println("Schedule updated: " + scheduleRowsAffected + " rows");
+                try (ResultSet rs = ps.executeQuery()) {
+                    scheduleFound = rs.next();
+                }
             }
 
-            if (scheduleRowsAffected == 0) {
+            if (!scheduleFound) {
                 conn.rollback();
                 response.getWriter().write("{\"success\": false, \"message\": \"Schedule not found or already cancelled\"}");
                 return;
@@ -759,8 +760,22 @@ public class ClassScheduleServlet extends HttpServlet {
                         }
                     }
                 } catch (SQLException ignore) { ignore.printStackTrace(); }
+
+                try (PreparedStatement psDel = conn.prepareStatement(
+                        "DELETE FROM talaqqisession WHERE bookingId = ?")) {
+                    psDel.setString(1, bookingId);
+                    psDel.executeUpdate();
+                } catch (SQLException ignore) { ignore.printStackTrace(); }
             } else {
-                System.out.println("No bookingId provided - only updating schedule status");
+                System.out.println("No bookingId provided - unlocking schedule slot only");
+            }
+
+            // Unlock slot so another student can book (keep booking history as Cancelled)
+            String unlockScheduleSql = "UPDATE classschedule SET classStatus = 'Scheduled' WHERE scheduleId = ? AND teacherId = ?";
+            try (PreparedStatement ps = conn.prepareStatement(unlockScheduleSql)) {
+                ps.setString(1, scheduleId);
+                ps.setString(2, teacherId);
+                ps.executeUpdate();
             }
 
             conn.commit(); // Commit transaction
