@@ -252,7 +252,6 @@ public class StudentTalaqqiSessionServlet extends HttpServlet {
                     }
                 }
                 
-                // Fall back to next upcoming session if sessionId not provided or invalid
                 if (session == null) {
                     session = talaqqiSessionDAO.getUpcomingSessionForStudent(studentId);
                 }
@@ -262,6 +261,9 @@ public class StudentTalaqqiSessionServlet extends HttpServlet {
                     int ayah = session.getCurrentAyahNumber();
                     int ayahEnd = session.getCurrentAyahEnd();
                     int juzuk = session.getCurrentJuzukNumber();
+                    if (juzuk <= 0) {
+                        juzuk = 1;
+                    }
                     
                     response.getWriter().write(
                         "{\"success\": true, " +
@@ -269,7 +271,7 @@ public class StudentTalaqqiSessionServlet extends HttpServlet {
                         "\"ayah\": " + ayah + ", " +
                         "\"ayahEnd\": " + ayahEnd + ", " +
                         "\"juzuk\": " + juzuk + ", " +
-                        "\"sessionId\": \"" + session.getSessionId() + "\"}"
+                        "\"sessionId\": \"" + escapeJson(session.getSessionId()) + "\"}"
                     );
                 } else {
                     response.getWriter().write(

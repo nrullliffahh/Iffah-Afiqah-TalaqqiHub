@@ -232,15 +232,15 @@
                                 <div class="grid grid-cols-3 gap-3">
                                     <div>
                                         <p class="text-xs text-gray-600 font-medium mb-1">Juz</p>
-                                        <p id="currentJuzDisplay" class="text-lg font-bold text-teal-600">1</p>
+                                        <p id="currentJuzDisplay" class="text-lg font-bold text-teal-600"><c:out value="${not empty session && session.currentJuzukNumber > 0 ? session.currentJuzukNumber : 1}" /></p>
                                     </div>
                                     <div>
                                         <p class="text-xs text-gray-600 font-medium mb-1">Surah</p>
-                                        <p id="currentSurahDisplay" class="text-lg font-bold text-teal-600">2</p>
+                                        <p id="currentSurahDisplay" class="text-lg font-bold text-teal-600"><c:out value="${not empty session ? session.currentSurahNumber : 2}" /></p>
                                     </div>
                                     <div>
                                         <p class="text-xs text-gray-600 font-medium mb-1">Ayah</p>
-                                        <p id="currentAyahDisplay" class="text-lg font-bold text-teal-600">1</p>
+                                        <p id="currentAyahDisplay" class="text-lg font-bold text-teal-600"><c:out value="${not empty session ? session.currentAyahNumber : 1}" /></p>
                                     </div>
                                 </div>
                             </div>
@@ -680,19 +680,21 @@
                 const data = await response.json();
                 if (!data.success) return; // Silent fail if no session
 
-                const newSurah = data.surah;
-                const newAyah = data.ayah;
-                const newAyahEnd = data.ayahEnd;
-                const newJuzuk = data.juzuk || currentQuranState.juzuk;
+                const newSurah = parseInt(data.surah, 10);
+                const newAyah = parseInt(data.ayah, 10);
+                const newAyahEnd = parseInt(data.ayahEnd, 10) || 0;
+                const newJuzuk = parseInt(data.juzuk, 10) || 1;
 
                 const prevSurah = currentQuranState.surah;
                 const prevAyah = currentQuranState.ayah;
-                const prevAyahEnd = currentQuranState.ayahEnd;
+                const prevAyahEnd = currentQuranState.ayahEnd || 0;
+                const prevJuzuk = currentQuranState.juzuk || 1;
 
                 // Check if Quran reference has changed
                 if (newSurah !== prevSurah || 
                     newAyah !== prevAyah ||
-                    newAyahEnd !== prevAyahEnd) {
+                    newAyahEnd !== prevAyahEnd ||
+                    newJuzuk !== prevJuzuk) {
                     
                     console.log('[Quran Update] Surah ' + newSurah + ':' + newAyah + ' (was ' + prevSurah + ':' + prevAyah + ')');
                     

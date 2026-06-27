@@ -655,10 +655,78 @@ public class TalaqqiSessionDAO {
             closeQuietly(null, ps, conn);
         }
 
+        if (!classScheduleUpdated) {
+            classScheduleUpdated = updateQuranOnScheduleFallback(sessionId, teacherId, surahNumber, ayahStart, ayahEnd);
+        }
+
         // Save to qurandisplay (start ayah only — end range lives on classschedule.classAyahEnd)
         boolean savedDisplay = saveQuranDisplay(sessionId, surahNumber, ayahStart);
 
         return classScheduleUpdated || savedDisplay;
+    }
+
+    /** Fallback when booking-linked UPDATE matches no row (legacy/hybrid session rows). */
+    private boolean updateQuranOnScheduleFallback(String sessionId, String teacherId,
+            int surahNumber, int ayahStart, int ayahEnd) {
+        Connection conn = null;
+        PreparedStatement ps = null;
+        try {
+            conn = DBConnection.getConnection();
+            if (conn == null) {
+                return false;
+            }
+            String sessionTable = util.TalaqqiSchemaUtil.sessionTable(conn);
+            String sql = util.TalaqqiSchemaUtil.hasClassAyahEnd(conn)
+                ? "UPDATE classschedule cs "
+                    + "JOIN " + sessionTable + " ts ON ts.scheduleId = cs.scheduleId "
+                    + "SET cs.classSurah = ?, cs.classAyah = ?, cs.classAyahEnd = ? "
+                    + "WHERE ts.sessionId = ? AND cs.teacherId = ?"
+                : "UPDATE classschedule cs "
+                    + "JOIN " + sessionTable + " ts ON ts.scheduleId = cs.scheduleId "
+                    + "SET cs.classSurah = ?, cs.classAyah = ? "
+                    + "WHERE ts.sessionId = ? AND cs.teacherId = ?";
+            ps = conn.prepareStatement(util.TalaqqiSchemaUtil.sql(sql, conn));
+            ps.setInt(1, surahNumber);
+            ps.setInt(2, ayahStart);
+            if (util.TalaqqiSchemaUtil.hasClassAyahEnd(conn)) {
+                if (ayahEnd > 0) {
+                    ps.setInt(3, ayahEnd);
+                } else {
+                    ps.setNull(3, java.sql.Types.INTEGER);
+                }
+                ps.setString(4, sessionId);
+                ps.setString(5, teacherId);
+            } else {
+                ps.setString(3, sessionId);
+                ps.setString(4, teacherId);
+            }
+            return ps.executeUpdate() > 0;
+        } catch (SQLException e) {
+            System.err.println("[TalaqqiSessionDAO] updateQuranOnScheduleFallback: " + e.getMessage());
+            return false;
+        } finally {
+            closeQuietly(null, ps, conn);
+        }
+    }
+
+    private static void applyResolvedQuranReference(TalaqqiSession ts,
+            int dbSurah, int dbAyah, int dbAyahEnd,
+            int displaySurah, int displayAyah, int displayJuzuk) {
+        int resolvedSurah = dbSurah > 0 ? dbSurah : displaySurah;
+        int resolvedAyah = dbAyah > 0 ? dbAyah : displayAyah;
+
+        ts.setCurrentSurahNumber(resolvedSurah > 0 ? resolvedSurah : 2);
+        ts.setCurrentAyahNumber(resolvedAyah > 0 ? resolvedAyah : 1);
+        if (dbAyahEnd > 0) {
+            ts.setCurrentAyahEnd(dbAyahEnd);
+        } else {
+            ts.setCurrentAyahEnd(0);
+        }
+        ts.setCurrentJuzukNumber(displayJuzuk > 0 ? displayJuzuk : 0);
+
+        TalaqqiSession.QuranReference qRef = new TalaqqiSession.QuranReference(
+                ts.getCurrentSurahNumber(), ts.getCurrentAyahNumber());
+        ts.setCurrentQuranReference(qRef);
     }
 
     /**
@@ -761,7 +829,6 @@ public class TalaqqiSessionDAO {
                 }
             }
             
-            // Format as Q001, Q002, Q003, etc.
             return String.format("Q%03d", nextNum);
             
         } catch (SQLException e) {
@@ -1315,7 +1382,7 @@ public class TalaqqiSessionDAO {
         ts.setSessionStartTime(startTime != null ? timeFmt.format(startTime) : "--:--");
         ts.setSessionEndTime(endTime     != null ? timeFmt.format(endTime)   : "--:--");
 
-        // ── Quran reference: live teacher display (qurandisplay) overrides schedule defaults ─
+        // ── Quran reference: classschedule (teacher Apply) is source of truth; qurandisplay is fallback ─
         int dbSurah    = rs.getInt("classSurah");
         int dbAyah     = rs.getInt("classAyah");
         int dbAyahEnd  = 0;
@@ -1343,19 +1410,7 @@ public class TalaqqiSessionDAO {
             }
         } catch (SQLException ignored) {}
 
-        int resolvedSurah = displaySurah > 0 ? displaySurah : dbSurah;
-        int resolvedAyah = displayAyah > 0 ? displayAyah : dbAyah;
-
-        ts.setCurrentSurahNumber(resolvedSurah > 0 ? resolvedSurah : 2);
-        ts.setCurrentAyahNumber(resolvedAyah > 0 ? resolvedAyah : 1);
-        if (dbAyahEnd > 0) {
-            ts.setCurrentAyahEnd(dbAyahEnd);
-        }
-        ts.setCurrentJuzukNumber(displayJuzuk > 0 ? displayJuzuk : 0);
-
-        TalaqqiSession.QuranReference qRef = new TalaqqiSession.QuranReference(
-                ts.getCurrentSurahNumber(), ts.getCurrentAyahNumber());
-        ts.setCurrentQuranReference(qRef);
+        applyResolvedQuranReference(ts, dbSurah, dbAyah, dbAyahEnd, displaySurah, displayAyah, displayJuzuk);
 
         // ── Generate Jitsi room name from sessionId ───────────────────────────
         ts.setRoomName(ts.generateRoomName());
