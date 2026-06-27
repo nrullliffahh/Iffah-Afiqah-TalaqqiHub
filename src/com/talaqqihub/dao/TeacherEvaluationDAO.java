@@ -67,6 +67,114 @@ public class TeacherEvaluationDAO {
         } catch (SQLException e) {
             setError("Unable to ensure studentevaluation schema", e);
         }
+
+        migrateStudentEvaluationColumns();
+        TalaqqiSchemaUtil.ensureSessionBookingIdColumn(connection);
+    }
+
+    private void migrateStudentEvaluationColumns() {
+        String[][] columns = {
+            {"class_name", "VARCHAR(100) DEFAULT NULL"},
+            {"surah", "VARCHAR(100) DEFAULT NULL"},
+            {"ayah_range", "VARCHAR(50) DEFAULT NULL"},
+            {"session_date", "DATE DEFAULT NULL"},
+            {"start_time", "TIME DEFAULT NULL"},
+            {"end_time", "TIME DEFAULT NULL"},
+            {"overall_score", "FLOAT DEFAULT 0"},
+            {"rating", "INT DEFAULT 0"},
+            {"areas_for_improvement", "TEXT"},
+            {"performance_tag", "VARCHAR(50) DEFAULT NULL"},
+            {"next_target_surah", "VARCHAR(100) DEFAULT NULL"},
+            {"suggestions", "TEXT"},
+            {"teacher_comments", "TEXT"},
+            {"status", "VARCHAR(20) DEFAULT 'PENDING'"},
+            {"updated_at", "TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP"},
+        };
+        for (String[] col : columns) {
+            tryAddColumn("studentevaluation", col[0], col[1]);
+        }
+    }
+
+    private void tryAddColumn(String table, String column, String definition) {
+        if (TalaqqiSchemaUtil.hasColumn(connection, table, column)) {
+            return;
+        }
+        try (Statement stmt = connection.createStatement()) {
+            stmt.execute("ALTER TABLE `" + table + "` ADD COLUMN `" + column + "` " + definition);
+            System.out.println("[TeacherEvaluationDAO] added column " + table + "." + column);
+        } catch (SQLException e) {
+            String msg = e.getMessage() != null ? e.getMessage() : "";
+            if (!msg.contains("Duplicate column")) {
+                System.err.println("[TeacherEvaluationDAO] tryAddColumn " + column + ": " + msg);
+            }
+        }
+    }
+
+    private boolean hasEvalColumn(String column) {
+        return TalaqqiSchemaUtil.hasColumn(connection, "studentevaluation", column);
+    }
+
+    /** SQL predicate: row is a completed teacher evaluation. */
+    private String evalCompletedPredicate(String alias) {
+        if (hasEvalColumn("status")) {
+            return "UPPER(COALESCE(" + alias + ".status, '')) = 'COMPLETED'";
+        }
+        if (hasEvalColumn("overall_score")) {
+            return "COALESCE(" + alias + ".overall_score, 0) > 0";
+        }
+        return "(COALESCE(" + alias + ".tajweedScore, 0) > 0 "
+            + "OR COALESCE(" + alias + ".fluencyScore, 0) > 0 "
+            + "OR COALESCE(" + alias + ".accuracyScore, 0) > 0)";
+    }
+
+    /** SQL predicate: row is pending teacher evaluation. */
+    private String evalPendingPredicate(String alias) {
+        if (hasEvalColumn("status")) {
+            return "UPPER(COALESCE(" + alias + ".status, 'PENDING')) = 'PENDING'";
+        }
+        return "NOT (" + evalCompletedPredicate(alias) + ")";
+    }
+
+    private String evalSelectColumn(String column) {
+        return hasEvalColumn(column) ? "se." + column : "NULL AS " + column;
+    }
+
+    private String evalClassNameExpr() {
+        if (hasEvalColumn("class_name")) {
+            return "COALESCE(NULLIF(se.class_name, ''), cs.className, '') AS class_name";
+        }
+        return "COALESCE(cs.className, '') AS class_name";
+    }
+
+    private String evalSurahExpr() {
+        if (hasEvalColumn("surah")) {
+            return "COALESCE(NULLIF(se.surah, ''), CAST(cs.classSurah AS CHAR), '') AS surah";
+        }
+        return "COALESCE(CAST(cs.classSurah AS CHAR), '') AS surah";
+    }
+
+    private String evalAyahExpr() {
+        String ayahRange = TalaqqiSchemaUtil.ayahRangeExpr(connection);
+        if (hasEvalColumn("ayah_range")) {
+            return "COALESCE(NULLIF(se.ayah_range, ''), " + ayahRange + ", '') AS ayah_range";
+        }
+        return "COALESCE(" + ayahRange + ", '') AS ayah_range";
+    }
+
+    private String evalSessionDateExpr() {
+        if (hasEvalColumn("session_date")) {
+            return "COALESCE(NULLIF(se.session_date, ''), DATE_FORMAT(ts.sessionDate, '%Y-%m-%d'), DATE_FORMAT(cs.scheduleDate, '%Y-%m-%d'), '') AS session_date";
+        }
+        return "COALESCE(DATE_FORMAT(ts.sessionDate, '%Y-%m-%d'), DATE_FORMAT(cs.scheduleDate, '%Y-%m-%d'), '') AS session_date";
+    }
+
+    private String evalNotExistsBlocksPending() {
+        return evalCompletedPredicate("se")
+            + " OR (ts.sessionId IS NOT NULL AND se.sessionId = ts.sessionId)";
+    }
+
+    private String evalNotExistsBlocksPendingFallback() {
+        return evalCompletedPredicate("se");
     }
 
     private void clearError() {
@@ -157,15 +265,20 @@ public class TeacherEvaluationDAO {
         summary.put("avgFluencyScore", 0.0);
         summary.put("avgAccuracyScore", 0.0);
 
+        String completedWhere = evalCompletedPredicate("se");
+        String overallAvg = hasEvalColumn("overall_score")
+            ? "AVG(overall_score)"
+            : "AVG((COALESCE(tajweedScore,0)+COALESCE(fluencyScore,0)+COALESCE(accuracyScore,0))/3)";
+
         String query = "SELECT " +
             "COUNT(DISTINCT studentId) as total_students_evaluated, " +
             "COUNT(*) as total_sessions_evaluated, " +
-            "AVG(overall_score) as avg_overall_score, " +
+            overallAvg + " as avg_overall_score, " +
             "AVG(tajweedScore) as avg_tajweed_score, " +
             "AVG(fluencyScore) as avg_fluency_score, " +
             "AVG(accuracyScore) as avg_accuracy_score " +
-            "FROM studentevaluation " +
-            "WHERE teacherId = ? AND UPPER(COALESCE(status, '')) = 'COMPLETED'";
+            "FROM studentevaluation se " +
+            "WHERE se.teacherId = ? AND " + completedWhere;
 
         try (PreparedStatement stmt = connection.prepareStatement(query)) {
             stmt.setString(1, teacherId);
@@ -195,10 +308,10 @@ public class TeacherEvaluationDAO {
     public List<Evaluation> getPendingEvaluations(String teacherId) {
         List<Evaluation> evaluations = new ArrayList<>();
         String createdCol = TalaqqiSchemaUtil.studentEvalCreatedColumn(connection, "se");
+        String orderCol = hasEvalColumn("session_date") ? "se.session_date" : createdCol;
         String query = buildEvaluationListSelectSql() +
-            "WHERE se.teacherId = ? AND UPPER(COALESCE(se.status, 'PENDING')) = 'PENDING' " +
-            "ORDER BY COALESCE(NULLIF(se.session_date, ''), DATE_FORMAT(ts.sessionDate, '%Y-%m-%d'), DATE_FORMAT(cs.scheduleDate, '%Y-%m-%d'), '') DESC, " +
-            createdCol + " DESC";
+            "WHERE se.teacherId = ? AND " + evalPendingPredicate("se") + " " +
+            "ORDER BY " + orderCol + " DESC, " + createdCol + " DESC";
 
         try (PreparedStatement stmt = connection.prepareStatement(query)) {
             stmt.setString(1, teacherId);
@@ -227,27 +340,35 @@ public class TeacherEvaluationDAO {
         List<Evaluation> evaluations = new ArrayList<>();
 
         StringBuilder query = new StringBuilder(buildEvaluationListSelectSql());
-        query.append("WHERE se.teacherId = ? AND UPPER(COALESCE(se.status, '')) = 'COMPLETED'");
+        query.append("WHERE se.teacherId = ? AND ").append(evalCompletedPredicate("se"));
 
         // Add search filter
         if (searchTerm != null && !searchTerm.trim().isEmpty()) {
-            query.append(" AND (s.studentName LIKE ? OR se.surah LIKE ?)");
+            if (hasEvalColumn("surah")) {
+                query.append(" AND (s.studentName LIKE ? OR se.surah LIKE ?)");
+            } else {
+                query.append(" AND (s.studentName LIKE ? OR CAST(cs.classSurah AS CHAR) LIKE ?)");
+            }
         }
 
         // Add class filter
         if (filterClass != null && !filterClass.trim().isEmpty()) {
-            query.append(" AND se.class_name = ?");
+            if (hasEvalColumn("class_name")) {
+                query.append(" AND se.class_name = ?");
+            } else {
+                query.append(" AND cs.className = ?");
+            }
         }
 
         // Add sorting
         if ("oldest".equals(sortBy)) {
-            query.append(" ORDER BY se.session_date ASC");
+            query.append(" ORDER BY ").append(hasEvalColumn("session_date") ? "se.session_date" : "cs.scheduleDate").append(" ASC");
         } else if ("best".equals(sortBy)) {
-            query.append(" ORDER BY se.overall_score DESC");
+            query.append(" ORDER BY ").append(hasEvalColumn("overall_score") ? "se.overall_score" : "se.tajweedScore").append(" DESC");
         } else if ("lowest".equals(sortBy)) {
-            query.append(" ORDER BY se.overall_score ASC");
+            query.append(" ORDER BY ").append(hasEvalColumn("overall_score") ? "se.overall_score" : "se.tajweedScore").append(" ASC");
         } else {
-            query.append(" ORDER BY se.session_date DESC"); // default: newest
+            query.append(" ORDER BY ").append(hasEvalColumn("session_date") ? "se.session_date" : "cs.scheduleDate").append(" DESC");
         }
 
         try (PreparedStatement stmt = connection.prepareStatement(query.toString())) {
@@ -497,10 +618,7 @@ public class TeacherEvaluationDAO {
             "AND NOT EXISTS ( " +
             "  SELECT 1 FROM studentevaluation se " +
             "  WHERE se.teacherId = cs.teacherId AND se.studentId = cb.studentId " +
-            "  AND ( " +
-            "    UPPER(COALESCE(se.status, '')) = 'COMPLETED' " +
-            "    OR (ts.sessionId IS NOT NULL AND se.sessionId = ts.sessionId) " +
-            "  ) " +
+            "  AND (" + evalNotExistsBlocksPending() + ") " +
             ") " +
             "ORDER BY cs.scheduleDate DESC, cs.startTime DESC";
 
@@ -536,12 +654,7 @@ public class TeacherEvaluationDAO {
     private List<Evaluation> getPendingSessionsFallback(String teacherId) {
         List<Evaluation> evaluations = new ArrayList<>();
         String ayahRange = TalaqqiSchemaUtil.ayahRangeExpr(connection);
-        String sessionLookup = TalaqqiSchemaUtil.sql(
-            "(SELECT ts2.sessionId FROM talaqqisession ts2 "
-                + "WHERE (ts2.bookingId IS NOT NULL AND ts2.bookingId <> '' AND ts2.bookingId = cb.bookingId) "
-                + "   OR ((ts2.bookingId IS NULL OR ts2.bookingId = '') AND ts2.scheduleId = cb.scheduleId) "
-                + "LIMIT 1)",
-            connection);
+        String sessionLookup = TalaqqiSchemaUtil.sessionIdForBookingSubquery(connection);
         String query =
             "SELECT cb.bookingId, " + sessionLookup + " AS sessionId, cb.studentId, "
             + "s.studentName AS student_name, cs.className AS class_name, cs.classSurah AS surah, "
@@ -556,7 +669,7 @@ public class TeacherEvaluationDAO {
             + "AND NOT EXISTS ( "
             + "  SELECT 1 FROM studentevaluation se "
             + "  WHERE se.teacherId = cs.teacherId AND se.studentId = cb.studentId "
-            + "  AND UPPER(COALESCE(se.status, '')) = 'COMPLETED' "
+            + "  AND (" + evalNotExistsBlocksPendingFallback() + ") "
             + ") "
             + "ORDER BY cs.scheduleDate DESC, cs.startTime DESC";
 
@@ -648,12 +761,21 @@ public class TeacherEvaluationDAO {
         String studentIdStr = resolveStudentId(evaluation);
         String sessionId = nullToEmpty(evaluation.getSessionId());
 
-        String[] queries = {
-            "INSERT INTO studentevaluation (studentEvaluationId, studentId, teacherId, sessionId, status) "
-                + "VALUES (?, ?, ?, ?, 'PENDING')",
-            "INSERT INTO studentevaluation (studentId, teacherId, sessionId, status) "
-                + "VALUES (?, ?, ?, 'PENDING')"
-        };
+        String[] queries;
+        if (hasEvalColumn("status")) {
+            queries = new String[] {
+                "INSERT INTO studentevaluation (studentEvaluationId, studentId, teacherId, sessionId, status) "
+                    + "VALUES (?, ?, ?, ?, 'PENDING')",
+                "INSERT INTO studentevaluation (studentId, teacherId, sessionId, status) "
+                    + "VALUES (?, ?, ?, 'PENDING')"
+            };
+        } else {
+            queries = new String[] {
+                "INSERT INTO studentevaluation (studentEvaluationId, studentId, teacherId, sessionId) "
+                    + "VALUES (?, ?, ?, ?)",
+                "INSERT INTO studentevaluation (studentId, teacherId, sessionId) VALUES (?, ?, ?)"
+            };
+        }
 
         try (PreparedStatement stmt = connection.prepareStatement(queries[0])) {
             stmt.setString(1, evalIdStr);
@@ -679,27 +801,34 @@ public class TeacherEvaluationDAO {
     }
 
     private String buildEvaluationListSelectSql() {
-        String ayahRange = TalaqqiSchemaUtil.ayahRangeExpr(connection);
         String createdCol = TalaqqiSchemaUtil.studentEvalCreatedColumn(connection, "se");
         String updatedCol = TalaqqiSchemaUtil.studentEvalUpdatedColumn(connection, "se");
+        String statusCol = hasEvalColumn("status") ? "se.status" : "'PENDING' AS status";
 
         return "SELECT " +
             "se.studentEvaluationId, " +
             "se.studentId, " +
             "COALESCE(s.studentName, '') AS student_name, " +
-            "COALESCE(NULLIF(se.class_name, ''), cs.className, '') AS class_name, " +
-            "COALESCE(NULLIF(se.surah, ''), CAST(cs.classSurah AS CHAR), '') AS surah, " +
-            "COALESCE(NULLIF(se.ayah_range, ''), " + ayahRange + ", '') AS ayah_range, " +
-            "COALESCE(NULLIF(se.session_date, ''), DATE_FORMAT(ts.sessionDate, '%Y-%m-%d'), DATE_FORMAT(cs.scheduleDate, '%Y-%m-%d'), '') AS session_date, " +
-            "COALESCE(NULLIF(se.start_time, ''), cs.startTime, '') AS start_time, " +
-            "COALESCE(NULLIF(se.end_time, ''), cs.endTime, '') AS end_time, " +
+            evalClassNameExpr() + ", " +
+            evalSurahExpr() + ", " +
+            evalAyahExpr() + ", " +
+            evalSessionDateExpr() + ", " +
+            (hasEvalColumn("start_time") ? "COALESCE(NULLIF(se.start_time, ''), cs.startTime, '') AS start_time" : "COALESCE(cs.startTime, '') AS start_time") + ", " +
+            (hasEvalColumn("end_time") ? "COALESCE(NULLIF(se.end_time, ''), cs.endTime, '') AS end_time" : "COALESCE(cs.endTime, '') AS end_time") + ", " +
             "COALESCE(cs.classSurah, 0) AS quran_surah_number, " +
             "COALESCE(cs.classAyah, 0) AS quran_ayah_number, " +
             "COALESCE(NULLIF(se.teacherId, ''), cs.teacherId, '') AS teacherId, " +
             "COALESCE(NULLIF(t.teacherName, ''), '') AS teacher_name, " +
-            "se.sessionId, se.tajweedScore, se.fluencyScore, se.accuracyScore, se.overall_score, se.rating, " +
-            "se.strength, se.areas_for_improvement, se.performance_tag, se.next_target_surah, se.suggestions, " +
-            "se.teacher_comments, se.status, se.weakness, se.studentImprovements, se.nextTarget, se.comments, " +
+            "se.sessionId, se.tajweedScore, se.fluencyScore, se.accuracyScore, " +
+            evalSelectColumn("overall_score") + ", " +
+            evalSelectColumn("rating") + ", " +
+            "se.strength, " +
+            evalSelectColumn("areas_for_improvement") + ", " +
+            evalSelectColumn("performance_tag") + ", " +
+            evalSelectColumn("next_target_surah") + ", " +
+            evalSelectColumn("suggestions") + ", " +
+            evalSelectColumn("teacher_comments") + ", " +
+            statusCol + ", se.weakness, se.studentImprovements, se.nextTarget, se.comments, " +
             createdCol + " AS createdAt, " +
             updatedCol + " AS updated_at " +
             "FROM studentevaluation se " +
@@ -711,24 +840,9 @@ public class TeacherEvaluationDAO {
     private List<Evaluation> getPendingEvaluationsFallback(String teacherId) {
         List<Evaluation> evaluations = new ArrayList<>();
         String createdCol = TalaqqiSchemaUtil.studentEvalCreatedColumn(connection, "se");
-        String query =
-            "SELECT se.studentEvaluationId, se.studentId, se.sessionId, se.teacherId, " +
-            "se.tajweedScore, se.fluencyScore, se.accuracyScore, se.overall_score, se.rating, " +
-            "se.strength, se.areas_for_improvement, se.performance_tag, se.next_target_surah, " +
-            "se.suggestions, se.teacher_comments, se.status, se.weakness, se.studentImprovements, " +
-            "se.nextTarget, se.comments, " +
-            "COALESCE(s.studentName, '') AS student_name, '' AS teacher_name, " +
-            "COALESCE(se.class_name, '') AS class_name, COALESCE(se.surah, '') AS surah, " +
-            "COALESCE(se.ayah_range, '') AS ayah_range, " +
-            "COALESCE(se.session_date, '') AS session_date, " +
-            "COALESCE(se.start_time, '') AS start_time, " +
-            "COALESCE(se.end_time, '') AS end_time, " +
-            "0 AS quran_surah_number, 0 AS quran_ayah_number, " +
-            createdCol + " AS createdAt, NULL AS updated_at " +
-            "FROM studentevaluation se " +
-            "LEFT JOIN student s ON se.studentId = s.studentId " +
-            "WHERE se.teacherId = ? AND UPPER(COALESCE(se.status, 'PENDING')) = 'PENDING' " +
-            "ORDER BY " + createdCol + " DESC";
+        String query = buildEvaluationListSelectSql()
+            + "WHERE se.teacherId = ? AND " + evalPendingPredicate("se") + " "
+            + "ORDER BY " + createdCol + " DESC";
 
         try (PreparedStatement stmt = connection.prepareStatement(query)) {
             stmt.setString(1, teacherId);
@@ -739,8 +853,39 @@ public class TeacherEvaluationDAO {
             }
         } catch (SQLException e) {
             setError("Fallback pending evaluation query failed", e);
+            tryLegacyPendingEvaluationsFallback(teacherId, evaluations);
         }
         return evaluations;
+    }
+
+    /** Last-resort: only columns guaranteed on the oldest production dump. */
+    private void tryLegacyPendingEvaluationsFallback(String teacherId, List<Evaluation> evaluations) {
+        String query =
+            "SELECT se.studentEvaluationId, se.studentId, se.sessionId, se.teacherId, "
+            + "se.tajweedScore, se.fluencyScore, se.accuracyScore, se.strength, se.weakness, "
+            + "se.studentImprovements, se.nextTarget, se.comments, "
+            + "COALESCE(s.studentName, '') AS student_name, '' AS teacher_name, "
+            + "'' AS class_name, '' AS surah, '' AS ayah_range, "
+            + "'' AS session_date, '' AS start_time, '' AS end_time, "
+            + "0 AS quran_surah_number, 0 AS quran_ayah_number, "
+            + "NULL AS overall_score, 0 AS rating, "
+            + "NULL AS areas_for_improvement, NULL AS performance_tag, NULL AS next_target_surah, "
+            + "NULL AS suggestions, NULL AS teacher_comments, 'PENDING' AS status, "
+            + "NULL AS createdAt, NULL AS updated_at "
+            + "FROM studentevaluation se "
+            + "LEFT JOIN student s ON se.studentId = s.studentId "
+            + "WHERE se.teacherId = ? AND " + evalPendingPredicate("se");
+
+        try (PreparedStatement stmt = connection.prepareStatement(query)) {
+            stmt.setString(1, teacherId);
+            try (ResultSet rs = stmt.executeQuery()) {
+                while (rs.next()) {
+                    evaluations.add(mapResultSetToEvaluation(rs));
+                }
+            }
+        } catch (SQLException e) {
+            setError("Legacy pending evaluation query failed", e);
+        }
     }
 
     /**
@@ -796,17 +941,29 @@ public class TeacherEvaluationDAO {
      */
     public List<String> getClassNames(String teacherId) {
         List<String> classNames = new ArrayList<>();
-        String query = "SELECT DISTINCT class_name FROM studentevaluation WHERE teacherId = ? ORDER BY class_name";
+        String query;
+        if (hasEvalColumn("class_name")) {
+            query = "SELECT DISTINCT class_name FROM studentevaluation WHERE teacherId = ? AND class_name IS NOT NULL AND class_name <> '' ORDER BY class_name";
+        } else {
+            query = "SELECT DISTINCT cs.className AS class_name "
+                + "FROM classschedule cs "
+                + "JOIN classbooking cb ON cb.scheduleId = cs.scheduleId "
+                + "WHERE cs.teacherId = ? AND cb.bookingStatus = 'Completed' "
+                + "ORDER BY cs.className";
+        }
 
         try (PreparedStatement stmt = connection.prepareStatement(query)) {
             stmt.setString(1, teacherId);
             ResultSet rs = stmt.executeQuery();
 
             while (rs.next()) {
-                classNames.add(rs.getString("class_name"));
+                String name = rs.getString("class_name");
+                if (name != null && !name.trim().isEmpty()) {
+                    classNames.add(name);
+                }
             }
         } catch (SQLException e) {
-            e.printStackTrace();
+            System.err.println("[TeacherEvaluationDAO] getClassNames: " + e.getMessage());
         }
 
         return classNames;

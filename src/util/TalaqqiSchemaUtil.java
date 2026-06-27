@@ -69,7 +69,7 @@ public final class TalaqqiSchemaUtil {
             if (linkByBookingId != null) {
                 return linkByBookingId;
             }
-            linkByBookingId = columnExists(probe(conn), sessionTable(conn), "bookingId");
+            linkByBookingId = columnExistsProbe(probe(conn), sessionTable(conn), "bookingId", conn);
             System.out.println("[TalaqqiSchemaUtil] talaqqisession link: "
                 + (linkByBookingId ? "bookingId" : "scheduleId"));
             return linkByBookingId;
@@ -251,7 +251,56 @@ public final class TalaqqiSchemaUtil {
     }
 
     public static boolean hasColumn(Connection conn, String table, String column) {
-        return columnExists(probe(conn), table, column);
+        return columnExistsProbe(probe(conn), table, column, conn);
+    }
+
+    /** Probe with {@code SELECT col FROM table LIMIT 0} — reliable on Aiven/MySQL. */
+    private static boolean columnExistsProbe(Connection conn, String table, String column, Connection ownerConn) {
+        if (conn == null || table == null || column == null) {
+            return false;
+        }
+        String safeTable = table.replace("`", "");
+        String safeCol = column.replace("`", "");
+        try (Statement st = conn.createStatement()) {
+            st.executeQuery("SELECT `" + safeCol + "` FROM `" + safeTable + "` LIMIT 0");
+            return true;
+        } catch (SQLException e) {
+            return false;
+        } finally {
+            closeIfOwned(conn, ownerConn);
+        }
+    }
+
+    /** Add {@code bookingId} to talaqqisession when production dump predates migration. */
+    public static void ensureSessionBookingIdColumn(Connection conn) {
+        String table = sessionTable(conn);
+        if (hasColumn(conn, table, "bookingId")) {
+            return;
+        }
+        Connection probe = probe(conn);
+        try (Statement st = probe.createStatement()) {
+            st.execute("ALTER TABLE `" + table.replace("`", "") + "` ADD COLUMN bookingId VARCHAR(10) DEFAULT NULL");
+            linkByBookingId = true;
+            System.out.println("[TalaqqiSchemaUtil] added bookingId column to " + table);
+        } catch (SQLException e) {
+            if (e.getMessage() == null || !e.getMessage().contains("Duplicate column")) {
+                System.err.println("[TalaqqiSchemaUtil] ensureSessionBookingIdColumn: " + e.getMessage());
+            }
+        } finally {
+            closeIfOwned(probe, conn);
+        }
+    }
+
+    /** Subquery: resolve sessionId for a classbooking row (legacy scheduleId or bookingId). */
+    public static String sessionIdForBookingSubquery(Connection conn) {
+        String t = sessionTable(conn);
+        if (hasColumn(conn, t, "bookingId")) {
+            return "(SELECT ts2.sessionId FROM " + t + " ts2 "
+                + "WHERE (ts2.bookingId IS NOT NULL AND ts2.bookingId <> '' AND ts2.bookingId = cb.bookingId) "
+                + "   OR ((ts2.bookingId IS NULL OR ts2.bookingId = '') AND ts2.scheduleId = cb.scheduleId) "
+                + "LIMIT 1)";
+        }
+        return "(SELECT ts2.sessionId FROM " + t + " ts2 WHERE ts2.scheduleId = cb.scheduleId LIMIT 1)";
     }
 
     public static boolean hasQuranDisplayTable(Connection conn) {
