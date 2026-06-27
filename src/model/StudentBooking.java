@@ -18,6 +18,7 @@ public class StudentBooking {
     private String teacherId;
     private String cancellationReason;
     private boolean cancellationAllowed = true;
+    private String attendanceStatus;
 
     public String getBookingId() {
         return bookingId;
@@ -129,5 +130,17 @@ public class StudentBooking {
 
     public void setCancellationAllowed(boolean cancellationAllowed) {
         this.cancellationAllowed = cancellationAllowed;
+    }
+
+    public String getAttendanceStatus() {
+        return attendanceStatus;
+    }
+
+    public void setAttendanceStatus(String attendanceStatus) {
+        this.attendanceStatus = attendanceStatus;
+    }
+
+    public boolean isAbsent() {
+        return attendanceStatus != null && "Absent".equalsIgnoreCase(attendanceStatus.trim());
     }
 }

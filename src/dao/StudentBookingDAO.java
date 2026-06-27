@@ -894,17 +894,26 @@ public class StudentBookingDAO {
                 + "LEFT JOIN classschedule cs ON b.scheduleId = cs.scheduleId "
                 + "LEFT JOIN teacher t ON cs.teacherId = t.teacherId ";
 
+        String attendanceSubquery =
+            "(SELECT a.attendanceStatus FROM attendance a "
+                + "WHERE a.studentId = b.studentId AND a.scheduleId = b.scheduleId "
+                + "AND a.attendanceDate = b.bookingDate "
+                + "ORDER BY a.attendanceId DESC LIMIT 1) AS attendanceStatus";
+
         String[] sqlVariants = {
             "SELECT b.bookingId, b.studentId, b.scheduleId, b.bookingDate, b.bookingTime, b.bookingStatus, b.createdAt, "
-                + "cs.className, t.teacherName AS teacherName, cs.teacherId, cs.duration, sc.cancellationReason AS cancellationReason "
+                + "cs.className, t.teacherName AS teacherName, cs.teacherId, cs.duration, sc.cancellationReason AS cancellationReason, "
+                + attendanceSubquery + " "
                 + baseFrom + "LEFT JOIN studentcancellation sc ON b.bookingId = sc.bookingId "
                 + "WHERE b.studentId = ?" + monthFilter + orderBy,
             "SELECT b.bookingId, b.studentId, b.scheduleId, b.bookingDate, b.bookingTime, b.bookingStatus, NULL AS createdAt, "
-                + "cs.className, t.teacherName AS teacherName, cs.teacherId, cs.duration, sc.cancellationReason AS cancellationReason "
+                + "cs.className, t.teacherName AS teacherName, cs.teacherId, cs.duration, sc.cancellationReason AS cancellationReason, "
+                + attendanceSubquery + " "
                 + baseFrom + "LEFT JOIN studentcancellation sc ON b.bookingId = sc.bookingId "
                 + "WHERE b.studentId = ?" + monthFilter + orderBy,
             "SELECT b.bookingId, b.studentId, b.scheduleId, b.bookingDate, b.bookingTime, b.bookingStatus, NULL AS createdAt, "
-                + "cs.className, t.teacherName AS teacherName, cs.teacherId, cs.duration, NULL AS cancellationReason "
+                + "cs.className, t.teacherName AS teacherName, cs.teacherId, cs.duration, NULL AS cancellationReason, "
+                + "NULL AS attendanceStatus "
                 + baseFrom + "WHERE b.studentId = ?" + monthFilter + orderBy
         };
 
@@ -957,6 +966,11 @@ public class StudentBookingDAO {
         booking.setTeacherId(rs.getString("teacherId"));
         booking.setDuration(rs.getInt("duration"));
         booking.setCancellationReason(rs.getString("cancellationReason"));
+        try {
+            booking.setAttendanceStatus(rs.getString("attendanceStatus"));
+        } catch (SQLException ignored) {
+            booking.setAttendanceStatus(null);
+        }
     }
 
     private static boolean isSchemaMismatch(SQLException e) {

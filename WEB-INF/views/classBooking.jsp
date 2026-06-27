@@ -978,13 +978,27 @@
 
                         <!-- Completed bookings -->
                         <c:forEach var="booking" items="${completedBookings}">
-                            <c:set var="borderClass" value="border-green-200 bg-green-50" />
-                            <div class="border-2 rounded-xl p-5 ${borderClass} booking-entry" data-booking-id="${booking.bookingId}" data-booking-date="${booking.bookingDate}" data-booking-time="${booking.bookingTime}" data-teacher-name="${booking.teacherName}" data-class-type="${booking.className}" data-booking-status="${booking.bookingStatus}">
+                            <c:choose>
+                                <c:when test="${booking.absent}">
+                                    <c:set var="borderClass" value="border-amber-200 bg-amber-50" />
+                                </c:when>
+                                <c:otherwise>
+                                    <c:set var="borderClass" value="border-green-200 bg-green-50" />
+                                </c:otherwise>
+                            </c:choose>
+                            <div class="border-2 rounded-xl p-5 ${borderClass} booking-entry" data-booking-id="${booking.bookingId}" data-booking-date="${booking.bookingDate}" data-booking-time="${booking.bookingTime}" data-teacher-name="${booking.teacherName}" data-class-type="${booking.className}" data-booking-status="${booking.bookingStatus}" data-attendance-status="${booking.attendanceStatus}">
                                 <div class="flex items-start justify-between">
                                     <div class="flex-1">
                                         <div class="flex items-center gap-3 mb-3">
                                             <h4 class="font-bold text-gray-800 text-lg">${booking.className}</h4>
-                                            <span class="px-3 py-1 bg-green-100 text-green-700 text-sm font-semibold rounded-full">Completed</span>
+                                            <c:choose>
+                                                <c:when test="${booking.absent}">
+                                                    <span class="px-3 py-1 bg-amber-100 text-amber-800 text-sm font-semibold rounded-full">Not Completed</span>
+                                                </c:when>
+                                                <c:otherwise>
+                                                    <span class="px-3 py-1 bg-green-100 text-green-700 text-sm font-semibold rounded-full">Completed</span>
+                                                </c:otherwise>
+                                            </c:choose>
                                         </div>
                                         <div class="grid grid-cols-3 gap-4">
                                             <div class="flex items-center gap-2">
@@ -1016,10 +1030,18 @@
                                             </div>
                                         </div>
                                     </div>
-                                    <div class="flex gap-2 ml-4">
+                                    <div class="flex flex-col gap-2 ml-4">
                                         <button type="button" onclick="openDetailsModal('${booking.bookingId}')" class="px-4 py-2 border-2 border-gray-300 text-gray-700 rounded-lg text-sm font-semibold hover:bg-gray-100 transition-colors">
                                             View Details
                                         </button>
+                                        <c:if test="${booking.absent}">
+                                            <button type="button"
+                                                    class="reschedule-btn px-4 py-2 bg-teal-500 text-white rounded-lg text-sm font-semibold hover:bg-teal-600 transition-colors"
+                                                    data-booking-id="${booking.bookingId}"
+                                                    data-booking-date="${booking.bookingDate}">
+                                                Reschedule
+                                            </button>
+                                        </c:if>
                                     </div>
                                 </div>
                             </div>
@@ -1355,11 +1377,15 @@
             const elTime = document.getElementById('detailsTime'); if (elTime) elTime.textContent = prettyTime;
             const statusEl = document.getElementById('detailsStatus'); if (statusEl) {
                 const sts = (el.dataset.bookingStatus || 'Upcoming');
-                statusEl.textContent = sts;
-                // set color: Upcoming = blue, Completed = green, Cancelled = red
+                const att = (el.dataset.attendanceStatus || '');
+                const displaySts = (sts === 'Completed' && att === 'Absent') ? 'Not Completed' : sts;
+                statusEl.textContent = displaySts;
+                // set color: Upcoming = blue, Completed = green, Not Completed = amber, Cancelled = red
                 statusEl.className = 'inline-block px-3 py-1 rounded-full text-xs font-semibold';
                 if (sts === 'Upcoming' || sts === 'Confirmed') {
                     statusEl.classList.add('bg-blue-100','text-blue-700');
+                } else if (sts === 'Completed' && att === 'Absent') {
+                    statusEl.classList.add('bg-amber-100','text-amber-800');
                 } else if (sts === 'Completed') {
                     statusEl.classList.add('bg-green-100','text-green-700');
                 } else if (sts === 'Cancelled') {
