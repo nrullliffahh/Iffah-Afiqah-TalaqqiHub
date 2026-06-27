@@ -1,9 +1,12 @@
 package controller;
 
 import util.DBConnection;
+import util.BookingPartitionUtil;
 import dao.ClassScheduleDAO;
+import dao.StudentBookingDAO;
 import dao.TeacherDAO;
 import model.ClassSchedule;
+import model.StudentBooking;
 
 import javax.servlet.ServletException;
 import javax.servlet.annotation.WebServlet;
@@ -13,6 +16,7 @@ import java.io.IOException;
 import java.io.BufferedReader;
 import java.io.InputStreamReader;
 import java.sql.*;
+import java.time.LocalTime;
 import java.util.*;
 
 @WebServlet("/ClassScheduleServlet")
@@ -20,10 +24,12 @@ import java.util.*;
 public class ClassScheduleServlet extends HttpServlet {
 
     private ClassScheduleDAO classScheduleDAO;
+    private StudentBookingDAO studentBookingDAO;
     
     @Override
     public void init() {
         classScheduleDAO = new ClassScheduleDAO();
+        studentBookingDAO = new StudentBookingDAO();
     }
 
     /* ==========================
@@ -41,9 +47,12 @@ public class ClassScheduleServlet extends HttpServlet {
 
         String teacherId = (String) session.getAttribute("teacherId");
 
-        request.setAttribute("upcomingClasses", getUpcomingClasses(teacherId));
-        request.setAttribute("completedClasses", getCompletedClasses(teacherId));
-        request.setAttribute("cancelledClasses", getCancelledClasses(teacherId));
+        List<StudentBooking> teacherBookings = studentBookingDAO.getTeacherBookings(teacherId);
+        BookingPartitionUtil.Partition partitioned = BookingPartitionUtil.partition(teacherBookings);
+        request.setAttribute("upcomingClasses", toClassRows(partitioned.upcoming));
+        request.setAttribute("rescheduledClasses", toClassRows(partitioned.rescheduled));
+        request.setAttribute("completedClasses", toClassRows(partitioned.completed));
+        request.setAttribute("cancelledClasses", toClassRows(partitioned.cancelled));
         
         // Get teacher's availability slots (not yet booked by students)
         List<ClassSchedule> availabilitySlots = classScheduleDAO.getAvailabilityByTeacherId(teacherId);
@@ -78,6 +87,40 @@ public class ClassScheduleServlet extends HttpServlet {
 
         request.getRequestDispatcher("/WEB-INF/views/classSchedule.jsp")
                .forward(request, response);
+    }
+
+    private List<Map<String, Object>> toClassRows(List<StudentBooking> bookings) {
+        List<Map<String, Object>> result = new ArrayList<>();
+        if (bookings == null) {
+            return result;
+        }
+        for (StudentBooking b : bookings) {
+            String studentName = b.getStudentName();
+            if (studentName == null || studentName.trim().isEmpty()) {
+                continue;
+            }
+            int duration = b.getDuration() != null && b.getDuration() > 0 ? b.getDuration() : 15;
+            LocalTime start = b.getBookingTime() != null ? b.getBookingTime() : LocalTime.of(0, 0);
+            LocalTime end = start.plusMinutes(duration);
+
+            Map<String, Object> row = new HashMap<>();
+            row.put("scheduleId", b.getScheduleId());
+            row.put("bookingId", b.getBookingId());
+            row.put("studentId", b.getStudentId());
+            row.put("studentName", studentName);
+            row.put("className", b.getClassName() != null ? b.getClassName() : "");
+            if (b.getBookingDate() != null) {
+                row.put("scheduleDate", Date.valueOf(b.getBookingDate()));
+            }
+            row.put("startTime", Time.valueOf(start));
+            row.put("endTime", Time.valueOf(end));
+            row.put("duration", duration);
+            row.put("status", b.getBookingStatus());
+            row.put("needsReschedule", b.isNeedsReschedule());
+            row.put("cancellationReason", b.getCancellationReason());
+            result.add(row);
+        }
+        return result;
     }
 
     /* ==========================

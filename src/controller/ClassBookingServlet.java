@@ -14,6 +14,7 @@ import java.io.IOException;
 import java.time.LocalDate;
 import java.util.List;
 import java.util.Map;
+import util.BookingPartitionUtil;
 
 @WebServlet("/student/class-booking")
 public class ClassBookingServlet extends HttpServlet {
@@ -49,43 +50,11 @@ public class ClassBookingServlet extends HttpServlet {
         }
 
         // Partition in display order: Upcoming → Rescheduled → Completed → Cancelled
-        java.util.List<StudentBooking> upcomingBookings = new java.util.ArrayList<>();
-        java.util.List<StudentBooking> rescheduledBookings = new java.util.ArrayList<>();
-        java.util.List<StudentBooking> completedBookings = new java.util.ArrayList<>();
-        java.util.List<StudentBooking> cancelledBookings = new java.util.ArrayList<>();
-        if (myBookings != null) {
-            for (StudentBooking b : myBookings) {
-                String status = b.getBookingStatus();
-                if (status == null) {
-                    status = "";
-                }
-                if ("Cancelled".equalsIgnoreCase(status) || "Rescheduled".equalsIgnoreCase(status)) {
-                    if (b.isRescheduled()) {
-                        rescheduledBookings.add(b);
-                    } else {
-                        cancelledBookings.add(b);
-                    }
-                } else if (b.isRescheduledReplacement()) {
-                    rescheduledBookings.add(b);
-                } else if (b.isNeedsReschedule()) {
-                    completedBookings.add(b);
-                } else if ("Completed".equalsIgnoreCase(status)) {
-                    if (b.isFutureSession()) {
-                        upcomingBookings.add(b);
-                    } else {
-                        completedBookings.add(b);
-                    }
-                } else {
-                    upcomingBookings.add(b);
-                }
-            }
-            completedBookings.sort((a, b) -> {
-                if (a.isNeedsReschedule() == b.isNeedsReschedule()) {
-                    return 0;
-                }
-                return a.isNeedsReschedule() ? -1 : 1;
-            });
-        }
+        BookingPartitionUtil.Partition partitioned = BookingPartitionUtil.partition(myBookings);
+        List<StudentBooking> upcomingBookings = partitioned.upcoming;
+        List<StudentBooking> rescheduledBookings = partitioned.rescheduled;
+        List<StudentBooking> completedBookings = partitioned.completed;
+        List<StudentBooking> cancelledBookings = partitioned.cancelled;
         
         String selectedDate = request.getParameter("selectedDate");
         List<ClassSchedule> availableSchedules = null;

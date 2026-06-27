@@ -712,6 +712,10 @@ public class StudentBookingDAO {
         return loadStudentBookings(studentId, true);
     }
 
+    public List<StudentBooking> getTeacherBookings(String teacherId) {
+        return loadTeacherBookings(teacherId);
+    }
+
     public boolean cancelBooking(String bookingId, String reason) {
         ClassScheduleDAO scheduleDAO = new ClassScheduleDAO();
         if (!scheduleDAO.isCancellationAllowedByBookingId(bookingId)) {
@@ -1023,6 +1027,76 @@ public class StudentBookingDAO {
         return empty;
     }
 
+    private List<StudentBooking> loadTeacherBookings(String teacherId) {
+        List<StudentBooking> empty = new ArrayList<>();
+        Connection conn = DBConnection.getConnection();
+        if (conn == null) {
+            System.err.println("loadTeacherBookings: DB connection is null");
+            return empty;
+        }
+
+        String orderBy = " ORDER BY b.bookingDate DESC, b.bookingTime DESC";
+        String baseFrom =
+            " FROM classbooking b "
+                + "INNER JOIN classschedule cs ON b.scheduleId = cs.scheduleId "
+                + "INNER JOIN student s ON b.studentId = s.studentId "
+                + "LEFT JOIN teacher t ON cs.teacherId = t.teacherId ";
+
+        String attendanceSubquery =
+            "(SELECT a.attendanceStatus FROM attendance a "
+                + "WHERE a.studentId = b.studentId AND a.scheduleId = b.scheduleId "
+                + "ORDER BY "
+                + "CASE WHEN a.attendanceDate = b.bookingDate THEN 0 ELSE 1 END, "
+                + "CASE a.attendanceStatus WHEN 'Absent' THEN 0 WHEN 'Late' THEN 1 WHEN 'Present' THEN 2 ELSE 3 END, "
+                + "a.attendanceId DESC LIMIT 1) AS attendanceStatus";
+
+        String[] sqlVariants = {
+            "SELECT b.bookingId, b.studentId, b.scheduleId, b.bookingDate, b.bookingTime, b.bookingStatus, b.createdAt, "
+                + "cs.className, t.teacherName AS teacherName, cs.teacherId, cs.duration, s.studentName AS studentName, "
+                + "sc.cancellationReason AS cancellationReason, " + attendanceSubquery + " "
+                + baseFrom + "LEFT JOIN studentcancellation sc ON b.bookingId = sc.bookingId "
+                + "WHERE cs.teacherId = ?" + orderBy,
+            "SELECT b.bookingId, b.studentId, b.scheduleId, b.bookingDate, b.bookingTime, b.bookingStatus, NULL AS createdAt, "
+                + "cs.className, t.teacherName AS teacherName, cs.teacherId, cs.duration, s.studentName AS studentName, "
+                + "sc.cancellationReason AS cancellationReason, " + attendanceSubquery + " "
+                + baseFrom + "LEFT JOIN studentcancellation sc ON b.bookingId = sc.bookingId "
+                + "WHERE cs.teacherId = ?" + orderBy,
+            "SELECT b.bookingId, b.studentId, b.scheduleId, b.bookingDate, b.bookingTime, b.bookingStatus, NULL AS createdAt, "
+                + "cs.className, t.teacherName AS teacherName, cs.teacherId, cs.duration, s.studentName AS studentName, "
+                + "NULL AS cancellationReason, NULL AS attendanceStatus "
+                + baseFrom + "WHERE cs.teacherId = ?" + orderBy
+        };
+
+        try {
+            for (String sql : sqlVariants) {
+                try {
+                    List<StudentBooking> bookings = new ArrayList<>();
+                    try (PreparedStatement ps = conn.prepareStatement(sql)) {
+                        ps.setString(1, teacherId);
+                        try (ResultSet rs = ps.executeQuery()) {
+                            while (rs.next()) {
+                                StudentBooking booking = new StudentBooking();
+                                mapStudentBookingRow(rs, booking);
+                                bookings.add(booking);
+                            }
+                        }
+                    }
+                    return bookings;
+                } catch (SQLException e) {
+                    if (!isSchemaMismatch(e)) {
+                        System.err.println("loadTeacherBookings failed: " + e.getMessage());
+                        break;
+                    }
+                }
+            }
+        } finally {
+            try {
+                conn.close();
+            } catch (SQLException ignored) {}
+        }
+        return empty;
+    }
+
     private static void mapStudentBookingRow(ResultSet rs, StudentBooking booking) throws SQLException {
         booking.setBookingId(rs.getString("bookingId"));
         booking.setStudentId(rs.getString("studentId"));
@@ -1042,6 +1116,11 @@ public class StudentBookingDAO {
         booking.setTeacherId(rs.getString("teacherId"));
         booking.setDuration(rs.getInt("duration"));
         booking.setCancellationReason(rs.getString("cancellationReason"));
+        try {
+            booking.setStudentName(rs.getString("studentName"));
+        } catch (SQLException ignored) {
+            booking.setStudentName(null);
+        }
         try {
             booking.setAttendanceStatus(rs.getString("attendanceStatus"));
         } catch (SQLException ignored) {

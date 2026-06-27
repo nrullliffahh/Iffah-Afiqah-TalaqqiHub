@@ -14,6 +14,7 @@ public class StudentBooking {
     private String bookingStatus;
     private LocalDate createdAt;
     private String teacherName;
+    private String studentName;
     private String className;
     private Integer duration;
     private String teacherId;
@@ -91,6 +92,14 @@ public class StudentBooking {
 
     public void setTeacherName(String teacherName) {
         this.teacherName = teacherName;
+    }
+
+    public String getStudentName() {
+        return studentName;
+    }
+
+    public void setStudentName(String studentName) {
+        this.studentName = studentName;
     }
 
     public String getClassName() {

@@ -356,6 +356,62 @@
 
                 <div class="mb-8">
                     <div class="flex items-center justify-between mb-4">
+                        <h4 class="text-lg font-bold text-gray-900">Rescheduled Classes</h4>
+                        <span class="px-3 py-1 bg-teal-100 text-teal-700 rounded-full text-sm font-semibold" id="rescheduledClassesCount">${fn:length(rescheduledClasses)} classes</span>
+                    </div>
+
+                    <div id="rescheduledClassesContainer">
+                        <c:choose>
+                            <c:when test="${empty rescheduledClasses}">
+                                <div class="bg-gray-50 rounded-xl border border-gray-200 p-8 text-center">
+                                    <i class="far fa-calendar-alt text-gray-400 text-4xl mb-3"></i>
+                                    <p class="text-gray-500">No rescheduled classes</p>
+                                </div>
+                            </c:when>
+                            <c:otherwise>
+                                <div class="space-y-4">
+                                    <c:forEach var="classItem" items="${rescheduledClasses}">
+                                        <div class="bg-white rounded-xl shadow-sm border-l-4 border-teal-500 border-y border-r border-gray-200 p-6">
+                                            <div class="flex items-center justify-between">
+                                                <div class="flex items-center space-x-4">
+                                                    <div class="w-14 h-14 bg-teal-500 rounded-full flex items-center justify-center text-white font-bold text-lg">
+                                                        <c:set var="initials" value="${fn:substring(classItem.studentName, 0, 1)}${fn:substring(fn:substringAfter(classItem.studentName, ' '), 0, 1)}" />
+                                                        ${fn:toUpperCase(initials)}
+                                                    </div>
+                                                    <div>
+                                                        <h5 class="font-bold text-gray-900 text-lg">${classItem.studentName}</h5>
+                                                        <p class="text-gray-600 text-sm">${classItem.className}</p>
+                                                        <div class="flex items-center space-x-4 mt-2 text-sm text-gray-500">
+                                                            <div class="flex items-center space-x-1">
+                                                                <i class="far fa-calendar text-gray-400"></i>
+                                                                <span><fmt:formatDate value="${classItem.scheduleDate}" pattern="EEEE, MMMM d, yyyy" /></span>
+                                                            </div>
+                                                            <div class="flex items-center space-x-1">
+                                                                <i class="far fa-clock text-gray-400"></i>
+                                                                <span><fmt:formatDate value="${classItem.startTime}" pattern="hh:mm a" /> - <fmt:formatDate value="${classItem.endTime}" pattern="hh:mm a" /></span>
+                                                            </div>
+                                                            <span class="px-2 py-1 bg-teal-100 text-teal-800 rounded text-xs font-semibold">Rescheduled</span>
+                                                        </div>
+                                                        <c:if test="${not empty classItem.cancellationReason}">
+                                                            <p class="text-teal-700 text-sm mt-2">${classItem.cancellationReason}</p>
+                                                        </c:if>
+                                                    </div>
+                                                </div>
+                                                <button onclick="viewCompletedClassDetails('${classItem.scheduleId}')"
+                                                        class="px-6 py-2 bg-blue-600 text-white rounded-lg font-semibold hover:bg-blue-700 transition">
+                                                    View Details
+                                                </button>
+                                            </div>
+                                        </div>
+                                    </c:forEach>
+                                </div>
+                            </c:otherwise>
+                        </c:choose>
+                    </div>
+                </div>
+
+                <div class="mb-8">
+                    <div class="flex items-center justify-between mb-4">
                         <h4 class="text-lg font-bold text-gray-900">Completed Classes</h4>
                         <span class="px-3 py-1 bg-green-100 text-green-700 rounded-full text-sm font-semibold" id="completedClassesCount">${fn:length(completedClasses)} classes</span>
                     </div>
@@ -371,7 +427,19 @@
                             <c:otherwise>
                                 <div class="space-y-4">
                                     <c:forEach var="classItem" items="${completedClasses}">
-                                        <div class="bg-white rounded-xl shadow-sm border-l-4 border-green-500 border-y border-r border-gray-200 p-6">
+                                        <c:choose>
+                                            <c:when test="${classItem.needsReschedule}">
+                                                <c:set var="completedBorderClass" value="border-amber-500" />
+                                                <c:set var="completedBadgeClass" value="bg-amber-100 text-amber-800" />
+                                                <c:set var="completedBadgeLabel" value="Not Completed" />
+                                            </c:when>
+                                            <c:otherwise>
+                                                <c:set var="completedBorderClass" value="border-green-500" />
+                                                <c:set var="completedBadgeClass" value="bg-green-100 text-green-700" />
+                                                <c:set var="completedBadgeLabel" value="Completed" />
+                                            </c:otherwise>
+                                        </c:choose>
+                                        <div class="bg-white rounded-xl shadow-sm border-l-4 ${completedBorderClass} border-y border-r border-gray-200 p-6">
                                             <div class="flex items-center justify-between">
                                                 <div class="flex items-center space-x-4">
                                                     <div class="w-14 h-14 bg-teal-500 rounded-full flex items-center justify-center text-white font-bold text-lg">
@@ -391,7 +459,7 @@
                                                                 <i class="far fa-clock text-gray-400"></i>
                                                                 <span><fmt:formatDate value="${classItem.startTime}" pattern="hh:mm a" /> - <fmt:formatDate value="${classItem.endTime}" pattern="hh:mm a" /></span>
                                                             </div>
-                                                            <span class="px-2 py-1 bg-green-100 text-green-700 rounded text-xs font-semibold">Completed</span>
+                                                            <span class="px-2 py-1 ${completedBadgeClass} rounded text-xs font-semibold">${completedBadgeLabel}</span>
                                                         </div>
                                                     </div>
                                                 </div>
@@ -804,9 +872,10 @@
         console.warn('3. Database query returned no results');
         </c:if>
         
-        // Load completed and cancelled classes data for month-by-month filtering
-        console.log('=== Loading Completed and Cancelled Classes ===');
+        // Load completed, rescheduled, and cancelled classes data for month-by-month filtering
+        console.log('=== Loading Completed, Rescheduled and Cancelled Classes ===');
         let completedClassesData = [];
+        let rescheduledClassesData = [];
         let cancelledClassesData = [];
         
         <c:if test="${not empty completedClasses}">
@@ -818,7 +887,23 @@
             className: '${classItem.className}',
             scheduleDate: '${classItem.scheduleDate}',
             startTime: '${fn:substring(classItem.startTime, 0, 5)}',
-            endTime: '${fn:substring(classItem.endTime, 0, 5)}'
+            endTime: '${fn:substring(classItem.endTime, 0, 5)}',
+            needsReschedule: ${classItem.needsReschedule}
+        });
+        </c:forEach>
+        </c:if>
+
+        <c:if test="${not empty rescheduledClasses}">
+        console.log('Loading rescheduled classes:');
+        <c:forEach items="${rescheduledClasses}" var="classItem" varStatus="status">
+        rescheduledClassesData.push({
+            scheduleId: '${classItem.scheduleId}',
+            studentName: '${classItem.studentName}',
+            className: '${classItem.className}',
+            scheduleDate: '${classItem.scheduleDate}',
+            startTime: '${fn:substring(classItem.startTime, 0, 5)}',
+            endTime: '${fn:substring(classItem.endTime, 0, 5)}',
+            cancellationReason: '${classItem.cancellationReason}'
         });
         </c:forEach>
         </c:if>
@@ -839,7 +924,7 @@
         </c:forEach>
         </c:if>
         
-        console.log('Total completed:', completedClassesData.length, 'Total cancelled:', cancelledClassesData.length);
+        console.log('Total completed:', completedClassesData.length, 'Total rescheduled:', rescheduledClassesData.length, 'Total cancelled:', cancelledClassesData.length);
 
         function parseScheduleMonthParts(dateStr) {
             if (!dateStr) return null;
@@ -871,14 +956,23 @@
             });
         }
         
-        // Display completed and cancelled classes for current month
+        function getRescheduledClassesForMonth(year, month) {
+            return rescheduledClassesData.filter(classItem => {
+                const p = parseScheduleMonthParts(classItem.scheduleDate);
+                return p && p.year === year && p.month === month;
+            });
+        }
+        
+        // Display completed, rescheduled and cancelled classes for current month
         function updateCompletedCancelledDisplay() {
             const completedThisMonth = getCompletedClassesForMonth(currentYear, currentMonth);
+            const rescheduledThisMonth = getRescheduledClassesForMonth(currentYear, currentMonth);
             const cancelledThisMonth = getCancelledClassesForMonth(currentYear, currentMonth);
             
-            console.log('Updated month display - Completed:', completedThisMonth.length, 'Cancelled:', cancelledThisMonth.length);
+            console.log('Updated month display - Completed:', completedThisMonth.length, 'Rescheduled:', rescheduledThisMonth.length, 'Cancelled:', cancelledThisMonth.length);
             
             updateCompletedClassesDisplay(completedThisMonth);
+            updateRescheduledClassesDisplay(rescheduledThisMonth);
             updateCancelledClassesDisplay(cancelledThisMonth);
         }
         
@@ -900,7 +994,11 @@
                 const dateObj = new Date(classItem.scheduleDate);
                 const dateStr = dateObj.toLocaleDateString('en-US', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' });
                 const initials = classItem.studentName.split(' ').map(n => n[0]).join('').toUpperCase().substring(0, 2);
-                html += '<div class="bg-white rounded-xl shadow-sm border-l-4 border-green-500 border-y border-r border-gray-200 p-6">' +
+                const isNotCompleted = classItem.needsReschedule === true || classItem.needsReschedule === 'true';
+                const borderClass = isNotCompleted ? 'border-amber-500' : 'border-green-500';
+                const badgeClass = isNotCompleted ? 'bg-amber-100 text-amber-800' : 'bg-green-100 text-green-700';
+                const badgeLabel = isNotCompleted ? 'Not Completed' : 'Completed';
+                html += '<div class="bg-white rounded-xl shadow-sm border-l-4 ' + borderClass + ' border-y border-r border-gray-200 p-6">' +
                     '<div class="flex items-center justify-between">' +
                         '<div class="flex items-center space-x-4">' +
                             '<div class="w-14 h-14 bg-teal-500 rounded-full flex items-center justify-center text-white font-bold text-lg">' + initials + '</div>' +
@@ -910,8 +1008,50 @@
                                 '<div class="flex items-center space-x-4 mt-2 text-sm text-gray-500">' +
                                     '<div class="flex items-center space-x-1"><i class="far fa-calendar text-gray-400"></i><span>' + dateStr + '</span></div>' +
                                     '<div class="flex items-center space-x-1"><i class="far fa-clock text-gray-400"></i><span>' + classItem.startTime + ' - ' + classItem.endTime + '</span></div>' +
-                                    '<span class="px-2 py-1 bg-green-100 text-green-700 rounded text-xs font-semibold">Completed</span>' +
+                                    '<span class="px-2 py-1 ' + badgeClass + ' rounded text-xs font-semibold">' + badgeLabel + '</span>' +
                                 '</div>' +
+                            '</div>' +
+                        '</div>' +
+                        '<button onclick="viewCompletedClassDetails(\'' + classItem.scheduleId + '\')" class="px-6 py-2 bg-blue-600 text-white rounded-lg font-semibold hover:bg-blue-700 transition">View Details</button>' +
+                    '</div>' +
+                '</div>';
+            });
+            html += '</div>';
+            container.innerHTML = html;
+        }
+        
+        // Update the DOM display for rescheduled classes
+        function updateRescheduledClassesDisplay(classes) {
+            const container = document.getElementById('rescheduledClassesContainer');
+            if (!container) return;
+            
+            const countSpan = document.getElementById('rescheduledClassesCount');
+            if (countSpan) countSpan.textContent = classes.length + ' classes';
+            
+            if (classes.length === 0) {
+                container.innerHTML = '<div class="bg-gray-50 rounded-xl border border-gray-200 p-8 text-center"><i class="far fa-calendar-alt text-gray-400 text-4xl mb-3"></i><p class="text-gray-500">No rescheduled classes this month</p></div>';
+                return;
+            }
+            
+            let html = '<div class="space-y-4">';
+            classes.forEach(classItem => {
+                const dateObj = new Date(classItem.scheduleDate);
+                const dateStr = dateObj.toLocaleDateString('en-US', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' });
+                const initials = classItem.studentName.split(' ').map(n => n[0]).join('').toUpperCase().substring(0, 2);
+                const reasonHtml = classItem.cancellationReason ? '<p class="text-teal-700 text-sm mt-2">' + classItem.cancellationReason + '</p>' : '';
+                html += '<div class="bg-white rounded-xl shadow-sm border-l-4 border-teal-500 border-y border-r border-gray-200 p-6">' +
+                    '<div class="flex items-center justify-between">' +
+                        '<div class="flex items-center space-x-4">' +
+                            '<div class="w-14 h-14 bg-teal-500 rounded-full flex items-center justify-center text-white font-bold text-lg">' + initials + '</div>' +
+                            '<div>' +
+                                '<h5 class="font-bold text-gray-900 text-lg">' + classItem.studentName + '</h5>' +
+                                '<p class="text-gray-600 text-sm">' + classItem.className + '</p>' +
+                                '<div class="flex items-center space-x-4 mt-2 text-sm text-gray-500">' +
+                                    '<div class="flex items-center space-x-1"><i class="far fa-calendar text-gray-400"></i><span>' + dateStr + '</span></div>' +
+                                    '<div class="flex items-center space-x-1"><i class="far fa-clock text-gray-400"></i><span>' + classItem.startTime + ' - ' + classItem.endTime + '</span></div>' +
+                                    '<span class="px-2 py-1 bg-teal-100 text-teal-800 rounded text-xs font-semibold">Rescheduled</span>' +
+                                '</div>' +
+                                reasonHtml +
                             '</div>' +
                         '</div>' +
                         '<button onclick="viewCompletedClassDetails(\'' + classItem.scheduleId + '\')" class="px-6 py-2 bg-blue-600 text-white rounded-lg font-semibold hover:bg-blue-700 transition">View Details</button>' +
