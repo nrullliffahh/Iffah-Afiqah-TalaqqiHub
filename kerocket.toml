@@ -1,10 +1,15 @@
 # TalaqqiHub — Java Servlet/JSP on Apache Tomcat 9 (NOT Node.js).
 #
-# IMPORTANT: No root package.json — this is intentional.
-# Kerocket MUST use Docker build only (do not use Nixpacks Node.js detection).
+# BUILD: Docker only (Maven WAR + Tomcat 9). Do not use Nixpacks Node detection.
 #
-# Deploy tab env vars:
-#   DB_URL, DB_USER, DB_PASSWORD, DATABASE_URL, GEMINI_API_KEY, PORT
+# DEPLOY TAB — required environment variables (copy from .env.example):
+#   DB_URL         = jdbc:mysql://HOST:PORT/talaqqihub_db?sslMode=REQUIRED
+#   DB_USER        = avnadmin          (Aiven default user)
+#   DB_PASSWORD    = <your Aiven password>   ← MUST be set in Deploy tab
+#   PORT           = 8080
+#   GEMINI_API_KEY = (optional, for AI assistant)
+#
+# Alternative: attach MySQL data service and set DATABASE_URL instead of DB_USER/DB_PASSWORD.
 
 [project]
 name = "TalaqqiHub"
@@ -16,9 +21,9 @@ stack = "docker"
 builder = "docker"
 method = "dockerfile"
 dockerfile = "Dockerfile"
-# Do not run Nixpacks — Dockerfile builds Maven WAR + Tomcat 9.
+context = "."
 
 [runtime]
 type = "docker"
-start = "/usr/local/bin/docker-entrypoint.sh catalina.sh run"
 port = 8080
+start = "/usr/local/bin/docker-entrypoint.sh catalina.sh run"

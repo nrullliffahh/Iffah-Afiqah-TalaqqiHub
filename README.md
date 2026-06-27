@@ -6,7 +6,19 @@ Java Servlet/JSP web application (Maven WAR) deployed on **Apache Tomcat 9**.
 
 This repo is **not** a Node.js app. There is **no root `package.json`** by design.
 
-Kerocket must use **Docker build** (`kerocket.toml` → `Dockerfile`):
+### Pre-deploy checklist (Kerocket dashboard)
+
+1. **Build method:** Docker (`kerocket.toml` → `Dockerfile`). Do not rely on Nixpacks alone — Tomcat is required at runtime.
+2. **Environment variables** (Project → Settings → Deploy tab) — **required:**
+   - `DB_USER` = `avnadmin` (or your MySQL user)
+   - `DB_PASSWORD` = your Aiven/cloud MySQL password
+   - `DB_URL` = `jdbc:mysql://HOST:PORT/talaqqihub_db?sslMode=REQUIRED&serverTimezone=UTC`
+   - `PORT` = `8080`
+3. Import `db/talaqqihub_backup.sql` into your cloud MySQL before testing login.
+
+Kerocket validates env vars against `.env.example`. Copy values from that file into the Deploy tab (use real secrets, not placeholders).
+
+### How the container works
 
 - Maven compiles sources into `TalaqqiHub.war` and deploys as Tomcat `ROOT.war`
 - `docker-entrypoint.sh` binds Tomcat to `0.0.0.0:$PORT` and configures the MySQL JNDI datasource from env vars
