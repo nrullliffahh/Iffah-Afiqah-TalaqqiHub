@@ -1,6 +1,8 @@
 -- Production Aiven: upgrade legacy studentevaluation + talaqqisession for teacher portal.
 -- Safe to re-run: ignore "Duplicate column" errors.
 
+ALTER TABLE studentevaluation ADD COLUMN sessionId VARCHAR(50) DEFAULT NULL;
+ALTER TABLE studentevaluation ADD COLUMN scheduleId INT DEFAULT NULL;
 ALTER TABLE studentevaluation ADD COLUMN class_name VARCHAR(100) DEFAULT NULL;
 ALTER TABLE studentevaluation ADD COLUMN surah VARCHAR(100) DEFAULT NULL;
 ALTER TABLE studentevaluation ADD COLUMN ayah_range VARCHAR(50) DEFAULT NULL;

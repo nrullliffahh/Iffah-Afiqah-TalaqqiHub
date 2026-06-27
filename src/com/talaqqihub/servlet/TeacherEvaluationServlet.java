@@ -40,12 +40,8 @@ public class TeacherEvaluationServlet extends HttpServlet {
         }
 
         Object teacherIdObj = session.getAttribute("teacherId");
-        String teacherId;
-        if (teacherIdObj instanceof String) {
-            teacherId = (String) teacherIdObj;
-        } else if (teacherIdObj instanceof Integer) {
-            teacherId = String.format("T%03d", (Integer) teacherIdObj);
-        } else {
+        String teacherId = formatTeacherIdFromSession(teacherIdObj);
+        if (teacherId.isEmpty()) {
             response.sendRedirect(request.getContextPath() + "/teacher/login");
             return;
         }
@@ -151,7 +147,7 @@ public class TeacherEvaluationServlet extends HttpServlet {
         }
 
         Object teacherIdObj = session.getAttribute("teacherId");
-        String teacherIdStr = teacherIdObj != null ? teacherIdObj.toString().trim() : "";
+        String teacherIdStr = formatTeacherIdFromSession(teacherIdObj);
         if (teacherIdStr.isEmpty()) {
             if (isAjaxEarly) {
                 response.setContentType("application/json");
@@ -186,6 +182,7 @@ public class TeacherEvaluationServlet extends HttpServlet {
                 connection = getConnection();
 
                 TeacherEvaluationDAO dao = new TeacherEvaluationDAO(connection);
+                dao.ensureStudentEvaluationSchema();
 
                 Evaluation evaluation = extractEvaluationFromRequest(request);
                 evaluation.setTeacherId(teacherIdStr);
@@ -382,5 +379,26 @@ public class TeacherEvaluationServlet extends HttpServlet {
     private String jsonEscape(String s) {
         if (s == null) return "";
         return s.replace("\\", "\\\\").replace("\"", "\\\"").replace("\n", "\\n").replace("\r", "\\r");
+    }
+
+    private String formatTeacherIdFromSession(Object teacherIdObj) {
+        if (teacherIdObj == null) {
+            return "";
+        }
+        if (teacherIdObj instanceof String) {
+            String id = ((String) teacherIdObj).trim();
+            if (id.matches("T\\d+")) {
+                return id;
+            }
+            String digits = id.replaceAll("[^0-9]", "");
+            if (!digits.isEmpty()) {
+                return "T" + String.format("%03d", Integer.parseInt(digits));
+            }
+            return id;
+        }
+        if (teacherIdObj instanceof Number) {
+            return "T" + String.format("%03d", ((Number) teacherIdObj).intValue());
+        }
+        return teacherIdObj.toString().trim();
     }
 }

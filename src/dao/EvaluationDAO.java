@@ -317,6 +317,7 @@ public class EvaluationDAO {
                                            String sessionId, String scheduleId,
                                            int rating, String comments, String suggestions) {
         ensureFeedbackTableExists();
+        teacherId = normalizeTeacherId(teacherId);
         String sql =
             "INSERT INTO studentfeedback (feedbackId, studentId, teacherId, sessionId, scheduleId, rating, comments, suggestions) " +
             "VALUES (?, ?, ?, ?, ?, ?, ?, ?)";
@@ -663,6 +664,21 @@ public class EvaluationDAO {
 
     private double roundOrZero(double v) {
         return Double.isNaN(v) ? 0.0 : Math.round(v * 10.0) / 10.0;
+    }
+
+    private String normalizeTeacherId(String teacherId) {
+        if (teacherId == null || teacherId.trim().isEmpty()) {
+            return teacherId;
+        }
+        String trimmed = teacherId.trim();
+        if (trimmed.matches("T\\d+")) {
+            return trimmed;
+        }
+        String digits = trimmed.replaceAll("[^0-9]", "");
+        if (!digits.isEmpty()) {
+            return "T" + String.format("%03d", Integer.parseInt(digits));
+        }
+        return trimmed;
     }
 
     /**

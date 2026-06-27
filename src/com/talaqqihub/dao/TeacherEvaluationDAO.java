@@ -74,6 +74,8 @@ public class TeacherEvaluationDAO {
 
     private void migrateStudentEvaluationColumns() {
         String[][] columns = {
+            {"sessionId", "VARCHAR(50) DEFAULT NULL"},
+            {"scheduleId", "INT DEFAULT NULL"},
             {"class_name", "VARCHAR(100) DEFAULT NULL"},
             {"surah", "VARCHAR(100) DEFAULT NULL"},
             {"ayah_range", "VARCHAR(50) DEFAULT NULL"},
@@ -169,8 +171,11 @@ public class TeacherEvaluationDAO {
     }
 
     private String evalNotExistsBlocksPending() {
-        return evalCompletedPredicate("se")
-            + " OR (ts.sessionId IS NOT NULL AND se.sessionId = ts.sessionId)";
+        if (hasEvalColumn("sessionId")) {
+            return evalCompletedPredicate("se")
+                + " OR (ts.sessionId IS NOT NULL AND se.sessionId = ts.sessionId)";
+        }
+        return evalCompletedPredicate("se");
     }
 
     private String evalNotExistsBlocksPendingFallback() {
@@ -194,6 +199,7 @@ public class TeacherEvaluationDAO {
      */
     public boolean saveEvaluation(Evaluation evaluation) {
         clearError();
+        ensureStudentEvaluationSchema();
 
         String teacherIdStr = resolveTeacherId(evaluation);
         evaluation.setTeacherId(teacherIdStr);
@@ -220,12 +226,17 @@ public class TeacherEvaluationDAO {
     }
 
     private Evaluation findBySessionAndTeacher(String sessionId, String teacherId) {
-        if (sessionId == null || sessionId.trim().isEmpty()
-                || teacherId == null || teacherId.trim().isEmpty()) {
+        if (teacherId == null || teacherId.trim().isEmpty()) {
             return null;
         }
 
-        String query = "SELECT studentEvaluationId FROM studentevaluation WHERE sessionId = ? AND teacherId = ? LIMIT 1";
+        String query;
+        if (sessionId != null && !sessionId.trim().isEmpty() && hasEvalColumn("sessionId")) {
+            query = "SELECT studentEvaluationId FROM studentevaluation WHERE sessionId = ? AND teacherId = ? LIMIT 1";
+        } else {
+            return null;
+        }
+
         try (PreparedStatement stmt = connection.prepareStatement(query)) {
             stmt.setString(1, sessionId.trim());
             stmt.setString(2, teacherId.trim());
@@ -245,6 +256,10 @@ public class TeacherEvaluationDAO {
                 }
             }
         } catch (SQLException e) {
+            String msg = e.getMessage() != null ? e.getMessage() : "";
+            if (msg.contains("Unknown column") && msg.contains("sessionId")) {
+                return null;
+            }
             setError("Unable to look up existing evaluation for session " + sessionId, e);
         }
 
@@ -425,6 +440,132 @@ public class TeacherEvaluationDAO {
         return null;
     }
 
+    /** Binds INSERT/UPDATE fragments using only columns that exist in production. */
+    private static final class EvalSqlParts {
+        private final StringBuilder columns = new StringBuilder();
+        private final StringBuilder placeholders = new StringBuilder();
+        private final List<Object> values = new ArrayList<>();
+
+        void add(String column, Object value) {
+            if (columns.length() > 0) {
+                columns.append(", ");
+                placeholders.append(", ");
+            }
+            columns.append(column);
+            placeholders.append("?");
+            values.add(value);
+        }
+
+        void addExpression(String column, String expression) {
+            if (columns.length() > 0) {
+                columns.append(", ");
+                placeholders.append(", ");
+            }
+            columns.append(column);
+            placeholders.append(expression);
+        }
+
+        void addSet(String column, Object value, StringBuilder setClause, List<Object> params) {
+            if (setClause.length() > 0) {
+                setClause.append(", ");
+            }
+            setClause.append(column).append(" = ?");
+            params.add(value);
+        }
+    }
+
+    private void sqlAdd(EvalSqlParts parts, String column, Object value) {
+        if (hasEvalColumn(column)) {
+            parts.add(column, value);
+        }
+    }
+
+    private void bindParams(PreparedStatement stmt, List<Object> values) throws SQLException {
+        for (int i = 0; i < values.size(); i++) {
+            Object value = values.get(i);
+            int index = i + 1;
+            if (value instanceof Float) {
+                stmt.setFloat(index, (Float) value);
+            } else if (value instanceof Integer) {
+                stmt.setInt(index, (Integer) value);
+            } else {
+                stmt.setString(index, value != null ? String.valueOf(value) : "");
+            }
+        }
+    }
+
+    private String resolvedEvalStatus(Evaluation evaluation) {
+        String status = evaluation.getStatus();
+        if (status == null || status.trim().isEmpty()) {
+            return evaluation.getOverallScore() > 0 ? "COMPLETED" : "PENDING";
+        }
+        return status.trim();
+    }
+
+    private EvalSqlParts buildEvaluationInsertParts(Evaluation evaluation) {
+        EvalSqlParts parts = new EvalSqlParts();
+        parts.add("studentEvaluationId", resolveEvaluationId(evaluation));
+        parts.add("studentId", resolveStudentId(evaluation));
+        parts.add("teacherId", resolveTeacherId(evaluation));
+        sqlAdd(parts, "sessionId", nullToEmpty(evaluation.getSessionId()));
+        sqlAdd(parts, "class_name", nullToEmpty(evaluation.getClassName()));
+        sqlAdd(parts, "surah", nullToEmpty(evaluation.getSurah()));
+        sqlAdd(parts, "ayah_range", nullToEmpty(evaluation.getAyahRange()));
+        sqlAdd(parts, "session_date", nullToEmpty(evaluation.getSessionDate()));
+        sqlAdd(parts, "start_time", nullToEmpty(evaluation.getStartTime()));
+        sqlAdd(parts, "end_time", nullToEmpty(evaluation.getEndTime()));
+        sqlAdd(parts, "tajweedScore", evaluation.getTajweedScore());
+        sqlAdd(parts, "fluencyScore", evaluation.getFluencyScore());
+        sqlAdd(parts, "accuracyScore", evaluation.getAccuracyScore());
+        sqlAdd(parts, "overall_score", evaluation.getOverallScore());
+        sqlAdd(parts, "rating", evaluation.getRating());
+        sqlAdd(parts, "strength", truncate(evaluation.getComments(), 255));
+        sqlAdd(parts, "areas_for_improvement", nullToEmpty(evaluation.getAreasForImprovement()));
+        sqlAdd(parts, "performance_tag", nullToEmpty(evaluation.getPerformanceTag()));
+        sqlAdd(parts, "next_target_surah", nullToEmpty(evaluation.getNextTarget()));
+        sqlAdd(parts, "suggestions", nullToEmpty(evaluation.getSuggestions()));
+        sqlAdd(parts, "teacher_comments", nullToEmpty(evaluation.getTeacherComments()));
+        sqlAdd(parts, "status", resolvedEvalStatus(evaluation));
+        sqlAdd(parts, "weakness", truncate(evaluation.getAreasForImprovement(), 255));
+        sqlAdd(parts, "studentImprovements", nullToEmpty(evaluation.getSuggestions()));
+        sqlAdd(parts, "nextTarget", nullToEmpty(evaluation.getNextTarget()));
+        sqlAdd(parts, "comments", nullToEmpty(evaluation.getComments()));
+        if (TalaqqiSchemaUtil.hasColumn(connection, "studentevaluation", "createdAt")) {
+            parts.addExpression("createdAt", "NOW()");
+        } else if (hasEvalColumn("created_at")) {
+            parts.addExpression("created_at", "NOW()");
+        }
+        return parts;
+    }
+
+    private boolean insertLegacyEvaluation(Evaluation evaluation) {
+        EvalSqlParts parts = new EvalSqlParts();
+        if (hasEvalColumn("studentEvaluationId")) {
+            parts.add("studentEvaluationId", resolveEvaluationId(evaluation));
+        }
+        parts.add("studentId", resolveStudentId(evaluation));
+        parts.add("teacherId", resolveTeacherId(evaluation));
+        sqlAdd(parts, "tajweedScore", evaluation.getTajweedScore());
+        sqlAdd(parts, "fluencyScore", evaluation.getFluencyScore());
+        sqlAdd(parts, "accuracyScore", evaluation.getAccuracyScore());
+        sqlAdd(parts, "strength", truncate(evaluation.getComments(), 255));
+        sqlAdd(parts, "weakness", truncate(evaluation.getAreasForImprovement(), 255));
+        sqlAdd(parts, "studentImprovements", nullToEmpty(evaluation.getSuggestions()));
+        sqlAdd(parts, "nextTarget", nullToEmpty(evaluation.getNextTarget()));
+        sqlAdd(parts, "comments", nullToEmpty(evaluation.getComments()));
+        sqlAdd(parts, "status", resolvedEvalStatus(evaluation));
+        sqlAdd(parts, "sessionId", nullToEmpty(evaluation.getSessionId()));
+
+        String sql = "INSERT INTO studentevaluation (" + parts.columns + ") VALUES (" + parts.placeholders + ")";
+        try (PreparedStatement stmt = connection.prepareStatement(sql)) {
+            bindParams(stmt, parts.values);
+            return stmt.executeUpdate() > 0;
+        } catch (SQLException e) {
+            setError("Legacy evaluation insert failed: " + e.getMessage(), e);
+            return false;
+        }
+    }
+
     /**
      * Insert a new evaluation record
      * @param evaluation The evaluation object to insert
@@ -432,6 +573,7 @@ public class TeacherEvaluationDAO {
      */
     public boolean insertEvaluation(Evaluation evaluation) {
         clearError();
+        ensureStudentEvaluationSchema();
 
         String studentIdStr = resolveStudentId(evaluation);
         if (studentIdStr == null || studentIdStr.trim().isEmpty()) {
@@ -439,50 +581,11 @@ public class TeacherEvaluationDAO {
             return false;
         }
 
-        String createdColumn = TalaqqiSchemaUtil.hasColumn(connection, "studentevaluation", "createdAt")
-            ? "createdAt" : "created_at";
-        String query = "INSERT INTO studentevaluation " +
-            "(studentEvaluationId, studentId, teacherId, sessionId, class_name, surah, ayah_range, session_date, " +
-            "start_time, end_time, tajweedScore, fluencyScore, accuracyScore, overall_score, rating, strength, " +
-            "areas_for_improvement, performance_tag, next_target_surah, suggestions, teacher_comments, status, " +
-            "weakness, studentImprovements, nextTarget, comments, " + createdColumn + ") " +
-            "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW())";
+        EvalSqlParts parts = buildEvaluationInsertParts(evaluation);
+        String sql = "INSERT INTO studentevaluation (" + parts.columns + ") VALUES (" + parts.placeholders + ")";
 
-        try (PreparedStatement stmt = connection.prepareStatement(query)) {
-            String evalIdStr = resolveEvaluationId(evaluation);
-            String teacherIdStr = resolveTeacherId(evaluation);
-            String sessionId = evaluation.getSessionId();
-            if (sessionId == null || sessionId.trim().isEmpty()) {
-                sessionId = "";
-            }
-
-            stmt.setString(1, evalIdStr);
-            stmt.setString(2, studentIdStr);
-            stmt.setString(3, teacherIdStr);
-            stmt.setString(4, sessionId);
-            stmt.setString(5, nullToEmpty(evaluation.getClassName()));
-            stmt.setString(6, nullToEmpty(evaluation.getSurah()));
-            stmt.setString(7, nullToEmpty(evaluation.getAyahRange()));
-            stmt.setString(8, nullToEmpty(evaluation.getSessionDate()));
-            stmt.setString(9, nullToEmpty(evaluation.getStartTime()));
-            stmt.setString(10, nullToEmpty(evaluation.getEndTime()));
-            stmt.setFloat(11, evaluation.getTajweedScore());
-            stmt.setFloat(12, evaluation.getFluencyScore());
-            stmt.setFloat(13, evaluation.getAccuracyScore());
-            stmt.setFloat(14, evaluation.getOverallScore());
-            stmt.setInt(15, evaluation.getRating());
-            stmt.setString(16, truncate(evaluation.getComments(), 255));
-            stmt.setString(17, nullToEmpty(evaluation.getAreasForImprovement()));
-            stmt.setString(18, nullToEmpty(evaluation.getPerformanceTag()));
-            stmt.setString(19, nullToEmpty(evaluation.getNextTarget()));
-            stmt.setString(20, nullToEmpty(evaluation.getSuggestions()));
-            stmt.setString(21, nullToEmpty(evaluation.getTeacherComments()));
-            stmt.setString(22, nullToEmpty(evaluation.getStatus()));
-            stmt.setString(23, truncate(evaluation.getAreasForImprovement(), 255));
-            stmt.setString(24, nullToEmpty(evaluation.getSuggestions()));
-            stmt.setString(25, nullToEmpty(evaluation.getNextTarget()));
-            stmt.setString(26, nullToEmpty(evaluation.getComments()));
-
+        try (PreparedStatement stmt = connection.prepareStatement(sql)) {
+            bindParams(stmt, parts.values);
             int rowsAffected = stmt.executeUpdate();
             if (rowsAffected <= 0) {
                 setError("No evaluation row was created.", null);
@@ -495,6 +598,10 @@ public class TeacherEvaluationDAO {
                     evaluation.setEvaluationId(existing.getEvaluationId());
                     return updateEvaluation(evaluation);
                 }
+            }
+            System.err.println("[TeacherEvaluationDAO] insertEvaluation primary failed: " + e.getMessage());
+            if (insertLegacyEvaluation(evaluation)) {
+                return true;
             }
             setError("Database error while saving evaluation: " + e.getMessage(), e);
         }
@@ -510,45 +617,105 @@ public class TeacherEvaluationDAO {
     public boolean updateEvaluation(Evaluation evaluation) {
         clearError();
 
-        String query = "UPDATE studentevaluation SET " +
-            "studentId = ?, sessionId = ?, class_name = ?, surah = ?, ayah_range = ?, session_date = ?, " +
-            "start_time = ?, end_time = ?, tajweedScore = ?, fluencyScore = ?, accuracyScore = ?, " +
-            "overall_score = ?, rating = ?, strength = ?, areas_for_improvement = ?, " +
-            "performance_tag = ?, next_target_surah = ?, suggestions = ?, teacher_comments = ?, status = ?, " +
-            "weakness = ?, studentImprovements = ?, nextTarget = ?, comments = ?, updated_at = NOW() " +
-            "WHERE studentEvaluationId = ? AND teacherId = ?";
+        StringBuilder setClause = new StringBuilder();
+        List<Object> params = new ArrayList<>();
+        EvalSqlParts helper = new EvalSqlParts();
+
+        helper.addSet("studentId", resolveStudentId(evaluation), setClause, params);
+        if (hasEvalColumn("sessionId")) {
+            helper.addSet("sessionId", nullToEmpty(evaluation.getSessionId()), setClause, params);
+        }
+        if (hasEvalColumn("class_name")) {
+            helper.addSet("class_name", nullToEmpty(evaluation.getClassName()), setClause, params);
+        }
+        if (hasEvalColumn("surah")) {
+            helper.addSet("surah", nullToEmpty(evaluation.getSurah()), setClause, params);
+        }
+        if (hasEvalColumn("ayah_range")) {
+            helper.addSet("ayah_range", nullToEmpty(evaluation.getAyahRange()), setClause, params);
+        }
+        if (hasEvalColumn("session_date")) {
+            helper.addSet("session_date", nullToEmpty(evaluation.getSessionDate()), setClause, params);
+        }
+        if (hasEvalColumn("start_time")) {
+            helper.addSet("start_time", nullToEmpty(evaluation.getStartTime()), setClause, params);
+        }
+        if (hasEvalColumn("end_time")) {
+            helper.addSet("end_time", nullToEmpty(evaluation.getEndTime()), setClause, params);
+        }
+        if (hasEvalColumn("tajweedScore")) {
+            helper.addSet("tajweedScore", evaluation.getTajweedScore(), setClause, params);
+        }
+        if (hasEvalColumn("fluencyScore")) {
+            helper.addSet("fluencyScore", evaluation.getFluencyScore(), setClause, params);
+        }
+        if (hasEvalColumn("accuracyScore")) {
+            helper.addSet("accuracyScore", evaluation.getAccuracyScore(), setClause, params);
+        }
+        if (hasEvalColumn("overall_score")) {
+            helper.addSet("overall_score", evaluation.getOverallScore(), setClause, params);
+        }
+        if (hasEvalColumn("rating")) {
+            helper.addSet("rating", evaluation.getRating(), setClause, params);
+        }
+        if (hasEvalColumn("strength")) {
+            helper.addSet("strength", truncate(evaluation.getComments(), 255), setClause, params);
+        }
+        if (hasEvalColumn("areas_for_improvement")) {
+            helper.addSet("areas_for_improvement", nullToEmpty(evaluation.getAreasForImprovement()), setClause, params);
+        }
+        if (hasEvalColumn("performance_tag")) {
+            helper.addSet("performance_tag", nullToEmpty(evaluation.getPerformanceTag()), setClause, params);
+        }
+        if (hasEvalColumn("next_target_surah")) {
+            helper.addSet("next_target_surah", nullToEmpty(evaluation.getNextTarget()), setClause, params);
+        }
+        if (hasEvalColumn("suggestions")) {
+            helper.addSet("suggestions", nullToEmpty(evaluation.getSuggestions()), setClause, params);
+        }
+        if (hasEvalColumn("teacher_comments")) {
+            helper.addSet("teacher_comments", nullToEmpty(evaluation.getTeacherComments()), setClause, params);
+        }
+        if (hasEvalColumn("status")) {
+            helper.addSet("status", resolvedEvalStatus(evaluation), setClause, params);
+        }
+        if (hasEvalColumn("weakness")) {
+            helper.addSet("weakness", truncate(evaluation.getAreasForImprovement(), 255), setClause, params);
+        }
+        if (hasEvalColumn("studentImprovements")) {
+            helper.addSet("studentImprovements", nullToEmpty(evaluation.getSuggestions()), setClause, params);
+        }
+        if (hasEvalColumn("nextTarget")) {
+            helper.addSet("nextTarget", nullToEmpty(evaluation.getNextTarget()), setClause, params);
+        }
+        if (hasEvalColumn("comments")) {
+            helper.addSet("comments", nullToEmpty(evaluation.getComments()), setClause, params);
+        }
+        if (hasEvalColumn("updated_at")) {
+            if (setClause.length() > 0) {
+                setClause.append(", ");
+            }
+            setClause.append("updated_at = NOW()");
+        }
+
+        String evalIdStr = resolveEvaluationId(evaluation);
+        String teacherIdStr = resolveTeacherId(evaluation);
+        String query = "UPDATE studentevaluation SET " + setClause
+            + " WHERE studentEvaluationId = ? AND teacherId = ?";
 
         try (PreparedStatement stmt = connection.prepareStatement(query)) {
-            String evalIdStr = resolveEvaluationId(evaluation);
-            String teacherIdStr = resolveTeacherId(evaluation);
-            String studentIdStr = resolveStudentId(evaluation);
-
-            stmt.setString(1, studentIdStr);
-            stmt.setString(2, nullToEmpty(evaluation.getSessionId()));
-            stmt.setString(3, nullToEmpty(evaluation.getClassName()));
-            stmt.setString(4, nullToEmpty(evaluation.getSurah()));
-            stmt.setString(5, nullToEmpty(evaluation.getAyahRange()));
-            stmt.setString(6, nullToEmpty(evaluation.getSessionDate()));
-            stmt.setString(7, nullToEmpty(evaluation.getStartTime()));
-            stmt.setString(8, nullToEmpty(evaluation.getEndTime()));
-            stmt.setFloat(9, evaluation.getTajweedScore());
-            stmt.setFloat(10, evaluation.getFluencyScore());
-            stmt.setFloat(11, evaluation.getAccuracyScore());
-            stmt.setFloat(12, evaluation.getOverallScore());
-            stmt.setInt(13, evaluation.getRating());
-            stmt.setString(14, truncate(evaluation.getComments(), 255));
-            stmt.setString(15, nullToEmpty(evaluation.getAreasForImprovement()));
-            stmt.setString(16, nullToEmpty(evaluation.getPerformanceTag()));
-            stmt.setString(17, nullToEmpty(evaluation.getNextTarget()));
-            stmt.setString(18, nullToEmpty(evaluation.getSuggestions()));
-            stmt.setString(19, nullToEmpty(evaluation.getTeacherComments()));
-            stmt.setString(20, nullToEmpty(evaluation.getStatus()));
-            stmt.setString(21, truncate(evaluation.getAreasForImprovement(), 255));
-            stmt.setString(22, nullToEmpty(evaluation.getSuggestions()));
-            stmt.setString(23, nullToEmpty(evaluation.getNextTarget()));
-            stmt.setString(24, nullToEmpty(evaluation.getComments()));
-            stmt.setString(25, evalIdStr);
-            stmt.setString(26, teacherIdStr);
+            int index = 1;
+            for (Object param : params) {
+                if (param instanceof Float) {
+                    stmt.setFloat(index++, (Float) param);
+                } else if (param instanceof Integer) {
+                    stmt.setInt(index++, (Integer) param);
+                } else {
+                    stmt.setString(index++, param != null ? String.valueOf(param) : "");
+                }
+            }
+            stmt.setString(index++, evalIdStr);
+            stmt.setString(index, teacherIdStr);
 
             int rowsAffected = stmt.executeUpdate();
             if (rowsAffected <= 0) {
@@ -762,18 +929,30 @@ public class TeacherEvaluationDAO {
         String sessionId = nullToEmpty(evaluation.getSessionId());
 
         String[] queries;
-        if (hasEvalColumn("status")) {
+        if (hasEvalColumn("status") && hasEvalColumn("sessionId")) {
             queries = new String[] {
                 "INSERT INTO studentevaluation (studentEvaluationId, studentId, teacherId, sessionId, status) "
                     + "VALUES (?, ?, ?, ?, 'PENDING')",
                 "INSERT INTO studentevaluation (studentId, teacherId, sessionId, status) "
                     + "VALUES (?, ?, ?, 'PENDING')"
             };
-        } else {
+        } else if (hasEvalColumn("status")) {
+            queries = new String[] {
+                "INSERT INTO studentevaluation (studentEvaluationId, studentId, teacherId, status) "
+                    + "VALUES (?, ?, ?, 'PENDING')",
+                "INSERT INTO studentevaluation (studentId, teacherId, status) VALUES (?, ?, 'PENDING')"
+            };
+        } else if (hasEvalColumn("sessionId")) {
             queries = new String[] {
                 "INSERT INTO studentevaluation (studentEvaluationId, studentId, teacherId, sessionId) "
                     + "VALUES (?, ?, ?, ?)",
                 "INSERT INTO studentevaluation (studentId, teacherId, sessionId) VALUES (?, ?, ?)"
+            };
+        } else {
+            queries = new String[] {
+                "INSERT INTO studentevaluation (studentEvaluationId, studentId, teacherId) "
+                    + "VALUES (?, ?, ?)",
+                "INSERT INTO studentevaluation (studentId, teacherId) VALUES (?, ?)"
             };
         }
 
@@ -781,7 +960,13 @@ public class TeacherEvaluationDAO {
             stmt.setString(1, evalIdStr);
             stmt.setString(2, studentIdStr);
             stmt.setString(3, teacherIdStr);
-            stmt.setString(4, sessionId);
+            int nextParam = 4;
+            if (hasEvalColumn("sessionId")) {
+                stmt.setString(nextParam++, sessionId);
+            }
+            if (hasEvalColumn("status") && queries[0].contains("status")) {
+                // status literal in SQL
+            }
             if (stmt.executeUpdate() > 0) {
                 return true;
             }
@@ -792,7 +977,9 @@ public class TeacherEvaluationDAO {
         try (PreparedStatement stmt = connection.prepareStatement(queries[1])) {
             stmt.setString(1, studentIdStr);
             stmt.setString(2, teacherIdStr);
-            stmt.setString(3, sessionId);
+            if (hasEvalColumn("sessionId")) {
+                stmt.setString(3, sessionId);
+            }
             return stmt.executeUpdate() > 0;
         } catch (SQLException e) {
             setError("Unable to create minimal pending evaluation: " + e.getMessage(), e);
@@ -819,7 +1006,7 @@ public class TeacherEvaluationDAO {
             "COALESCE(cs.classAyah, 0) AS quran_ayah_number, " +
             "COALESCE(NULLIF(se.teacherId, ''), cs.teacherId, '') AS teacherId, " +
             "COALESCE(NULLIF(t.teacherName, ''), '') AS teacher_name, " +
-            "se.sessionId, se.tajweedScore, se.fluencyScore, se.accuracyScore, " +
+            (hasEvalColumn("sessionId") ? "se.sessionId" : "NULL AS sessionId") + ", se.tajweedScore, se.fluencyScore, se.accuracyScore, " +
             evalSelectColumn("overall_score") + ", " +
             evalSelectColumn("rating") + ", " +
             "se.strength, " +
@@ -860,8 +1047,9 @@ public class TeacherEvaluationDAO {
 
     /** Last-resort: only columns guaranteed on the oldest production dump. */
     private void tryLegacyPendingEvaluationsFallback(String teacherId, List<Evaluation> evaluations) {
+        String sessionCol = hasEvalColumn("sessionId") ? "se.sessionId" : "NULL AS sessionId";
         String query =
-            "SELECT se.studentEvaluationId, se.studentId, se.sessionId, se.teacherId, "
+            "SELECT se.studentEvaluationId, se.studentId, " + sessionCol + ", se.teacherId, "
             + "se.tajweedScore, se.fluencyScore, se.accuracyScore, se.strength, se.weakness, "
             + "se.studentImprovements, se.nextTarget, se.comments, "
             + "COALESCE(s.studentName, '') AS student_name, '' AS teacher_name, "
@@ -891,47 +1079,158 @@ public class TeacherEvaluationDAO {
     /**
      * Student feedback about this teacher (studentfeedback table).
      */
+    public void ensureStudentFeedbackSchema() {
+        String ddl =
+            "CREATE TABLE IF NOT EXISTS studentfeedback ("
+            + "feedbackId VARCHAR(50) NOT NULL PRIMARY KEY, "
+            + "studentId VARCHAR(50) NOT NULL, "
+            + "teacherId VARCHAR(50) NOT NULL, "
+            + "sessionId VARCHAR(50) DEFAULT NULL, "
+            + "scheduleId INT DEFAULT NULL, "
+            + "rating INT NOT NULL DEFAULT 0, "
+            + "comments TEXT, "
+            + "suggestions TEXT, "
+            + "createdAt TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP, "
+            + "KEY idx_sf_student (studentId), "
+            + "KEY idx_sf_teacher (teacherId), "
+            + "KEY idx_sf_session (sessionId)"
+            + ") ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci";
+        try (Statement stmt = connection.createStatement()) {
+            stmt.execute(ddl);
+        } catch (SQLException e) {
+            System.err.println("[TeacherEvaluationDAO] ensureStudentFeedbackSchema: " + e.getMessage());
+        }
+    }
+
+    /**
+     * Student feedback about this teacher (studentfeedback table).
+     */
     public List<Evaluation> getStudentFeedbackForTeacher(String teacherId) {
         List<Evaluation> evaluations = new ArrayList<>();
+        ensureStudentFeedbackSchema();
+
+        List<String> teacherIds = teacherIdMatchValues(teacherId);
+        if (teacherIds.isEmpty()) {
+            return evaluations;
+        }
+
+        StringBuilder inClause = new StringBuilder();
+        for (int i = 0; i < teacherIds.size(); i++) {
+            if (i > 0) {
+                inClause.append(", ");
+            }
+            inClause.append("?");
+        }
+
         String ayahRange = TalaqqiSchemaUtil.ayahRangeExpr(connection);
         String query =
-            "SELECT sf.feedbackId, sf.sessionId, sf.rating, sf.comments, sf.suggestions, " +
-            "DATE_FORMAT(sf.createdAt,'%Y-%m-%d') AS createdAt, " +
-            "s.studentName AS student_name, " +
-            "DATE_FORMAT(cs.scheduleDate,'%Y-%m-%d') AS session_date, " +
-            "DATE_FORMAT(cs.startTime,'%H:%i:%s') AS start_time, " +
-            "DATE_FORMAT(cs.endTime,'%H:%i:%s') AS end_time, " +
-            "cs.classSurah AS surah, " +
-            ayahRange + " AS ayah_range " +
-            "FROM studentfeedback sf " +
-            "JOIN student s ON sf.studentId = s.studentId " +
-            TalaqqiSchemaUtil.leftJoinSessionFromFeedback(connection) +
-            "WHERE sf.teacherId = ? " +
-            "ORDER BY sf.createdAt DESC";
+            "SELECT sf.feedbackId, sf.sessionId, sf.rating, sf.comments, sf.suggestions, "
+            + "DATE_FORMAT(sf.createdAt,'%Y-%m-%d') AS createdAt, "
+            + "s.studentName AS student_name, "
+            + "DATE_FORMAT(cs.scheduleDate,'%Y-%m-%d') AS session_date, "
+            + "DATE_FORMAT(cs.startTime,'%H:%i:%s') AS start_time, "
+            + "DATE_FORMAT(cs.endTime,'%H:%i:%s') AS end_time, "
+            + "cs.classSurah AS surah, "
+            + ayahRange + " AS ayah_range "
+            + "FROM studentfeedback sf "
+            + "JOIN student s ON sf.studentId = s.studentId "
+            + TalaqqiSchemaUtil.leftJoinSessionFromFeedback(connection)
+            + "WHERE sf.teacherId IN (" + inClause + ") "
+            + "ORDER BY sf.createdAt DESC";
 
         try (PreparedStatement stmt = connection.prepareStatement(query)) {
-            stmt.setString(1, teacherId);
-            ResultSet rs = stmt.executeQuery();
-            while (rs.next()) {
-                Evaluation evaluation = new Evaluation();
-                evaluation.setSessionId(rs.getString("sessionId"));
-                evaluation.setStudentName(rs.getString("student_name"));
-                evaluation.setRating(rs.getInt("rating"));
-                evaluation.setComments(rs.getString("comments"));
-                evaluation.setSuggestions(rs.getString("suggestions"));
-                evaluation.setCreatedAt(rs.getString("createdAt"));
-                evaluation.setSessionDate(rs.getString("session_date"));
-                evaluation.setStartTime(rs.getString("start_time"));
-                evaluation.setEndTime(rs.getString("end_time"));
-                evaluation.setSurah(resolveSurahDisplay(rs.getString("surah")));
-                evaluation.setAyahRange(rs.getString("ayah_range"));
-                evaluations.add(evaluation);
+            bindTeacherIdParams(stmt, teacherIds);
+            try (ResultSet rs = stmt.executeQuery()) {
+                while (rs.next()) {
+                    evaluations.add(mapStudentFeedbackRow(rs));
+                }
             }
+            System.out.println("[TeacherEvaluationDAO] getStudentFeedbackForTeacher teacherId="
+                + teacherId + " -> " + evaluations.size() + " rows");
         } catch (SQLException e) {
-            System.err.println("Error in getStudentFeedbackForTeacher: " + e.getMessage());
-            e.printStackTrace();
+            System.err.println("[TeacherEvaluationDAO] getStudentFeedbackForTeacher join query failed: "
+                + e.getMessage());
+            loadStudentFeedbackFallback(teacherIds, evaluations);
         }
         return evaluations;
+    }
+
+    private void loadStudentFeedbackFallback(List<String> teacherIds, List<Evaluation> evaluations) {
+        StringBuilder inClause = new StringBuilder();
+        for (int i = 0; i < teacherIds.size(); i++) {
+            if (i > 0) {
+                inClause.append(", ");
+            }
+            inClause.append("?");
+        }
+
+        String query =
+            "SELECT sf.feedbackId, sf.sessionId, sf.rating, sf.comments, sf.suggestions, "
+            + "DATE_FORMAT(sf.createdAt,'%Y-%m-%d') AS createdAt, "
+            + "COALESCE(s.studentName, '') AS student_name "
+            + "FROM studentfeedback sf "
+            + "LEFT JOIN student s ON sf.studentId = s.studentId "
+            + "WHERE sf.teacherId IN (" + inClause + ") "
+            + "ORDER BY sf.createdAt DESC";
+
+        try (PreparedStatement stmt = connection.prepareStatement(query)) {
+            bindTeacherIdParams(stmt, teacherIds);
+            try (ResultSet rs = stmt.executeQuery()) {
+                while (rs.next()) {
+                    evaluations.add(mapStudentFeedbackRow(rs));
+                }
+            }
+            System.out.println("[TeacherEvaluationDAO] getStudentFeedbackForTeacher fallback -> "
+                + evaluations.size() + " rows");
+        } catch (SQLException e) {
+            setError("Unable to load student feedback for teacher", e);
+        }
+    }
+
+    private Evaluation mapStudentFeedbackRow(ResultSet rs) throws SQLException {
+        Evaluation evaluation = new Evaluation();
+        evaluation.setSessionId(rs.getString("sessionId"));
+        evaluation.setStudentName(rs.getString("student_name"));
+        evaluation.setRating(rs.getInt("rating"));
+        evaluation.setComments(rs.getString("comments"));
+        evaluation.setSuggestions(rs.getString("suggestions"));
+        evaluation.setCreatedAt(rs.getString("createdAt"));
+        try {
+            evaluation.setSessionDate(rs.getString("session_date"));
+            evaluation.setStartTime(rs.getString("start_time"));
+            evaluation.setEndTime(rs.getString("end_time"));
+            evaluation.setSurah(resolveSurahDisplay(rs.getString("surah")));
+            evaluation.setAyahRange(rs.getString("ayah_range"));
+        } catch (SQLException ignored) {
+            // Fallback query omits schedule/session join columns.
+        }
+        return evaluation;
+    }
+
+    private List<String> teacherIdMatchValues(String teacherId) {
+        LinkedHashSet<String> ids = new LinkedHashSet<>();
+        if (teacherId == null || teacherId.trim().isEmpty()) {
+            return new ArrayList<>();
+        }
+        String trimmed = teacherId.trim();
+        ids.add(trimmed);
+
+        String digits = trimmed.replaceAll("[^0-9]", "");
+        if (!digits.isEmpty()) {
+            int num = Integer.parseInt(digits);
+            ids.add("T" + String.format("%03d", num));
+            ids.add("T" + num);
+            ids.add(String.valueOf(num));
+        } else if (trimmed.matches("T\\d+")) {
+            ids.add(trimmed.replaceFirst("^T0+", "T"));
+        }
+        return new ArrayList<>(ids);
+    }
+
+    private void bindTeacherIdParams(PreparedStatement stmt, List<String> teacherIds) throws SQLException {
+        for (int i = 0; i < teacherIds.size(); i++) {
+            stmt.setString(i + 1, teacherIds.get(i));
+        }
     }
 
     /**
