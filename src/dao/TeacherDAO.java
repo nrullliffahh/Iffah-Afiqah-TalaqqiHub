@@ -342,14 +342,20 @@ public class TeacherDAO {
      * Get teacher details by teacher ID for dashboard
      */
     public Teacher getTeacherById(String teacherId) {
-        Teacher teacher = fetchTeacherById(teacherId, true);
+        if (teacherId == null || teacherId.trim().isEmpty()) {
+            return null;
+        }
+        Teacher teacher = fetchTeacherById(teacherId, true, true);
         if (teacher == null) {
-            teacher = fetchTeacherById(teacherId, false);
+            teacher = fetchTeacherById(teacherId, false, true);
+        }
+        if (teacher == null) {
+            teacher = fetchTeacherById(teacherId, false, false);
         }
         return teacher;
     }
 
-    private Teacher fetchTeacherById(String teacherId, boolean includeApprovalStatus) {
+    private Teacher fetchTeacherById(String teacherId, boolean useApprovalStatus, boolean includeCertificationPath) {
         Teacher teacher = null;
         Connection conn = null;
         PreparedStatement stmt = null;
@@ -361,10 +367,19 @@ public class TeacherDAO {
                 System.err.println("getTeacherById: DB connection is null.");
                 return null;
             }
-            String sql = includeApprovalStatus
-                    ? "SELECT teacherId, teacherName, teacherEmail, registrationDate, specialtyArea, teacherPhoneNo, qualifications, approvalStatus, certificationPath FROM teacher WHERE teacherId = ?"
-                    : "SELECT teacherId, teacherName, teacherEmail, registrationDate, specialtyArea, teacherPhoneNo, qualifications, teacherStatus, certificationPath FROM teacher WHERE teacherId = ?";
-            stmt = conn.prepareStatement(sql);
+
+            String statusColumn = useApprovalStatus ? "approvalStatus" : "teacherStatus";
+            StringBuilder sql = new StringBuilder(
+                "SELECT teacherId, teacherName, teacherEmail, registrationDate, specialtyArea, "
+                    + "teacherPhoneNo, qualifications, "
+            );
+            sql.append(statusColumn);
+            if (includeCertificationPath) {
+                sql.append(", certificationPath");
+            }
+            sql.append(" FROM teacher WHERE teacherId = ?");
+
+            stmt = conn.prepareStatement(sql.toString());
             stmt.setString(1, teacherId);
             rs = stmt.executeQuery();
 
@@ -376,12 +391,14 @@ public class TeacherDAO {
                 teacher.setSpecialty(rs.getString("specialtyArea"));
                 teacher.setPhone(rs.getString("teacherPhoneNo"));
                 teacher.setQualification(rs.getString("qualifications"));
-                if (includeApprovalStatus) {
+                if (useApprovalStatus) {
                     teacher.setStatus(normalizeApprovalStatus(rs.getString("approvalStatus")));
                 } else {
                     teacher.setStatus(mapTeacherStatusToApproval(rs.getString("teacherStatus")));
                 }
-                teacher.setCertificationPath(rs.getString("certificationPath"));
+                if (includeCertificationPath) {
+                    teacher.setCertificationPath(rs.getString("certificationPath"));
+                }
 
                 java.sql.Date sqlDate = rs.getDate("registrationDate");
                 if (sqlDate != null) {
@@ -389,20 +406,30 @@ public class TeacherDAO {
                 }
             }
         } catch (SQLException e) {
-            e.printStackTrace();
+            if (useApprovalStatus || includeCertificationPath) {
+                System.out.println("fetchTeacherById fallback (" + statusLabel(useApprovalStatus, includeCertificationPath)
+                    + "): " + e.getMessage());
+                return null;
+            }
+            System.err.println("fetchTeacherById failed: " + e.getMessage());
         } finally {
             try {
                 if (rs != null) rs.close();
                 if (stmt != null) stmt.close();
                 if (conn != null) conn.close();
             } catch (SQLException e) {
-                e.printStackTrace();
+                System.err.println("fetchTeacherById cleanup failed: " + e.getMessage());
             }
         }
 
         return teacher;
     }
-    
+
+    private static String statusLabel(boolean useApprovalStatus, boolean includeCertificationPath) {
+        return (useApprovalStatus ? "approvalStatus" : "teacherStatus")
+            + (includeCertificationPath ? "+certificationPath" : "");
+    }
+
     /**
      * Get count of classes scheduled for this week for a specific teacher
      */

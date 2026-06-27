@@ -234,19 +234,40 @@ public class StudentBookingDAO {
      * booked (boolean), bookingId, bookingStudentId, bookingStatus
      */
     public List<Map<String, Object>> getSchedulesWithBookingInfoByDate(LocalDate date) {
-        List<Map<String, Object>> list = new ArrayList<>();
-        String sql = "SELECT cs.scheduleId, cs.startTime, cs.endTime, cs.duration, cs.teacherId, t.teacherName, " +
-                 "cb.bookingId, cb.studentId AS bookingStudentId, cb.bookingStatus, sc.cancellationReason AS cancellationReason " +
-                    "FROM classschedule cs " +
-                    "LEFT JOIN teacher t ON cs.teacherId = t.teacherId " +
-                    "LEFT JOIN classbooking cb ON cs.scheduleId = cb.scheduleId AND cb.bookingStatus != 'Cancelled' " +
-                    "LEFT JOIN studentcancellation sc ON cb.bookingId = sc.bookingId " +
-                     "WHERE cs.scheduleDate = ? " +
-                     "ORDER BY cs.startTime ASC";
+        String sqlWithCancellation =
+            "SELECT cs.scheduleId, cs.startTime, cs.endTime, cs.duration, cs.teacherId, t.teacherName, "
+                + "cb.bookingId, cb.studentId AS bookingStudentId, cb.bookingStatus, sc.cancellationReason AS cancellationReason "
+                + "FROM classschedule cs "
+                + "LEFT JOIN teacher t ON cs.teacherId = t.teacherId "
+                + "LEFT JOIN classbooking cb ON cs.scheduleId = cb.scheduleId AND cb.bookingStatus != 'Cancelled' "
+                + "LEFT JOIN studentcancellation sc ON cb.bookingId = sc.bookingId "
+                + "WHERE cs.scheduleDate = ? "
+                + "ORDER BY cs.startTime ASC";
+        String sqlWithoutCancellation =
+            "SELECT cs.scheduleId, cs.startTime, cs.endTime, cs.duration, cs.teacherId, t.teacherName, "
+                + "cb.bookingId, cb.studentId AS bookingStudentId, cb.bookingStatus, NULL AS cancellationReason "
+                + "FROM classschedule cs "
+                + "LEFT JOIN teacher t ON cs.teacherId = t.teacherId "
+                + "LEFT JOIN classbooking cb ON cs.scheduleId = cb.scheduleId AND cb.bookingStatus != 'Cancelled' "
+                + "WHERE cs.scheduleDate = ? "
+                + "ORDER BY cs.startTime ASC";
 
+        for (String sql : new String[] { sqlWithCancellation, sqlWithoutCancellation }) {
+            List<Map<String, Object>> list = querySchedulesWithBookingInfo(sql, date);
+            if (list != null) {
+                return list;
+            }
+        }
+        return new ArrayList<>();
+    }
+
+    private List<Map<String, Object>> querySchedulesWithBookingInfo(String sql, LocalDate date) {
+        List<Map<String, Object>> list = new ArrayList<>();
         try (Connection conn = DBConnection.getConnection();
              PreparedStatement ps = conn.prepareStatement(sql)) {
-
+            if (conn == null) {
+                return list;
+            }
             ps.setDate(1, java.sql.Date.valueOf(date));
             try (ResultSet rs = ps.executeQuery()) {
                 while (rs.next()) {
@@ -267,11 +288,14 @@ public class StudentBookingDAO {
                     list.add(m);
                 }
             }
+            return list;
         } catch (SQLException e) {
-            e.printStackTrace();
+            if (isSchemaMismatch(e)) {
+                return null;
+            }
+            System.err.println("querySchedulesWithBookingInfo failed: " + e.getMessage());
+            return list;
         }
-
-        return list;
     }
 
     public boolean bookSession(String studentId, String scheduleId, LocalDate bookingDate, LocalTime bookingTime) {
@@ -534,115 +558,7 @@ public class StudentBookingDAO {
     }
 
     public List<StudentBooking> getMyBookings(String studentId) {
-        List<StudentBooking> bookings = new ArrayList<>();
-        String sql = "SELECT b.bookingId, b.studentId, b.scheduleId, " +
-             "b.bookingDate, b.bookingTime, b.bookingStatus, b.createdAt, " +
-             "cs.className, t.teacherName AS teacherName, cs.teacherId, cs.duration, sc.cancellationReason AS cancellationReason " +
-                 "FROM classbooking b " +
-                 "LEFT JOIN classschedule cs ON b.scheduleId = cs.scheduleId " +
-                 "LEFT JOIN teacher t ON cs.teacherId = t.teacherId " +
-                 "LEFT JOIN studentcancellation sc ON b.bookingId = sc.bookingId " +
-                 "WHERE b.studentId = ? " +
-                 "ORDER BY b.bookingDate DESC, b.bookingTime DESC";
-
-        Connection conn = null;
-        try {
-            conn = DBConnection.getConnection();
-            if (conn == null) {
-                System.err.println("getMyBookings: DB connection is null");
-                return bookings;
-            }
-
-            try (PreparedStatement ps = conn.prepareStatement(sql)) {
-                ps.setString(1, studentId);
-
-                try (ResultSet rs = ps.executeQuery()) {
-                    while (rs.next()) {
-                        StudentBooking booking = new StudentBooking();
-                    booking.setBookingId(rs.getString("bookingId"));
-                    booking.setStudentId(rs.getString("studentId"));
-                    booking.setScheduleId(rs.getString("scheduleId"));
-                    
-                    if (rs.getDate("bookingDate") != null) {
-                        booking.setBookingDate(rs.getDate("bookingDate").toLocalDate());
-                    }
-                    if (rs.getTime("bookingTime") != null) {
-                        booking.setBookingTime(rs.getTime("bookingTime").toLocalTime());
-                    }
-                    
-                    booking.setBookingStatus(rs.getString("bookingStatus"));
-                    
-                    if (rs.getDate("createdAt") != null) {
-                        booking.setCreatedAt(rs.getDate("createdAt").toLocalDate());
-                    }
-                    
-                    booking.setClassName(rs.getString("className"));
-                    booking.setTeacherName(rs.getString("teacherName"));
-                    booking.setTeacherId(rs.getString("teacherId"));
-                    booking.setDuration(rs.getInt("duration"));
-                    booking.setCancellationReason(rs.getString("cancellationReason"));
-                    
-                    bookings.add(booking);
-                }
-            } catch (SQLException e) {
-                // Some installations may not have `createdAt` column in `classbooking`.
-                // Fall back to a query that supplies a NULL createdAt column so result mapping still works.
-                String fallbackSql = "SELECT b.bookingId, b.studentId, b.scheduleId, " +
-                     "b.bookingDate, b.bookingTime, b.bookingStatus, NULL AS createdAt, " +
-                     "cs.className, t.teacherName AS teacherName, cs.teacherId, cs.duration, sc.cancellationReason AS cancellationReason " +
-                         "FROM classbooking b " +
-                         "LEFT JOIN classschedule cs ON b.scheduleId = cs.scheduleId " +
-                         "LEFT JOIN teacher t ON cs.teacherId = t.teacherId " +
-                         "LEFT JOIN studentcancellation sc ON b.bookingId = sc.bookingId " +
-                         "WHERE b.studentId = ? " +
-                         "ORDER BY b.bookingDate DESC, b.bookingTime DESC";
-                try (PreparedStatement ps2 = conn.prepareStatement(fallbackSql)) {
-                    ps2.setString(1, studentId);
-                    try (ResultSet rs = ps2.executeQuery()) {
-                        while (rs.next()) {
-                            StudentBooking booking = new StudentBooking();
-                            booking.setBookingId(rs.getString("bookingId"));
-                            booking.setStudentId(rs.getString("studentId"));
-                            booking.setScheduleId(rs.getString("scheduleId"));
-
-                            if (rs.getDate("bookingDate") != null) {
-                                booking.setBookingDate(rs.getDate("bookingDate").toLocalDate());
-                            }
-                            if (rs.getTime("bookingTime") != null) {
-                                booking.setBookingTime(rs.getTime("bookingTime").toLocalTime());
-                            }
-
-                            booking.setBookingStatus(rs.getString("bookingStatus"));
-
-                            if (rs.getDate("createdAt") != null) {
-                                booking.setCreatedAt(rs.getDate("createdAt").toLocalDate());
-                            }
-
-                            booking.setClassName(rs.getString("className"));
-                            booking.setTeacherName(rs.getString("teacherName"));
-                            booking.setTeacherId(rs.getString("teacherId"));
-                            booking.setDuration(rs.getInt("duration"));
-                            booking.setCancellationReason(rs.getString("cancellationReason"));
-
-                            bookings.add(booking);
-                        }
-                    }
-                } catch (SQLException ex2) {
-                    ex2.printStackTrace();
-                }
-            }
-            }
-        } catch (SQLException e) {
-            e.printStackTrace();
-        } finally {
-            if (conn != null) {
-                try {
-                    conn.close();
-                } catch (SQLException ignored) {}
-            }
-        }
-
-        return bookings;
+        return loadStudentBookings(studentId, false);
     }
 
     /**
@@ -650,118 +566,7 @@ public class StudentBookingDAO {
      * This resets booked classes at the beginning of each new month
      */
     public List<StudentBooking> getMyBookingsByMonth(String studentId) {
-        List<StudentBooking> bookings = new ArrayList<>();
-        String sql = "SELECT b.bookingId, b.studentId, b.scheduleId, " +
-             "b.bookingDate, b.bookingTime, b.bookingStatus, b.createdAt, " +
-             "cs.className, t.teacherName AS teacherName, cs.teacherId, cs.duration, sc.cancellationReason AS cancellationReason " +
-                 "FROM classbooking b " +
-                 "LEFT JOIN classschedule cs ON b.scheduleId = cs.scheduleId " +
-                 "LEFT JOIN teacher t ON cs.teacherId = t.teacherId " +
-                 "LEFT JOIN studentcancellation sc ON b.bookingId = sc.bookingId " +
-                 "WHERE b.studentId = ? " +
-                 "AND MONTH(b.bookingDate) = MONTH(CURRENT_DATE()) " +
-                 "AND YEAR(b.bookingDate) = YEAR(CURRENT_DATE()) " +
-                 "ORDER BY b.bookingDate DESC, b.bookingTime DESC";
-
-        Connection conn = null;
-        try {
-            conn = DBConnection.getConnection();
-            if (conn == null) {
-                System.err.println("getMyBookingsByMonth: DB connection is null");
-                return bookings;
-            }
-
-            try (PreparedStatement ps = conn.prepareStatement(sql)) {
-                ps.setString(1, studentId);
-
-                try (ResultSet rs = ps.executeQuery()) {
-                    while (rs.next()) {
-                        StudentBooking booking = new StudentBooking();
-                    booking.setBookingId(rs.getString("bookingId"));
-                    booking.setStudentId(rs.getString("studentId"));
-                    booking.setScheduleId(rs.getString("scheduleId"));
-                    
-                    if (rs.getDate("bookingDate") != null) {
-                        booking.setBookingDate(rs.getDate("bookingDate").toLocalDate());
-                    }
-                    if (rs.getTime("bookingTime") != null) {
-                        booking.setBookingTime(rs.getTime("bookingTime").toLocalTime());
-                    }
-                    
-                    booking.setBookingStatus(rs.getString("bookingStatus"));
-                    
-                    if (rs.getDate("createdAt") != null) {
-                        booking.setCreatedAt(rs.getDate("createdAt").toLocalDate());
-                    }
-                    
-                    booking.setClassName(rs.getString("className"));
-                    booking.setTeacherName(rs.getString("teacherName"));
-                    booking.setTeacherId(rs.getString("teacherId"));
-                    booking.setDuration(rs.getInt("duration"));
-                    booking.setCancellationReason(rs.getString("cancellationReason"));
-                    
-                    bookings.add(booking);
-                }
-            } catch (SQLException e) {
-                // Fallback query without createdAt column if it doesn't exist
-                String fallbackSql = "SELECT b.bookingId, b.studentId, b.scheduleId, " +
-                     "b.bookingDate, b.bookingTime, b.bookingStatus, NULL AS createdAt, " +
-                     "cs.className, t.teacherName AS teacherName, cs.teacherId, cs.duration, sc.cancellationReason AS cancellationReason " +
-                         "FROM classbooking b " +
-                         "LEFT JOIN classschedule cs ON b.scheduleId = cs.scheduleId " +
-                         "LEFT JOIN teacher t ON cs.teacherId = t.teacherId " +
-                         "LEFT JOIN studentcancellation sc ON b.bookingId = sc.bookingId " +
-                         "WHERE b.studentId = ? " +
-                         "AND MONTH(b.bookingDate) = MONTH(CURRENT_DATE()) " +
-                         "AND YEAR(b.bookingDate) = YEAR(CURRENT_DATE()) " +
-                         "ORDER BY b.bookingDate DESC, b.bookingTime DESC";
-                try (PreparedStatement ps2 = conn.prepareStatement(fallbackSql)) {
-                    ps2.setString(1, studentId);
-                    try (ResultSet rs = ps2.executeQuery()) {
-                        while (rs.next()) {
-                            StudentBooking booking = new StudentBooking();
-                            booking.setBookingId(rs.getString("bookingId"));
-                            booking.setStudentId(rs.getString("studentId"));
-                            booking.setScheduleId(rs.getString("scheduleId"));
-
-                            if (rs.getDate("bookingDate") != null) {
-                                booking.setBookingDate(rs.getDate("bookingDate").toLocalDate());
-                            }
-                            if (rs.getTime("bookingTime") != null) {
-                                booking.setBookingTime(rs.getTime("bookingTime").toLocalTime());
-                            }
-
-                            booking.setBookingStatus(rs.getString("bookingStatus"));
-
-                            if (rs.getDate("createdAt") != null) {
-                                booking.setCreatedAt(rs.getDate("createdAt").toLocalDate());
-                            }
-
-                            booking.setClassName(rs.getString("className"));
-                            booking.setTeacherName(rs.getString("teacherName"));
-                            booking.setTeacherId(rs.getString("teacherId"));
-                            booking.setDuration(rs.getInt("duration"));
-                            booking.setCancellationReason(rs.getString("cancellationReason"));
-
-                            bookings.add(booking);
-                        }
-                    }
-                } catch (SQLException ex2) {
-                    ex2.printStackTrace();
-                }
-            }
-            }
-        } catch (SQLException e) {
-            e.printStackTrace();
-        } finally {
-            if (conn != null) {
-                try {
-                    conn.close();
-                } catch (SQLException ignored) {}
-            }
-        }
-
-        return bookings;
+        return loadStudentBookings(studentId, true);
     }
 
     public boolean cancelBooking(String bookingId, String reason) {
@@ -941,9 +746,95 @@ public class StudentBookingDAO {
         }
     }
 
+    private List<StudentBooking> loadStudentBookings(String studentId, boolean currentMonthOnly) {
+        List<StudentBooking> empty = new ArrayList<>();
+        Connection conn = DBConnection.getConnection();
+        if (conn == null) {
+            System.err.println("loadStudentBookings: DB connection is null");
+            return empty;
+        }
+
+        String monthFilter = currentMonthOnly
+            ? " AND MONTH(b.bookingDate) = MONTH(CURRENT_DATE()) AND YEAR(b.bookingDate) = YEAR(CURRENT_DATE())"
+            : "";
+        String orderBy = " ORDER BY b.bookingDate DESC, b.bookingTime DESC";
+        String baseFrom =
+            " FROM classbooking b "
+                + "LEFT JOIN classschedule cs ON b.scheduleId = cs.scheduleId "
+                + "LEFT JOIN teacher t ON cs.teacherId = t.teacherId ";
+
+        String[] sqlVariants = {
+            "SELECT b.bookingId, b.studentId, b.scheduleId, b.bookingDate, b.bookingTime, b.bookingStatus, b.createdAt, "
+                + "cs.className, t.teacherName AS teacherName, cs.teacherId, cs.duration, sc.cancellationReason AS cancellationReason "
+                + baseFrom + "LEFT JOIN studentcancellation sc ON b.bookingId = sc.bookingId "
+                + "WHERE b.studentId = ?" + monthFilter + orderBy,
+            "SELECT b.bookingId, b.studentId, b.scheduleId, b.bookingDate, b.bookingTime, b.bookingStatus, NULL AS createdAt, "
+                + "cs.className, t.teacherName AS teacherName, cs.teacherId, cs.duration, sc.cancellationReason AS cancellationReason "
+                + baseFrom + "LEFT JOIN studentcancellation sc ON b.bookingId = sc.bookingId "
+                + "WHERE b.studentId = ?" + monthFilter + orderBy,
+            "SELECT b.bookingId, b.studentId, b.scheduleId, b.bookingDate, b.bookingTime, b.bookingStatus, NULL AS createdAt, "
+                + "cs.className, t.teacherName AS teacherName, cs.teacherId, cs.duration, NULL AS cancellationReason "
+                + baseFrom + "WHERE b.studentId = ?" + monthFilter + orderBy
+        };
+
+        try {
+            for (String sql : sqlVariants) {
+                try {
+                    List<StudentBooking> bookings = new ArrayList<>();
+                    try (PreparedStatement ps = conn.prepareStatement(sql)) {
+                        ps.setString(1, studentId);
+                        try (ResultSet rs = ps.executeQuery()) {
+                            while (rs.next()) {
+                                StudentBooking booking = new StudentBooking();
+                                mapStudentBookingRow(rs, booking);
+                                bookings.add(booking);
+                            }
+                        }
+                    }
+                    return bookings;
+                } catch (SQLException e) {
+                    if (!isSchemaMismatch(e)) {
+                        System.err.println("loadStudentBookings failed: " + e.getMessage());
+                        break;
+                    }
+                }
+            }
+        } finally {
+            try {
+                conn.close();
+            } catch (SQLException ignored) {}
+        }
+        return empty;
+    }
+
+    private static void mapStudentBookingRow(ResultSet rs, StudentBooking booking) throws SQLException {
+        booking.setBookingId(rs.getString("bookingId"));
+        booking.setStudentId(rs.getString("studentId"));
+        booking.setScheduleId(rs.getString("scheduleId"));
+        if (rs.getDate("bookingDate") != null) {
+            booking.setBookingDate(rs.getDate("bookingDate").toLocalDate());
+        }
+        if (rs.getTime("bookingTime") != null) {
+            booking.setBookingTime(rs.getTime("bookingTime").toLocalTime());
+        }
+        booking.setBookingStatus(rs.getString("bookingStatus"));
+        if (rs.getDate("createdAt") != null) {
+            booking.setCreatedAt(rs.getDate("createdAt").toLocalDate());
+        }
+        booking.setClassName(rs.getString("className"));
+        booking.setTeacherName(rs.getString("teacherName"));
+        booking.setTeacherId(rs.getString("teacherId"));
+        booking.setDuration(rs.getInt("duration"));
+        booking.setCancellationReason(rs.getString("cancellationReason"));
+    }
+
+    private static boolean isSchemaMismatch(SQLException e) {
+        String msg = e.getMessage();
+        return msg != null && (msg.contains("Unknown column") || msg.contains("doesn't exist"));
+    }
+
     /**
-     * Generate a readable, non-hashed booking id.
-     * Format: BKG-<short-uuid>
+     * Generate a readable, non-hashed booking id (B001, B002, ...).
      */
     private String generateBookingId(String studentId) {
         // Generate a short, sequential booking id in the form B001, B002, ...
