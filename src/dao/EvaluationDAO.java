@@ -326,6 +326,11 @@ public class EvaluationDAO {
             if (list.isEmpty()) {
                 list = queryCompletedSessionsFromEndedSessions(conn, studentId);
             }
+            if (list.isEmpty()) {
+                list = queryCompletedSessionsFromTeacherEval(conn, studentId);
+            }
+            System.out.println("EvaluationDAO.getCompletedSessionsForStudent: studentId="
+                + studentId + " found=" + list.size());
         } catch (SQLException ex) {
             System.err.println("EvaluationDAO.getCompletedSessionsForStudent: " + ex.getMessage());
             ex.printStackTrace();
@@ -370,13 +375,13 @@ public class EvaluationDAO {
             + TalaqqiSchemaUtil.innerSessionBookingSchedule(conn)
             + quranJoin
             + "LEFT JOIN teacher t ON cs.teacherId = t.teacherId "
-            + "WHERE cb.studentId = ? "
-            + "  AND UPPER(cb.bookingStatus) = 'COMPLETED' "
+            + "WHERE " + studentIdMatchClause("cb.studentId", studentIdVariants(studentId))
+            + "  AND UPPER(TRIM(COALESCE(cb.bookingStatus, ''))) IN ('COMPLETED', 'COMPLETE', 'DONE') "
             + feedbackFilter
             + "ORDER BY cs.scheduleDate DESC, cs.startTime DESC";
 
         try (PreparedStatement ps = conn.prepareStatement(TalaqqiSchemaUtil.sql(sql, conn))) {
-            ps.setString(1, studentId);
+            bindStudentIdVariants(ps, 1, studentId);
             try (ResultSet rs = ps.executeQuery()) {
                 while (rs.next()) {
                     Evaluation e = new Evaluation();
@@ -418,7 +423,7 @@ public class EvaluationDAO {
             + "FROM classbooking cb "
             + "JOIN classschedule cs ON cb.scheduleId = cs.scheduleId "
             + "LEFT JOIN teacher t ON cs.teacherId = t.teacherId "
-            + "WHERE cb.studentId = ? "
+            + "WHERE " + studentIdMatchClause("cb.studentId", studentIdVariants(studentId))
             + "  AND UPPER(TRIM(COALESCE(cb.bookingStatus, ''))) IN ('COMPLETED', 'COMPLETE', 'DONE') "
             + "  AND NOT EXISTS ( "
             + "      SELECT 1 FROM studentfeedback sf "
@@ -428,19 +433,10 @@ public class EvaluationDAO {
             + "  ) "
             + "ORDER BY cs.scheduleDate DESC, cs.startTime DESC";
         try (PreparedStatement ps = conn.prepareStatement(sql)) {
-            ps.setString(1, studentId);
+            bindStudentIdVariants(ps, 1, studentId);
             try (ResultSet rs = ps.executeQuery()) {
                 while (rs.next()) {
-                    Evaluation e = new Evaluation();
-                    e.setSessionId(rs.getString("sessionId"));
-                    e.setScheduleId(rs.getString("scheduleId"));
-                    e.setTeacherId(rs.getString("teacherId"));
-                    e.setTeacherName(rs.getString("teacherName"));
-                    e.setSessionDate(rs.getString("sessionDate"));
-                    e.setStartTime(rs.getString("startTime"));
-                    e.setEndTime(rs.getString("endTime"));
-                    e.setSurahName(resolveSurahDisplay(rs.getString("surahName")));
-                    e.setAyahRange(rs.getString("ayahRange"));
+                    Evaluation e = mapCompletedSessionRow(rs);
                     list.add(e);
                 }
             }
@@ -459,6 +455,7 @@ public class EvaluationDAO {
             ? "((ts.bookingId IS NOT NULL AND ts.bookingId <> '' AND ts.bookingId = cb.bookingId) "
                 + "OR ((ts.bookingId IS NULL OR ts.bookingId = '') AND ts.scheduleId = cb.scheduleId))"
             : "ts.scheduleId = cb.scheduleId";
+        String studentClause = studentIdMatchClause("cb.studentId", studentIdVariants(studentId));
         String sql =
             "SELECT ts.sessionId, cb.scheduleId, cs.teacherId, t.teacherName, "
             + "DATE_FORMAT(COALESCE(ts.sessionDate, cs.scheduleDate),'%b %d, %Y') AS sessionDate, "
@@ -468,7 +465,7 @@ public class EvaluationDAO {
             + "CAST(" + ayahRange + " AS CHAR) AS ayahRange "
             + "FROM " + sessionTable + " ts "
             + "JOIN classschedule cs ON ts.scheduleId = cs.scheduleId "
-            + "JOIN classbooking cb ON cb.studentId = ? AND " + bookingLink + " "
+            + "JOIN classbooking cb ON " + bookingLink + " AND " + studentClause + " "
             + "LEFT JOIN teacher t ON cs.teacherId = t.teacherId "
             + "WHERE ts.sessionDate IS NOT NULL "
             + "  AND NOT EXISTS ( "
@@ -477,26 +474,73 @@ public class EvaluationDAO {
             + "  ) "
             + "ORDER BY ts.sessionDate DESC, cs.startTime DESC";
         try (PreparedStatement ps = conn.prepareStatement(sql)) {
-            ps.setString(1, studentId);
+            bindStudentIdVariants(ps, 1, studentId);
             try (ResultSet rs = ps.executeQuery()) {
                 while (rs.next()) {
-                    Evaluation e = new Evaluation();
-                    e.setSessionId(rs.getString("sessionId"));
-                    e.setScheduleId(rs.getString("scheduleId"));
-                    e.setTeacherId(rs.getString("teacherId"));
-                    e.setTeacherName(rs.getString("teacherName"));
-                    e.setSessionDate(rs.getString("sessionDate"));
-                    e.setStartTime(rs.getString("startTime"));
-                    e.setEndTime(rs.getString("endTime"));
-                    e.setSurahName(resolveSurahDisplay(rs.getString("surahName")));
-                    e.setAyahRange(rs.getString("ayahRange"));
-                    list.add(e);
+                    list.add(mapCompletedSessionRow(rs));
                 }
             }
         } catch (SQLException e) {
             System.err.println("EvaluationDAO.queryCompletedSessionsFromEndedSessions: " + e.getMessage());
         }
         return list;
+    }
+
+    /**
+     * After a teacher completes studentevaluation, the student can rate the teacher —
+     * even when booking/session joins fail on legacy production schema.
+     */
+    private List<Evaluation> queryCompletedSessionsFromTeacherEval(Connection conn, String studentId) {
+        List<Evaluation> list = new ArrayList<>();
+        String sessionCol = hasEvalColumn(conn, "sessionId")
+            ? "NULLIF(TRIM(se.sessionId), '')" : "NULL";
+        String scheduleCol = hasEvalColumn(conn, "scheduleId") ? "se.scheduleId" : "NULL AS scheduleId";
+        String surahExpr = hasEvalColumn(conn, "surah") ? "COALESCE(se.surah, '')" : "''";
+        String ayahExpr = hasEvalColumn(conn, "ayah_range") ? "COALESCE(se.ayah_range, '')" : "''";
+        String createdCol = TalaqqiSchemaUtil.studentEvalCreatedColumn(conn, "se");
+        String dateExpr = createdCol.contains(".")
+            ? "DATE_FORMAT(" + createdCol + ",'%b %d, %Y')"
+            : "DATE_FORMAT(NOW(),'%b %d, %Y')";
+        String sql =
+            "SELECT " + sessionCol + " AS sessionId, " + scheduleCol + ", se.teacherId, "
+            + "COALESCE(t.teacherName, '') AS teacherName, "
+            + dateExpr + " AS sessionDate, '' AS startTime, '' AS endTime, "
+            + surahExpr + " AS surahName, " + ayahExpr + " AS ayahRange "
+            + "FROM studentevaluation se "
+            + "LEFT JOIN teacher t ON se.teacherId = t.teacherId "
+            + "WHERE " + studentIdMatchClause("se.studentId", studentIdVariants(studentId))
+            + " AND " + evalCompletedPredicate(conn, "se") + " "
+            + "AND " + sessionCol + " IS NOT NULL "
+            + "AND NOT EXISTS ( "
+            + "  SELECT 1 FROM studentfeedback sf "
+            + "  WHERE sf.studentId = se.studentId AND sf.sessionId = se.sessionId "
+            + ") "
+            + "ORDER BY se.studentEvaluationId DESC";
+        try (PreparedStatement ps = conn.prepareStatement(sql)) {
+            bindStudentIdVariants(ps, 1, studentId);
+            try (ResultSet rs = ps.executeQuery()) {
+                while (rs.next()) {
+                    list.add(mapCompletedSessionRow(rs));
+                }
+            }
+        } catch (SQLException e) {
+            System.err.println("EvaluationDAO.queryCompletedSessionsFromTeacherEval: " + e.getMessage());
+        }
+        return list;
+    }
+
+    private Evaluation mapCompletedSessionRow(ResultSet rs) throws SQLException {
+        Evaluation e = new Evaluation();
+        e.setSessionId(rs.getString("sessionId"));
+        e.setScheduleId(rs.getString("scheduleId"));
+        e.setTeacherId(rs.getString("teacherId"));
+        e.setTeacherName(rs.getString("teacherName"));
+        e.setSessionDate(rs.getString("sessionDate"));
+        e.setStartTime(rs.getString("startTime"));
+        e.setEndTime(rs.getString("endTime"));
+        e.setSurahName(resolveSurahDisplay(rs.getString("surahName")));
+        e.setAyahRange(rs.getString("ayahRange"));
+        return e;
     }
 
     /**
@@ -920,6 +964,60 @@ public class EvaluationDAO {
 
     private double roundOrZero(double v) {
         return Double.isNaN(v) ? 0.0 : Math.round(v * 10.0) / 10.0;
+    }
+
+    private List<String> studentIdVariants(String studentId) {
+        List<String> ids = new ArrayList<>();
+        if (studentId == null || studentId.trim().isEmpty()) {
+            return ids;
+        }
+        String trimmed = studentId.trim();
+        ids.add(trimmed);
+        String digits = trimmed.replaceAll("[^0-9]", "");
+        if (!digits.isEmpty()) {
+            int n = Integer.parseInt(digits);
+            String formatted = trimmed.toUpperCase().startsWith("S")
+                ? "S" + String.format("%03d", n) : String.format("%03d", n);
+            String plain = String.valueOf(n);
+            if (!ids.contains(formatted)) {
+                ids.add(formatted);
+            }
+            if (!ids.contains(plain)) {
+                ids.add(plain);
+            }
+        }
+        return ids;
+    }
+
+    private String studentIdMatchClause(String column, List<String> variants) {
+        if (variants == null || variants.isEmpty()) {
+            return column + " = ?";
+        }
+        if (variants.size() == 1) {
+            return column + " = ?";
+        }
+        StringBuilder clause = new StringBuilder(column).append(" IN (");
+        for (int i = 0; i < variants.size(); i++) {
+            if (i > 0) {
+                clause.append(", ");
+            }
+            clause.append("?");
+        }
+        clause.append(")");
+        return clause.toString();
+    }
+
+    private int bindStudentIdVariants(PreparedStatement ps, int index, String studentId)
+            throws SQLException {
+        List<String> variants = studentIdVariants(studentId);
+        if (variants.isEmpty()) {
+            ps.setString(index++, studentId);
+            return index;
+        }
+        for (String id : variants) {
+            ps.setString(index++, id);
+        }
+        return index;
     }
 
     private String normalizeTeacherId(String teacherId) {
