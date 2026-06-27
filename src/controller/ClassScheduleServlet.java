@@ -110,10 +110,10 @@ public class ClassScheduleServlet extends HttpServlet {
             row.put("studentName", studentName);
             row.put("className", b.getClassName() != null ? b.getClassName() : "");
             if (b.getBookingDate() != null) {
-                row.put("scheduleDate", Date.valueOf(b.getBookingDate()));
+                row.put("scheduleDate", java.sql.Date.valueOf(b.getBookingDate()));
             }
-            row.put("startTime", Time.valueOf(start));
-            row.put("endTime", Time.valueOf(end));
+            row.put("startTime", java.sql.Time.valueOf(start));
+            row.put("endTime", java.sql.Time.valueOf(end));
             row.put("duration", duration);
             row.put("status", b.getBookingStatus());
             row.put("needsReschedule", b.isNeedsReschedule());
