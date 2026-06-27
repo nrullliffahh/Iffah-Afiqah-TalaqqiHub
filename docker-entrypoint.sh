@@ -113,7 +113,7 @@ JDBC_URL=""
 DB_USER=""
 DB_PASSWORD=""
 
-echo "DB env at startup: DB_URL=$([ -n "${DB_URL:-}" ] && echo set || echo missing) DATABASE_URL=$([ -n "${DATABASE_URL:-}" ] && echo set || echo missing) DB_USER=$([ -n "${DB_USER:-}" ] && echo set || echo missing) MYSQLUSER=$([ -n "${MYSQLUSER:-}${MYSQL_USER:-}" ] && echo set || echo missing)"
+echo "DB env at entrypoint (shell, may be before Kerocket env file): DB_URL=$([ -n "${DB_URL:-}" ] && echo set || echo missing) DATABASE_URL=$([ -n "${DATABASE_URL:-}" ] && echo set || echo missing) DB_USER=$([ -n "${DB_USER:-}" ] && echo set || echo missing)"
 
 if [ -n "${DATABASE_URL:-}" ]; then
   parse_database_url "${DATABASE_URL}"

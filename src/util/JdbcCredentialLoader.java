@@ -53,6 +53,64 @@ public final class JdbcCredentialLoader {
     private JdbcCredentialLoader() {
     }
 
+    /**
+     * Kerocket applies the manual env file to the JVM at runtime, not always to docker-entrypoint.sh.
+     * Log what the Java process actually sees (never log password values).
+     */
+    public static void logJvmEnvPresence() {
+        System.out.println(
+            "JdbcCredentialLoader JVM env: DB_URL=" + envStatus("DB_URL")
+                + " DATABASE_URL=" + envStatus("DATABASE_URL")
+                + " DB_USER=" + (isSet("DB_USER") ? safeUser(getenv("DB_USER")) : "missing")
+                + " DB_PASSWORD=" + (isSet("DB_PASSWORD") ? "set" : "missing")
+                + " MYSQLUSER=" + (isSet("MYSQLUSER") || isSet("MYSQL_USER") ? "set" : "missing")
+        );
+    }
+
+    /** Write credential files when JVM env is available (entrypoint may run too early on Kerocket). */
+    public static void materializeDeployFilesFromJvmEnv() {
+        String dbUrl = firstNonEmpty(getenv("DB_URL"), getProperty("DB_URL"));
+        String databaseUrl = firstNonEmpty(getenv("DATABASE_URL"), getProperty("DATABASE_URL"));
+        String dbUser = explicitCredentialsUser();
+        String dbPassword = explicitCredentialsPassword();
+
+        CredentialConfig config = buildAivenConfig(dbUrl, dbUser, dbPassword, databaseUrl);
+        if (config == null) {
+            System.out.println(
+                "JdbcCredentialLoader: deploy files not written — DB_USER/DB_PASSWORD not visible to JVM yet."
+            );
+            return;
+        }
+
+        try {
+            Files.createDirectories(DEPLOY_URL_FILE.getParent());
+            Files.writeString(DEPLOY_URL_FILE, config.url, StandardCharsets.UTF_8);
+            Files.writeString(DEPLOY_USER_FILE, config.user, StandardCharsets.UTF_8);
+            Files.writeString(DEPLOY_PASSWORD_FILE, config.password, StandardCharsets.UTF_8);
+            DEPLOY_URL_FILE.toFile().setReadable(false, false);
+            DEPLOY_URL_FILE.toFile().setReadable(true, true);
+            DEPLOY_USER_FILE.toFile().setReadable(false, false);
+            DEPLOY_USER_FILE.toFile().setReadable(true, true);
+            DEPLOY_PASSWORD_FILE.toFile().setReadable(false, false);
+            DEPLOY_PASSWORD_FILE.toFile().setReadable(true, true);
+
+            Properties props = new Properties();
+            props.setProperty("db.url.b64", Base64.getEncoder().encodeToString(config.url.getBytes(StandardCharsets.UTF_8)));
+            props.setProperty("db.user.b64", Base64.getEncoder().encodeToString(config.user.getBytes(StandardCharsets.UTF_8)));
+            props.setProperty("db.password.b64", Base64.getEncoder().encodeToString(config.password.getBytes(StandardCharsets.UTF_8)));
+            try (var out = Files.newOutputStream(DEPLOY_PROPERTIES)) {
+                props.store(out, "TalaqqiHub JDBC credentials (from JVM env)");
+            }
+
+            System.out.println(
+                "JdbcCredentialLoader: materialized deploy files (user=" + config.user
+                    + ", database=" + safeJdbcDatabase(config.url) + ")."
+            );
+        } catch (Exception e) {
+            System.err.println("JdbcCredentialLoader: failed to write deploy files: " + e.getMessage());
+        }
+    }
+
     public static List<CredentialConfig> loadAll() {
         List<CredentialConfig> configs = new ArrayList<>();
         Set<String> seen = new LinkedHashSet<>();
@@ -443,6 +501,18 @@ public final class JdbcCredentialLoader {
             getenv("MYSQLPASSWORD"), getProperty("MYSQLPASSWORD"),
             getenv("MYSQL_PASSWORD"), getProperty("MYSQL_PASSWORD")
         );
+    }
+
+    private static String envStatus(String key) {
+        return isSet(key) ? "set" : "missing";
+    }
+
+    private static boolean isSet(String key) {
+        return getenv(key) != null || getProperty(key) != null;
+    }
+
+    private static String safeUser(String user) {
+        return user == null || user.isEmpty() ? "(empty)" : user;
     }
 
     private static String decodeProperty(Properties props, String b64Key, String plainKey) {

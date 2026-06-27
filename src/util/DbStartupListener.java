@@ -11,6 +11,10 @@ public class DbStartupListener implements ServletContextListener {
 
     @Override
     public void contextInitialized(ServletContextEvent sce) {
+        // Kerocket injects manual env file into JVM here — not always into docker-entrypoint.sh.
+        JdbcCredentialLoader.logJvmEnvPresence();
+        JdbcCredentialLoader.materializeDeployFilesFromJvmEnv();
+
         System.out.println(
             "DbStartupListener: deployCredentialFiles=" + JdbcCredentialLoader.hasDeployCredentialFiles()
                 + ", configSource=" + DBConnection.getConfigSource()
