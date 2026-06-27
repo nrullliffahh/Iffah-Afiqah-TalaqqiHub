@@ -358,7 +358,7 @@ public class StudentBookingDAO {
         }
     }
 
-    public boolean bookSession(String studentId, String scheduleId, LocalDate bookingDate, LocalTime bookingTime) {
+    public String bookSession(String studentId, String scheduleId, LocalDate bookingDate, LocalTime bookingTime) {
         Connection conn = null;
         String bookingId = generateBookingId(studentId);
 
@@ -366,7 +366,7 @@ public class StudentBookingDAO {
             conn = DBConnection.getConnection();
             if (conn == null) {
                 System.err.println("bookSession: DB connection is null");
-                return false;
+                return null;
             }
 
             conn.setAutoCommit(false);
@@ -375,7 +375,7 @@ public class StudentBookingDAO {
             if (!insertedBooking) {
                 conn.rollback();
                 System.err.println("bookSession: INSERT into classbooking failed for scheduleId=" + scheduleId);
-                return false;
+                return null;
             }
 
             boolean sessionLinked = ensureTalaqqiSessionForBooking(conn, bookingId, scheduleId, bookingDate);
@@ -392,7 +392,7 @@ public class StudentBookingDAO {
                 ignore.printStackTrace();
             }
 
-            return true;
+            return bookingId;
 
         } catch (SQLException e) {
             if (conn != null) {
@@ -404,7 +404,7 @@ public class StudentBookingDAO {
             }
             System.err.println("bookSession failed: " + e.getMessage());
             e.printStackTrace();
-            return false;
+            return null;
         } finally {
             if (conn != null) {
                 try {
@@ -412,6 +412,22 @@ public class StudentBookingDAO {
                     conn.close();
                 } catch (SQLException ignored) {}
             }
+        }
+    }
+
+    /** Tag a newly booked slot as the rescheduled replacement for a previous booking. */
+    public void recordNewRescheduleSlot(String newBookingId, String previousBookingId) {
+        if (newBookingId == null || newBookingId.trim().isEmpty()) {
+            return;
+        }
+        String reason = "Rescheduled from " + (previousBookingId != null ? previousBookingId : "previous booking");
+        try (Connection conn = DBConnection.getConnection()) {
+            if (conn == null) {
+                return;
+            }
+            recordRescheduleReason(conn, newBookingId, reason);
+        } catch (SQLException e) {
+            System.err.println("[StudentBookingDAO] recordNewRescheduleSlot failed: " + e.getMessage());
         }
     }
 

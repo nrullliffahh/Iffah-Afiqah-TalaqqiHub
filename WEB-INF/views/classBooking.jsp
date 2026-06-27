@@ -979,7 +979,7 @@
                         <!-- Completed bookings -->
                         <c:forEach var="booking" items="${completedBookings}">
                             <c:choose>
-                                <c:when test="${booking.absent}">
+                                <c:when test="${booking.notCompleted}">
                                     <c:set var="borderClass" value="border-amber-200 bg-amber-50" />
                                 </c:when>
                                 <c:otherwise>
@@ -992,7 +992,7 @@
                                         <div class="flex items-center gap-3 mb-3">
                                             <h4 class="font-bold text-gray-800 text-lg">${booking.className}</h4>
                                             <c:choose>
-                                                <c:when test="${booking.absent}">
+                                                <c:when test="${booking.notCompleted}">
                                                     <span class="px-3 py-1 bg-amber-100 text-amber-800 text-sm font-semibold rounded-full">Not Completed</span>
                                                 </c:when>
                                                 <c:otherwise>
@@ -1034,12 +1034,69 @@
                                         <button type="button" onclick="openDetailsModal('${booking.bookingId}')" class="px-4 py-2 border-2 border-gray-300 text-gray-700 rounded-lg text-sm font-semibold hover:bg-gray-100 transition-colors">
                                             View Details
                                         </button>
-                                        <c:if test="${booking.absent}">
+                                        <c:if test="${booking.notCompleted}">
                                             <button type="button"
                                                     class="reschedule-btn px-4 py-2 bg-teal-500 text-white rounded-lg text-sm font-semibold hover:bg-teal-600 transition-colors"
                                                     data-booking-id="${booking.bookingId}"
                                                     data-booking-date="${booking.bookingDate}">
                                                 Reschedule
+                                            </button>
+                                        </c:if>
+                                    </div>
+                                </div>
+                            </div>
+                        </c:forEach>
+
+                        <!-- Rescheduled bookings -->
+                        <c:forEach var="booking" items="${rescheduledBookings}">
+                            <c:set var="borderClass" value="border-teal-200 bg-teal-50" />
+                            <div class="border-2 rounded-xl p-5 ${borderClass} booking-entry" data-booking-id="${booking.bookingId}" data-booking-date="${booking.bookingDate}" data-booking-time="${booking.bookingTime}" data-teacher-name="${booking.teacherName}" data-teacher-id="${booking.teacherId}" data-schedule-id="${booking.scheduleId}" data-class-type="${booking.className}" data-booking-status="Rescheduled">
+                                <div class="flex items-start justify-between">
+                                    <div class="flex-1">
+                                        <div class="flex items-center gap-3 mb-3">
+                                            <h4 class="font-bold text-gray-800 text-lg">${booking.className}</h4>
+                                            <span class="px-3 py-1 bg-teal-100 text-teal-800 text-sm font-semibold rounded-full">Rescheduled</span>
+                                        </div>
+                                        <div class="grid grid-cols-3 gap-4">
+                                            <div class="flex items-center gap-2">
+                                                <svg class="w-5 h-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
+                                                </svg>
+                                                <div>
+                                                    <p class="text-xs text-gray-500">Teacher</p>
+                                                    <p class="text-sm font-semibold text-gray-700">${booking.teacherName}</p>
+                                                </div>
+                                            </div>
+                                            <div class="flex items-center gap-2">
+                                                <svg class="w-5 h-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                                                </svg>
+                                                <div>
+                                                    <p class="text-xs text-gray-500">Date</p>
+                                                    <p class="text-sm font-semibold text-gray-700 booking-date" data-booking-date="${booking.bookingDate}">${booking.bookingDate}</p>
+                                                </div>
+                                            </div>
+                                            <div class="flex items-center gap-2">
+                                                <svg class="w-5 h-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+                                                </svg>
+                                                <div>
+                                                    <p class="text-xs text-gray-500">Time</p>
+                                                    <p class="text-sm font-semibold text-gray-700 booking-time" data-booking-time="${booking.bookingTime}">${booking.bookingTime}</p>
+                                                </div>
+                                            </div>
+                                        </div>
+                                        <c:if test="${not empty booking.cancellationReason}">
+                                            <div class="mt-3 text-sm text-teal-800">${booking.cancellationReason}</div>
+                                        </c:if>
+                                    </div>
+                                    <div class="flex flex-col gap-2 ml-4">
+                                        <button type="button" onclick="openDetailsModal('${booking.bookingId}')" class="px-4 py-2 border-2 border-gray-300 bg-white text-gray-700 rounded-lg text-sm font-semibold hover:bg-gray-100 transition-colors">
+                                            View Details
+                                        </button>
+                                        <c:if test="${booking.futureSession and booking.cancellationAllowed}">
+                                            <button type="button" onclick="openCancelModal('${booking.bookingId}')" class="cancel-booking-btn px-4 py-2 bg-red-500 text-white rounded-lg text-sm font-semibold hover:bg-red-600 transition-colors">
+                                                Cancel Booking
                                             </button>
                                         </c:if>
                                     </div>
@@ -1378,14 +1435,20 @@
             const statusEl = document.getElementById('detailsStatus'); if (statusEl) {
                 const sts = (el.dataset.bookingStatus || 'Upcoming');
                 const att = (el.dataset.attendanceStatus || '');
-                const displaySts = (sts === 'Completed' && att === 'Absent') ? 'Not Completed' : sts;
+                let displaySts = sts;
+                if (sts === 'Completed' && att === 'Absent') {
+                    displaySts = 'Not Completed';
+                } else if (sts === 'Rescheduled') {
+                    displaySts = 'Rescheduled';
+                }
                 statusEl.textContent = displaySts;
-                // set color: Upcoming = blue, Completed = green, Not Completed = amber, Cancelled = red
                 statusEl.className = 'inline-block px-3 py-1 rounded-full text-xs font-semibold';
                 if (sts === 'Upcoming' || sts === 'Confirmed') {
                     statusEl.classList.add('bg-blue-100','text-blue-700');
-                } else if (sts === 'Completed' && att === 'Absent') {
+                } else if (displaySts === 'Not Completed') {
                     statusEl.classList.add('bg-amber-100','text-amber-800');
+                } else if (displaySts === 'Rescheduled') {
+                    statusEl.classList.add('bg-teal-100','text-teal-800');
                 } else if (sts === 'Completed') {
                     statusEl.classList.add('bg-green-100','text-green-700');
                 } else if (sts === 'Cancelled') {

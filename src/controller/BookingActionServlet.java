@@ -46,32 +46,33 @@ public class BookingActionServlet extends HttpServlet {
             if (!bookable) {
                 session.setAttribute("errorMessage", "Selected slot is no longer available. Please choose another slot.");
             } else {
-                boolean success = bookingDAO.bookSession(studentId, scheduleId, bookingDate, bookingTime);
-                    if (success) {
-                        String rescheduleBookingId = request.getParameter("rescheduleBookingId");
-                        boolean isReschedule = rescheduleBookingId != null && !rescheduleBookingId.trim().isEmpty();
-                        if (isReschedule) {
-                            try {
-                                System.out.println("[BookingActionServlet] received rescheduleBookingId=" + rescheduleBookingId);
-                                boolean resOk = bookingDAO.rescheduleBooking(rescheduleBookingId, "Rescheduled to " + bookingDateStr);
-                                System.out.println("[BookingActionServlet] rescheduleBooking result=" + resOk + " for bookingId=" + rescheduleBookingId);
-                                if (resOk) {
-                                    session.setAttribute("successMessage", "Class rescheduled successfully!");
-                                } else {
-                                    session.setAttribute("successMessage", "New slot booked successfully.");
-                                    session.setAttribute("errorMessage", "Could not update your previous booking. Please contact support if the old class still appears.");
-                                }
-                            } catch (Exception ee) {
-                                ee.printStackTrace();
+                String newBookingId = bookingDAO.bookSession(studentId, scheduleId, bookingDate, bookingTime);
+                if (newBookingId != null) {
+                    String rescheduleBookingId = request.getParameter("rescheduleBookingId");
+                    boolean isReschedule = rescheduleBookingId != null && !rescheduleBookingId.trim().isEmpty();
+                    if (isReschedule) {
+                        try {
+                            System.out.println("[BookingActionServlet] received rescheduleBookingId=" + rescheduleBookingId);
+                            bookingDAO.recordNewRescheduleSlot(newBookingId, rescheduleBookingId);
+                            boolean resOk = bookingDAO.rescheduleBooking(rescheduleBookingId, "Rescheduled to " + bookingDateStr);
+                            System.out.println("[BookingActionServlet] rescheduleBooking result=" + resOk + " for bookingId=" + rescheduleBookingId);
+                            if (resOk) {
+                                session.setAttribute("successMessage", "Class rescheduled successfully!");
+                            } else {
                                 session.setAttribute("successMessage", "New slot booked successfully.");
                                 session.setAttribute("errorMessage", "Could not update your previous booking. Please contact support if the old class still appears.");
                             }
-                        } else {
-                            session.setAttribute("successMessage", "Class booked successfully!");
+                        } catch (Exception ee) {
+                            ee.printStackTrace();
+                            session.setAttribute("successMessage", "New slot booked successfully.");
+                            session.setAttribute("errorMessage", "Could not update your previous booking. Please contact support if the old class still appears.");
                         }
                     } else {
-                        session.setAttribute("errorMessage", "Failed to book class. Please try again.");
+                        session.setAttribute("successMessage", "Class booked successfully!");
                     }
+                } else {
+                    session.setAttribute("errorMessage", "Failed to book class. Please try again.");
+                }
             }
 
         } catch (Exception e) {

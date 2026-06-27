@@ -48,25 +48,29 @@ public class ClassBookingServlet extends HttpServlet {
             }
         }
 
-        // Partition bookings so JSP can render Upcoming, Completed, then Cancelled
+        // Partition: Upcoming, Completed, Rescheduled, Cancelled
         java.util.List<StudentBooking> upcomingBookings = new java.util.ArrayList<>();
         java.util.List<StudentBooking> completedBookings = new java.util.ArrayList<>();
+        java.util.List<StudentBooking> rescheduledBookings = new java.util.ArrayList<>();
         java.util.List<StudentBooking> cancelledBookings = new java.util.ArrayList<>();
         if (myBookings != null) {
             for (StudentBooking b : myBookings) {
                 String status = b.getBookingStatus();
-                if (status == null) status = "";
-                switch (status) {
-                    case "Completed":
+                if (status == null) {
+                    status = "";
+                }
+                if (b.isRescheduled()) {
+                    rescheduledBookings.add(b);
+                } else if ("Cancelled".equalsIgnoreCase(status)) {
+                    cancelledBookings.add(b);
+                } else if ("Completed".equalsIgnoreCase(status)) {
+                    if (b.isFutureSession()) {
+                        rescheduledBookings.add(b);
+                    } else {
                         completedBookings.add(b);
-                        break;
-                    case "Cancelled":
-                    case "Rescheduled":
-                        cancelledBookings.add(b);
-                        break;
-                    default:
-                        upcomingBookings.add(b);
-                        break;
+                    }
+                } else {
+                    upcomingBookings.add(b);
                 }
             }
         }
@@ -87,6 +91,7 @@ public class ClassBookingServlet extends HttpServlet {
         request.setAttribute("myBookings", myBookings);
         request.setAttribute("upcomingBookings", upcomingBookings);
         request.setAttribute("completedBookings", completedBookings);
+        request.setAttribute("rescheduledBookings", rescheduledBookings);
         request.setAttribute("cancelledBookings", cancelledBookings);
         request.setAttribute("availableSchedules", availableSchedules);
         request.setAttribute("selectedDate", selectedDate);
