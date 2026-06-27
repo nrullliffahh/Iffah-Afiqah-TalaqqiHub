@@ -218,7 +218,7 @@
                         onchange="if(this.value){location.href='<%= contextPath %>/teacher/sessions?sessionId='+this.value;}">
                     <% for (TalaqqiSession s : upcoming) { %>
                     <option value="<%= s.getSessionId() %>" <%= s.getSessionId() != null && s.getSessionId().equals(sessionId) ? "selected" : "" %>>
-                        <%= s.getClassName() %> | <%= s.getStudentName() %> | <%= s.getSessionDate() %>
+                        <%= s.getStudentName() %> | <%= s.getSessionDate() %> | <%= s.getSessionStartTime() %> - <%= s.getSessionEndTime() %>
                     </option>
                     <% } %>
                 </select>

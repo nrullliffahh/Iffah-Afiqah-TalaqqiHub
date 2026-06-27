@@ -147,7 +147,7 @@
                 onchange="if(this.value){location.href='${contextPath}/student/sessions?sessionId='+this.value;}">
             <c:forEach var="s" items="${upcomingSessions}">
                 <option value="${s.sessionId}" ${s.sessionId == session.sessionId ? 'selected' : ''}>
-                    ${s.className} | ${s.teacherName} | ${s.sessionDate}
+                    ${s.teacherName} | ${s.sessionDate} | ${s.sessionStartTime} - ${s.sessionEndTime}
                 </option>
             </c:forEach>
         </select>
