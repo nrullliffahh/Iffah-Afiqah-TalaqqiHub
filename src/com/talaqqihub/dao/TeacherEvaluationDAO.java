@@ -157,6 +157,18 @@ public class TeacherEvaluationDAO {
         return hasEvalColumn(column) ? "se." + column : "NULL AS " + column;
     }
 
+    private String evalSelectColumnOrAlias(String asName, String primary, String... fallbacks) {
+        if (hasEvalColumn(primary)) {
+            return primary.equals(asName) ? "se." + primary : "se." + primary + " AS " + asName;
+        }
+        for (String fallback : fallbacks) {
+            if (hasEvalColumn(fallback)) {
+                return "se." + fallback + " AS " + asName;
+            }
+        }
+        return "NULL AS " + asName;
+    }
+
     private String evalClassNameExpr() {
         if (hasEvalColumn("class_name")) {
             return "COALESCE(NULLIF(se.class_name, ''), cs.className, '') AS class_name";
@@ -427,8 +439,77 @@ public class TeacherEvaluationDAO {
             }
         } catch (SQLException e) {
             setError("Unable to load completed evaluations", e);
+            evaluations.addAll(getCompletedEvaluationsFallback(teacherId, searchTerm, filterClass, sortBy));
         }
 
+        return evaluations;
+    }
+
+    private List<Evaluation> getCompletedEvaluationsFallback(String teacherId, String searchTerm,
+                                                             String filterClass, String sortBy) {
+        List<Evaluation> evaluations = new ArrayList<>();
+        String sessionCol = hasEvalColumn("sessionId") ? "se.sessionId" : "NULL AS sessionId";
+        String createdCol = TalaqqiSchemaUtil.studentEvalCreatedColumn(connection, "se");
+        String overallExpr = hasEvalColumn("overall_score")
+            ? "COALESCE(se.overall_score, (COALESCE(se.tajweedScore,0)+COALESCE(se.fluencyScore,0)+COALESCE(se.accuracyScore,0))/3)"
+            : "(COALESCE(se.tajweedScore,0)+COALESCE(se.fluencyScore,0)+COALESCE(se.accuracyScore,0))/3";
+        String statusCol = hasEvalColumn("status") ? "se.status" : "'COMPLETED' AS status";
+        StringBuilder query = new StringBuilder(
+            "SELECT se.studentEvaluationId, se.studentId, "
+            + sessionCol + ", se.teacherId, "
+            + "se.tajweedScore, se.fluencyScore, se.accuracyScore, "
+            + overallExpr + " AS overall_score, "
+            + evalSelectColumnOrAlias("strength", "strength") + ", "
+            + evalSelectColumnOrAlias("weakness", "weakness", "areas_for_improvement") + ", "
+            + evalSelectColumnOrAlias("studentImprovements", "studentImprovements", "suggestions") + ", "
+            + evalSelectColumnOrAlias("nextTarget", "nextTarget", "next_target_surah") + ", "
+            + evalSelectColumnOrAlias("comments", "comments", "teacher_comments") + ", "
+            + statusCol + ", "
+            + "COALESCE(s.studentName, '') AS student_name, "
+            + "COALESCE(t.teacherName, '') AS teacher_name, "
+            + "'' AS class_name, '' AS surah, '' AS ayah_range, "
+            + "'' AS session_date, '' AS start_time, '' AS end_time, "
+            + "0 AS quran_surah_number, 0 AS quran_ayah_number, "
+            + evalSelectColumn("rating") + ", "
+            + evalSelectColumn("areas_for_improvement") + ", "
+            + evalSelectColumn("performance_tag") + ", "
+            + evalSelectColumn("next_target_surah") + ", "
+            + evalSelectColumn("suggestions") + ", "
+            + evalSelectColumn("teacher_comments") + ", "
+            + createdCol + " AS createdAt, NULL AS updated_at "
+            + "FROM studentevaluation se "
+            + "LEFT JOIN student s ON se.studentId = s.studentId "
+            + "LEFT JOIN teacher t ON se.teacherId = t.teacherId "
+            + "WHERE se.teacherId = ? AND " + evalCompletedPredicate("se")
+        );
+
+        if (searchTerm != null && !searchTerm.trim().isEmpty()) {
+            query.append(" AND s.studentName LIKE ?");
+        }
+        if ("oldest".equals(sortBy)) {
+            query.append(" ORDER BY se.studentEvaluationId ASC");
+        } else if ("best".equals(sortBy)) {
+            query.append(" ORDER BY overall_score DESC");
+        } else if ("lowest".equals(sortBy)) {
+            query.append(" ORDER BY overall_score ASC");
+        } else {
+            query.append(" ORDER BY se.studentEvaluationId DESC");
+        }
+
+        try (PreparedStatement stmt = connection.prepareStatement(query.toString())) {
+            int paramIndex = 1;
+            stmt.setString(paramIndex++, teacherId);
+            if (searchTerm != null && !searchTerm.trim().isEmpty()) {
+                stmt.setString(paramIndex++, "%" + searchTerm + "%");
+            }
+            try (ResultSet rs = stmt.executeQuery()) {
+                while (rs.next()) {
+                    evaluations.add(mapResultSetToEvaluation(rs));
+                }
+            }
+        } catch (SQLException e) {
+            setError("Fallback completed evaluation query failed", e);
+        }
         return evaluations;
     }
 
@@ -1152,13 +1233,17 @@ public class TeacherEvaluationDAO {
             (hasEvalColumn("sessionId") ? "se.sessionId" : "NULL AS sessionId") + ", se.tajweedScore, se.fluencyScore, se.accuracyScore, " +
             evalSelectColumn("overall_score") + ", " +
             evalSelectColumn("rating") + ", " +
-            "se.strength, " +
+            evalSelectColumnOrAlias("strength", "strength") + ", " +
             evalSelectColumn("areas_for_improvement") + ", " +
             evalSelectColumn("performance_tag") + ", " +
             evalSelectColumn("next_target_surah") + ", " +
             evalSelectColumn("suggestions") + ", " +
             evalSelectColumn("teacher_comments") + ", " +
-            statusCol + ", se.weakness, se.studentImprovements, se.nextTarget, se.comments, " +
+            statusCol + ", " +
+            evalSelectColumnOrAlias("weakness", "weakness", "areas_for_improvement") + ", " +
+            evalSelectColumnOrAlias("studentImprovements", "studentImprovements", "suggestions") + ", " +
+            evalSelectColumnOrAlias("nextTarget", "nextTarget", "next_target_surah") + ", " +
+            evalSelectColumnOrAlias("comments", "comments", "teacher_comments") + ", " +
             createdCol + " AS createdAt, " +
             updatedCol + " AS updated_at " +
             "FROM studentevaluation se " +
@@ -1193,8 +1278,12 @@ public class TeacherEvaluationDAO {
         String sessionCol = hasEvalColumn("sessionId") ? "se.sessionId" : "NULL AS sessionId";
         String query =
             "SELECT se.studentEvaluationId, se.studentId, " + sessionCol + ", se.teacherId, "
-            + "se.tajweedScore, se.fluencyScore, se.accuracyScore, se.strength, se.weakness, "
-            + "se.studentImprovements, se.nextTarget, se.comments, "
+            + "se.tajweedScore, se.fluencyScore, se.accuracyScore, "
+            + evalSelectColumnOrAlias("strength", "strength") + ", "
+            + evalSelectColumnOrAlias("weakness", "weakness", "areas_for_improvement") + ", "
+            + evalSelectColumnOrAlias("studentImprovements", "studentImprovements", "suggestions") + ", "
+            + evalSelectColumnOrAlias("nextTarget", "nextTarget", "next_target_surah") + ", "
+            + evalSelectColumnOrAlias("comments", "comments", "teacher_comments") + ", "
             + "COALESCE(s.studentName, '') AS student_name, '' AS teacher_name, "
             + "'' AS class_name, '' AS surah, '' AS ayah_range, "
             + "'' AS session_date, '' AS start_time, '' AS end_time, "

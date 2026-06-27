@@ -28,11 +28,7 @@ public class EvaluationDAO {
             if (conn == null) {
                 return null;
             }
-            List<Evaluation> list = queryStudentEvaluations(conn, studentId, true, 1);
-            if (!list.isEmpty()) {
-                return list.get(0);
-            }
-            list = queryStudentEvaluations(conn, studentId, false, 1);
+            List<Evaluation> list = loadStudentEvaluations(conn, studentId, 1);
             return list.isEmpty() ? null : list.get(0);
         } catch (SQLException e) {
             System.err.println("EvaluationDAO.getLatestEvaluationByStudent: " + e.getMessage());
@@ -48,20 +44,28 @@ public class EvaluationDAO {
             if (conn == null) {
                 return new ArrayList<>();
             }
-            List<Evaluation> list = queryStudentEvaluations(conn, studentId, true, 0);
-            if (list.isEmpty()) {
-                list = queryStudentEvaluations(conn, studentId, false, 0);
-            }
-            return list;
+            return loadStudentEvaluations(conn, studentId, 0);
         } catch (SQLException e) {
             System.err.println("EvaluationDAO.getEvaluationHistory: " + e.getMessage());
             return new ArrayList<>();
         }
     }
 
-    private List<Evaluation> queryStudentEvaluations(Connection conn, String studentId,
-                                                     boolean withJoin, int limit)
+    /** Joined query → plain select → minimal legacy columns (production Aiven schema). */
+    private List<Evaluation> loadStudentEvaluations(Connection conn, String studentId, int limit)
             throws SQLException {
+        List<Evaluation> list = queryStudentEvaluations(conn, studentId, true, limit);
+        if (list.isEmpty()) {
+            list = queryStudentEvaluations(conn, studentId, false, limit);
+        }
+        if (list.isEmpty()) {
+            list = queryStudentEvaluationsMinimal(conn, studentId, limit);
+        }
+        return list;
+    }
+
+    private List<Evaluation> queryStudentEvaluations(Connection conn, String studentId,
+                                                     boolean withJoin, int limit) {
         List<Evaluation> list = new ArrayList<>();
         String sql = buildStudentEvalSelectSql(conn, withJoin)
             + "WHERE se.studentId = ? AND " + evalCompletedPredicate(conn, "se") + " "
@@ -75,10 +79,49 @@ public class EvaluationDAO {
                 }
             }
         } catch (SQLException e) {
-            if (withJoin) {
-                throw e;
+            System.err.println("EvaluationDAO.queryStudentEvaluations(withJoin=" + withJoin + "): "
+                + e.getMessage());
+        }
+        return list;
+    }
+
+    /** Last-resort: only columns that exist on the oldest production dump. */
+    private List<Evaluation> queryStudentEvaluationsMinimal(Connection conn, String studentId, int limit) {
+        List<Evaluation> list = new ArrayList<>();
+        String overallExpr = hasEvalColumn(conn, "overall_score")
+            ? "COALESCE(se.overall_score, (COALESCE(se.tajweedScore,0)+COALESCE(se.fluencyScore,0)+COALESCE(se.accuracyScore,0))/3)"
+            : "(COALESCE(se.tajweedScore,0)+COALESCE(se.fluencyScore,0)+COALESCE(se.accuracyScore,0))/3";
+        String createdCol = TalaqqiSchemaUtil.studentEvalCreatedColumn(conn, "se");
+        String createdExpr = createdCol.contains(".")
+            ? "DATE_FORMAT(" + createdCol + ",'%b %d, %Y')"
+            : "DATE_FORMAT(NOW(),'%b %d, %Y')";
+        String sql =
+            "SELECT se.studentEvaluationId, se.studentId, se.teacherId, "
+            + evalColExpr(conn, "se", "sessionId", null, "sessionId") + ", "
+            + "se.tajweedScore, se.fluencyScore, se.accuracyScore, "
+            + overallExpr + " AS overallScore, "
+            + evalColExpr(conn, "se", "strength", null, "strength") + ", "
+            + evalColExpr(conn, "se", "weakness", "areas_for_improvement", "weakness") + ", "
+            + evalColExpr(conn, "se", "studentImprovements", "suggestions", "studentImprovements") + ", "
+            + evalColExpr(conn, "se", "nextTarget", "next_target_surah", "nextTarget") + ", "
+            + evalColExpr(conn, "se", "comments", "teacher_comments", "comments") + ", "
+            + "COALESCE(t.teacherName, '') AS teacherName, "
+            + "'' AS surahName, '' AS ayahRange, "
+            + createdExpr + " AS createdAt "
+            + "FROM studentevaluation se "
+            + "LEFT JOIN teacher t ON se.teacherId = t.teacherId "
+            + "WHERE se.studentId = ? AND " + evalCompletedPredicate(conn, "se") + " "
+            + "ORDER BY se.studentEvaluationId DESC"
+            + (limit > 0 ? " LIMIT " + limit : "");
+        try (PreparedStatement ps = conn.prepareStatement(sql)) {
+            ps.setString(1, studentId);
+            try (ResultSet rs = ps.executeQuery()) {
+                while (rs.next()) {
+                    list.add(mapStudentEval(rs));
+                }
             }
-            System.err.println("EvaluationDAO.queryStudentEvaluations fallback: " + e.getMessage());
+        } catch (SQLException e) {
+            System.err.println("EvaluationDAO.queryStudentEvaluationsMinimal: " + e.getMessage());
         }
         return list;
     }
@@ -112,7 +155,11 @@ public class EvaluationDAO {
             .append(sessionCol).append(", ")
             .append("se.tajweedScore, se.fluencyScore, se.accuracyScore, ")
             .append(overallExpr).append(" AS overallScore, ")
-            .append("se.strength, se.weakness, se.studentImprovements, se.nextTarget, se.comments, ")
+            .append(evalColExpr(conn, "se", "strength", null, "strength")).append(", ")
+            .append(evalColExpr(conn, "se", "weakness", "areas_for_improvement", "weakness")).append(", ")
+            .append(evalColExpr(conn, "se", "studentImprovements", "suggestions", "studentImprovements")).append(", ")
+            .append(evalColExpr(conn, "se", "nextTarget", "next_target_surah", "nextTarget")).append(", ")
+            .append(evalColExpr(conn, "se", "comments", "teacher_comments", "comments")).append(", ")
             .append("t.teacherName, ")
             .append(surahExpr).append(" AS surahName, ")
             .append(ayahExpr).append(" AS ayahRange, ")
@@ -142,6 +189,17 @@ public class EvaluationDAO {
 
     private boolean hasEvalColumn(Connection conn, String column) {
         return TalaqqiSchemaUtil.hasColumn(conn, "studentevaluation", column);
+    }
+
+    private String evalColExpr(Connection conn, String alias, String primary,
+                               String fallback, String asName) {
+        if (hasEvalColumn(conn, primary)) {
+            return primary.equals(asName) ? alias + "." + primary : alias + "." + primary + " AS " + asName;
+        }
+        if (fallback != null && hasEvalColumn(conn, fallback)) {
+            return alias + "." + fallback + " AS " + asName;
+        }
+        return "NULL AS " + asName;
     }
 
     /**
@@ -261,6 +319,9 @@ public class EvaluationDAO {
             if (list.isEmpty()) {
                 list = queryCompletedSessionsForStudent(conn, studentId, false);
             }
+            if (list.isEmpty()) {
+                list = queryCompletedSessionsBookingOnly(conn, studentId);
+            }
         } catch (SQLException ex) {
             System.err.println("EvaluationDAO.getCompletedSessionsForStudent: " + ex.getMessage());
             ex.printStackTrace();
@@ -337,6 +398,54 @@ public class EvaluationDAO {
         return list;
     }
 
+    /** Booking + schedule only when session table join fails on legacy production schema. */
+    private List<Evaluation> queryCompletedSessionsBookingOnly(Connection conn, String studentId) {
+        List<Evaluation> list = new ArrayList<>();
+        String ayahRange = TalaqqiSchemaUtil.ayahRangeExpr(conn);
+        String sql =
+            "SELECT COALESCE(" + TalaqqiSchemaUtil.sessionIdForBookingSubquery(conn)
+            + ", cb.bookingId) AS sessionId, "
+            + "cb.scheduleId, cs.teacherId, t.teacherName, "
+            + "DATE_FORMAT(cs.scheduleDate,'%b %d, %Y') AS sessionDate, "
+            + "DATE_FORMAT(cs.startTime,'%I:%i %p') AS startTime, "
+            + "DATE_FORMAT(cs.endTime,'%I:%i %p') AS endTime, "
+            + "CAST(cs.classSurah AS CHAR) AS surahName, "
+            + "CAST(" + ayahRange + " AS CHAR) AS ayahRange "
+            + "FROM classbooking cb "
+            + "JOIN classschedule cs ON cb.scheduleId = cs.scheduleId "
+            + "LEFT JOIN teacher t ON cs.teacherId = t.teacherId "
+            + "WHERE cb.studentId = ? "
+            + "  AND UPPER(TRIM(cb.bookingStatus)) IN ('COMPLETED', 'COMPLETE', 'DONE') "
+            + "  AND NOT EXISTS ( "
+            + "      SELECT 1 FROM studentfeedback sf "
+            + "      WHERE sf.studentId = cb.studentId "
+            + "        AND (sf.sessionId = " + TalaqqiSchemaUtil.sessionIdForBookingSubquery(conn)
+            + "             OR sf.sessionId = cb.bookingId) "
+            + "  ) "
+            + "ORDER BY cs.scheduleDate DESC, cs.startTime DESC";
+        try (PreparedStatement ps = conn.prepareStatement(sql)) {
+            ps.setString(1, studentId);
+            try (ResultSet rs = ps.executeQuery()) {
+                while (rs.next()) {
+                    Evaluation e = new Evaluation();
+                    e.setSessionId(rs.getString("sessionId"));
+                    e.setScheduleId(rs.getString("scheduleId"));
+                    e.setTeacherId(rs.getString("teacherId"));
+                    e.setTeacherName(rs.getString("teacherName"));
+                    e.setSessionDate(rs.getString("sessionDate"));
+                    e.setStartTime(rs.getString("startTime"));
+                    e.setEndTime(rs.getString("endTime"));
+                    e.setSurahName(resolveSurahDisplay(rs.getString("surahName")));
+                    e.setAyahRange(rs.getString("ayahRange"));
+                    list.add(e);
+                }
+            }
+        } catch (SQLException e) {
+            System.err.println("EvaluationDAO.queryCompletedSessionsBookingOnly: " + e.getMessage());
+        }
+        return list;
+    }
+
     /**
      * Returns completed sessions that are PENDING evaluation (no feedback submitted yet).
      * Used by PostSessionEvaluationServlet.
@@ -357,7 +466,7 @@ public class EvaluationDAO {
                 + TalaqqiSchemaUtil.innerSessionBookingSchedule(conn)
                 + "LEFT JOIN teacher   t  ON cs.teacherId  = t.teacherId "
                 + "WHERE cb.studentId = ? "
-                + "  AND cb.bookingStatus = 'Completed' "
+                + "  AND UPPER(TRIM(cb.bookingStatus)) IN ('COMPLETED', 'COMPLETE', 'DONE') "
                 + "  AND NOT EXISTS ( "
                 + "      SELECT 1 FROM studentfeedback sf "
                 + "      WHERE sf.sessionId = ts.sessionId AND sf.studentId = cb.studentId "
