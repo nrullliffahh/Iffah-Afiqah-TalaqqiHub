@@ -84,7 +84,7 @@ public class TeacherTalaqqiSessionServlet extends HttpServlet {
 
         // Get the list of upcoming sessions for the session-picker dropdown
         List<TalaqqiSession> upcomingSessions =
-                talaqqiSessionDAO.getUpcomingSessionsList(teacherId, 10);
+                talaqqiSessionDAO.getUpcomingSessionsList(teacherId, 0);
 
         // Restore teacher display name
         Teacher teacher = teacherDAO.getTeacherById(teacherId);

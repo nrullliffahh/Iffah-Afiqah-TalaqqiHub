@@ -90,7 +90,7 @@ public class StudentTalaqqiSessionServlet extends HttpServlet {
         }
 
         List<TalaqqiSession> upcomingSessions =
-                talaqqiSessionDAO.getUpcomingSessionsListForStudent(studentId, 10);
+                talaqqiSessionDAO.getUpcomingSessionsListForStudent(studentId, 0);
 
         // ── Load Quran data for current session ─────────────────────────────
         List<QuranVerse> verses = null;

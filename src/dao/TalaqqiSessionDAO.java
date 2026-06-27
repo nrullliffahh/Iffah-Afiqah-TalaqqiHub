@@ -329,7 +329,7 @@ public class TalaqqiSessionDAO {
      */
     private List<TalaqqiSession> getSwitchableSessionsList(String userId, boolean forTeacher, int limit) {
         List<TalaqqiSession> sessions = new ArrayList<>();
-        if (userId == null || userId.trim().isEmpty() || limit <= 0) {
+        if (userId == null || userId.trim().isEmpty()) {
             return sessions;
         }
 
@@ -342,32 +342,177 @@ public class TalaqqiSessionDAO {
         StudentBookingDAO bookingDAO = new StudentBookingDAO();
         List<StudentBooking> bookings = forTeacher
             ? bookingDAO.getTeacherBookings(userId)
-            : bookingDAO.getMyBookings(userId);
+            : bookingDAO.getMyBookingsByMonth(userId);
         BookingPartitionUtil.Partition partitioned = BookingPartitionUtil.partition(bookings);
 
         List<StudentBooking> switchable = new ArrayList<>();
         switchable.addAll(partitioned.upcoming);
         switchable.addAll(partitioned.rescheduled);
 
-        LocalDate today = LocalDate.now();
-        switchable.removeIf(b -> b.getBookingDate() == null || b.getBookingDate().isBefore(today));
         switchable.sort(Comparator
-            .comparing(StudentBooking::getBookingDate)
+            .comparing(StudentBooking::getBookingDate, Comparator.nullsLast(Comparator.naturalOrder()))
             .thenComparing(b -> b.getBookingTime() != null ? b.getBookingTime() : LocalTime.MIN));
 
         for (StudentBooking booking : switchable) {
-            if (sessions.size() >= limit) {
-                break;
-            }
-            TalaqqiSession session = querySessionByBookingId(
-                booking.getBookingId(),
+            ensureSessionForBooking(booking);
+            TalaqqiSession session = resolveSessionForBooking(
+                booking,
                 forTeacher ? userId : null,
                 forTeacher ? null : userId);
             if (session != null) {
                 sessions.add(session);
+                if (limit > 0 && sessions.size() >= limit) {
+                    break;
+                }
             }
         }
         return sessions;
+    }
+
+    private TalaqqiSession resolveSessionForBooking(
+            StudentBooking booking, String teacherId, String studentId) {
+        if (booking == null) {
+            return null;
+        }
+        TalaqqiSession session = null;
+        if (booking.getBookingId() != null && !booking.getBookingId().trim().isEmpty()) {
+            session = querySessionByBookingId(booking.getBookingId(), teacherId, studentId);
+        }
+        if (session == null && booking.getScheduleId() != null && !booking.getScheduleId().trim().isEmpty()) {
+            session = querySessionByScheduleId(booking.getScheduleId(), teacherId, studentId);
+        }
+        return session;
+    }
+
+    private void ensureSessionForBooking(StudentBooking booking) {
+        if (booking == null) {
+            return;
+        }
+        String bookingId = booking.getBookingId();
+        String scheduleId = booking.getScheduleId();
+        if ((bookingId == null || bookingId.trim().isEmpty())
+                && (scheduleId == null || scheduleId.trim().isEmpty())) {
+            return;
+        }
+
+        Connection conn = null;
+        try {
+            conn = DBConnection.getConnection();
+            if (conn == null) {
+                return;
+            }
+            boolean modern = usesBookingIdLink(conn);
+            if (sessionExistsForBooking(conn, modern, bookingId, scheduleId)) {
+                return;
+            }
+
+            java.sql.Date sessionDate = booking.getBookingDate() != null
+                ? java.sql.Date.valueOf(booking.getBookingDate())
+                : null;
+            if (sessionDate == null && scheduleId != null) {
+                sessionDate = loadScheduleDate(conn, scheduleId);
+            }
+            if (sessionDate == null) {
+                return;
+            }
+
+            String insertSql = modern
+                ? "INSERT INTO talaqqisession (sessionId, sessionType, sessionDate, bookingId) VALUES (?, 'Live Talaqqi', ?, ?)"
+                : "INSERT INTO talaqqisession (sessionId, sessionType, sessionDate, scheduleId) VALUES (?, 'Live Talaqqi', ?, ?)";
+            String linkValue = modern ? bookingId : scheduleId;
+            if (linkValue == null || linkValue.trim().isEmpty()) {
+                return;
+            }
+            insertSessionRow(conn, insertSql, sessionDate, linkValue.trim());
+        } catch (SQLException e) {
+            System.err.println("[TalaqqiSessionDAO] ensureSessionForBooking: " + e.getMessage());
+        } finally {
+            if (conn != null) {
+                try {
+                    conn.close();
+                } catch (SQLException ignored) {}
+            }
+        }
+    }
+
+    private static boolean sessionExistsForBooking(
+            Connection conn, boolean modern, String bookingId, String scheduleId) throws SQLException {
+        if (modern && bookingId != null && !bookingId.trim().isEmpty()) {
+            String sql = "SELECT 1 FROM talaqqisession WHERE bookingId = ? LIMIT 1";
+            try (PreparedStatement ps = conn.prepareStatement(util.TalaqqiSchemaUtil.sql(sql, conn))) {
+                ps.setString(1, bookingId.trim());
+                try (ResultSet rs = ps.executeQuery()) {
+                    if (rs.next()) {
+                        return true;
+                    }
+                }
+            }
+        }
+        if (scheduleId != null && !scheduleId.trim().isEmpty()) {
+            String sql = "SELECT 1 FROM talaqqisession WHERE scheduleId = ? LIMIT 1";
+            try (PreparedStatement ps = conn.prepareStatement(util.TalaqqiSchemaUtil.sql(sql, conn))) {
+                ps.setString(1, scheduleId.trim());
+                try (ResultSet rs = ps.executeQuery()) {
+                    return rs.next();
+                }
+            }
+        }
+        return false;
+    }
+
+    private static java.sql.Date loadScheduleDate(Connection conn, String scheduleId) throws SQLException {
+        String sql = "SELECT scheduleDate FROM classschedule WHERE scheduleId = ? LIMIT 1";
+        try (PreparedStatement ps = conn.prepareStatement(sql)) {
+            ps.setString(1, scheduleId);
+            try (ResultSet rs = ps.executeQuery()) {
+                if (rs.next()) {
+                    return rs.getDate("scheduleDate");
+                }
+            }
+        }
+        return null;
+    }
+
+    private TalaqqiSession querySessionByScheduleId(String scheduleId, String teacherId, String studentId) {
+        if (scheduleId == null || scheduleId.trim().isEmpty()) {
+            return null;
+        }
+        Connection conn = null;
+        PreparedStatement ps = null;
+        ResultSet rs = null;
+        try {
+            conn = DBConnection.getConnection();
+            if (conn == null) {
+                return null;
+            }
+            StringBuilder where = new StringBuilder("WHERE cs.scheduleId = ? ");
+            if (teacherId != null && !teacherId.isEmpty()) {
+                where.append("AND cs.teacherId = ? ");
+            }
+            if (studentId != null && !studentId.isEmpty()) {
+                where.append("AND cb.studentId = ? ");
+            }
+            where.append("LIMIT 1");
+            String sql = baseSelect(conn) + where;
+            ps = conn.prepareStatement(util.TalaqqiSchemaUtil.sql(sql, conn));
+            int idx = 1;
+            ps.setString(idx++, scheduleId.trim());
+            if (teacherId != null && !teacherId.isEmpty()) {
+                ps.setString(idx++, teacherId);
+            }
+            if (studentId != null && !studentId.isEmpty()) {
+                ps.setString(idx, studentId);
+            }
+            rs = ps.executeQuery();
+            if (rs.next()) {
+                return mapRow(rs);
+            }
+        } catch (SQLException e) {
+            System.err.println("[TalaqqiSessionDAO] querySessionByScheduleId: " + e.getMessage());
+        } finally {
+            closeQuietly(rs, ps, conn);
+        }
+        return null;
     }
 
     private TalaqqiSession querySessionByBookingId(String bookingId, String teacherId, String studentId) {
