@@ -73,7 +73,7 @@ public class EditProfileServlet extends HttpServlet {
                 session.setAttribute("studentName", fullName.trim());
             }
             StudentProfilePicUtil.bindToSession(session, getServletContext(), studentId);
-            response.sendRedirect(request.getContextPath() + "/student/profile?saved=1");
+            response.sendRedirect(request.getContextPath() + "/student/edit-profile?saved=1");
         } else {
             request.setAttribute("error", "Unable to update profile. Please try again.");
             doGet(request, response);

@@ -418,6 +418,51 @@ public class StudentDAO {
         return student;
     }
 
+    /** Lightweight package name lookup (avoids PackageDAO metadata scan on profile page). */
+    public String getPackageNameById(String packageId) {
+        if (packageId == null || packageId.trim().isEmpty()) {
+            return "-";
+        }
+        Connection conn = null;
+        PreparedStatement pstmt = null;
+        ResultSet rs = null;
+        String[] sqlVariants = {
+            "SELECT packageName FROM packages WHERE packageId = ? LIMIT 1",
+            "SELECT packageName FROM packages WHERE packageId LIKE ? LIMIT 1"
+        };
+        try {
+            conn = DBConnection.getConnection();
+            if (conn == null) return packageId;
+
+            for (String sql : sqlVariants) {
+                try {
+                    pstmt = conn.prepareStatement(sql);
+                    pstmt.setString(1, sql.contains("LIKE") ? "%" + packageId.trim() + "%" : packageId.trim());
+                    rs = pstmt.executeQuery();
+                    if (rs.next()) {
+                        String name = rs.getString("packageName");
+                        if (name != null && !name.trim().isEmpty()) {
+                            return name.trim();
+                        }
+                    }
+                } catch (SQLException ignore) {
+                } finally {
+                    try { if (rs != null) rs.close(); } catch (SQLException ignored) {}
+                    try { if (pstmt != null) pstmt.close(); } catch (SQLException ignored) {}
+                    rs = null;
+                    pstmt = null;
+                }
+            }
+        } catch (SQLException e) {
+            System.err.println("getPackageNameById: " + e.getMessage());
+        } finally {
+            try { if (rs != null) rs.close(); } catch (SQLException ignored) {}
+            try { if (pstmt != null) pstmt.close(); } catch (SQLException ignored) {}
+            try { if (conn != null) conn.close(); } catch (SQLException ignored) {}
+        }
+        return packageId;
+    }
+
     public Student getStudentByEmail(String email) {
         Student student = null;
         Connection conn = null;

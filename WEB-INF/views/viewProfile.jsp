@@ -36,6 +36,14 @@
         <h2 class="text-2xl font-bold text-gray-800 mb-1">My Profile</h2>
         <p class="text-gray-600 mb-6">View your personal information and account details</p>
 
+        <c:if test="${saved}">
+          <div class="mb-4 rounded-xl bg-green-50 border border-green-200 text-green-800 px-4 py-3 text-sm">
+            Profile updated successfully.
+          </div>
+        </c:if>
+
+        <c:choose>
+          <c:when test="${student != null}">
         <div class="bg-white rounded-xl shadow-sm p-8">
           <div class="flex flex-col md:flex-row md:items-center md:justify-between md:space-x-6">
             <div class="flex items-center space-x-6">
@@ -120,6 +128,14 @@
             </div>
           </div>
         </div>
+          </c:when>
+          <c:otherwise>
+            <div class="bg-white rounded-xl shadow-sm p-8 text-center text-gray-600">
+              <p>Could not load your profile.</p>
+              <a href="<%= request.getContextPath() %>/student/edit-profile" class="inline-block mt-4 px-6 py-3 bg-gradient-to-r from-teal-400 to-green-400 text-white rounded-full">Edit Profile</a>
+            </div>
+          </c:otherwise>
+        </c:choose>
       </div>
         </div>
     </div>

@@ -40,6 +40,17 @@
         </h2>
         <p class="text-gray-600 mb-6">Update your personal information</p>
 
+        <c:if test="${param.saved == '1'}">
+          <div class="mb-4 rounded-xl bg-green-50 border border-green-200 text-green-800 px-4 py-3 text-sm">
+            Profile updated successfully.
+          </div>
+        </c:if>
+        <c:if test="${param.photoError == '1'}">
+          <div class="mb-4 rounded-xl bg-red-50 border border-red-200 text-red-800 px-4 py-3 text-sm">
+            Could not save profile photo. Please try again.
+          </div>
+        </c:if>
+
         <div class="bg-white rounded-xl shadow-sm p-8">
           <div class="flex flex-col items-center">
             <div class="relative">
