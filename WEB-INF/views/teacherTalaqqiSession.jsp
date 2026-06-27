@@ -418,7 +418,7 @@
     "use strict";
 
     var cfg = document.getElementById("talaqqi-config").dataset;
-    var JITSI_DOMAIN = cfg.jitsiDomain || "8x8.vc";
+    var JITSI_DOMAIN = cfg.jitsiDomain || "meet.jit.si";
     var JITSI_JWT = <%=
         JitsiConfig.getJwt() != null
             ? "\"" + JitsiConfig.getJwt().replace("\\", "\\\\").replace("\"", "\\\"").replace("\n", "") + "\""

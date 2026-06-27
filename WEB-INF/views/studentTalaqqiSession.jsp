@@ -422,11 +422,11 @@
         }
 
         const roomName = jitsiContainer.getAttribute('data-room-name') || 'TalaqqiHub-' + Date.now();
-        const jitsiDomain = jitsiContainer.getAttribute('data-jitsi-domain') || '8x8.vc';
+        const jitsiDomain = jitsiContainer.getAttribute('data-jitsi-domain') || 'meet.jit.si';
         const sessionId = jitsiContainer.getAttribute('data-session-id');
         const teacherId = jitsiContainer.getAttribute('data-teacher-id');
 
-        // Initialize Jitsi / 8x8 JaaS
+        // Initialize Jitsi Meet (public meet.jit.si)
         const options = {
             roomName: roomName,
             width: '100%',
