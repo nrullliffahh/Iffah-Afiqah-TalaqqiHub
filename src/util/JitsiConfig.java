@@ -19,7 +19,7 @@ public final class JitsiConfig {
     }
 
     public static String getProvider() {
-        return getProperty("jitsi.provider", "jaas");
+        return getProperty("jitsi.provider", "public");
     }
 
     public static String getDomain() {
@@ -109,10 +109,21 @@ public final class JitsiConfig {
         String catalinaBase = System.getProperty("catalina.base", "");
         String catalinaHome = System.getProperty("catalina.home", "");
         return new String[] {
+            // Kerocket / Docker: WAR deployed as ROOT.war
+            catalinaBase + "/webapps/ROOT/WEB-INF/" + PROPERTIES_FILE,
+            catalinaHome + "/webapps/ROOT/WEB-INF/" + PROPERTIES_FILE,
+            // Local XAMPP Tomcat
             catalinaBase + "/webapps/TalaqqiHub/WEB-INF/" + PROPERTIES_FILE,
             catalinaHome + "/webapps/TalaqqiHub/WEB-INF/" + PROPERTIES_FILE,
             "WEB-INF/" + PROPERTIES_FILE,
             PROPERTIES_FILE
         };
+    }
+
+    /** Log resolved settings once at startup (call from DbStartupListener). */
+    public static void logStartupConfig() {
+        System.out.println("JitsiConfig: provider=" + getProvider()
+            + ", domain=" + getDomain()
+            + ", scriptUrl=" + getScriptUrl());
     }
 }

@@ -40,6 +40,7 @@ public class DbStartupListener implements ServletContextListener {
                     + " — embed avnadmin:PASSWORD in DB_URL if Kerocket does not inject DB_USER/DB_PASSWORD."
             );
         }
+        JitsiConfig.logStartupConfig();
     }
 
     @Override
