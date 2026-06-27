@@ -712,6 +712,7 @@ public class TalaqqiSessionDAO {
             if (conn == null) return false;
 
             String updateSql;
+            String absentExclusion = absentBookingExclusionClause();
             if (usesBookingIdLink(conn) && hasSessionTimingColumns(conn)) {
                 updateSql =
                     "UPDATE classbooking cb "
@@ -721,21 +722,24 @@ public class TalaqqiSessionDAO {
                     + "    ts.sessionDate = CURDATE(), "
                     + "    ts.sessionStartTime = IF(ts.sessionStartTime IS NULL, NOW(), ts.sessionStartTime), "
                     + "    ts.sessionDuration = ? "
-                    + "WHERE ts.sessionId = ? AND cs.teacherId = ?";
+                    + "WHERE ts.sessionId = ? AND cs.teacherId = ? "
+                    + absentExclusion;
             } else if (usesBookingIdLink(conn)) {
                 updateSql =
                     "UPDATE classbooking cb "
                     + joinSessionToBooking(conn)
                     + "JOIN classschedule cs ON cb.scheduleId = cs.scheduleId "
                     + "SET cb.bookingStatus = 'Completed', ts.sessionDate = CURDATE() "
-                    + "WHERE ts.sessionId = ? AND cs.teacherId = ?";
+                    + "WHERE ts.sessionId = ? AND cs.teacherId = ? "
+                    + absentExclusion;
             } else {
                 updateSql =
                     "UPDATE classbooking cb "
                     + "JOIN classschedule cs ON cb.scheduleId = cs.scheduleId "
                     + "JOIN talaqqisession ts ON ts.scheduleId = cs.scheduleId "
                     + "SET cb.bookingStatus = 'Completed', ts.sessionDate = CURDATE() "
-                    + "WHERE ts.sessionId = ? AND cs.teacherId = ?";
+                    + "WHERE ts.sessionId = ? AND cs.teacherId = ? "
+                    + absentExclusion;
             }
 
             ps = conn.prepareStatement(util.TalaqqiSchemaUtil.sql(updateSql, conn));
@@ -777,6 +781,7 @@ public class TalaqqiSessionDAO {
             + "OR ((ts.bookingId IS NULL OR ts.bookingId = '') AND ts.scheduleId = cb.scheduleId))";
 
         String updateSql;
+        String absentExclusion = absentBookingExclusionClause();
         if (hasSessionTimingColumns(conn)) {
             updateSql =
                 "UPDATE classbooking cb "
@@ -786,14 +791,14 @@ public class TalaqqiSessionDAO {
                 + "    ts.sessionDate = CURDATE(), "
                 + "    ts.sessionStartTime = IF(ts.sessionStartTime IS NULL, NOW(), ts.sessionStartTime), "
                 + "    ts.sessionDuration = ? "
-                + "WHERE cs.teacherId = ? AND " + linkClause;
+                + "WHERE cs.teacherId = ? AND " + linkClause + " " + absentExclusion;
         } else {
             updateSql =
                 "UPDATE classbooking cb "
                 + "JOIN classschedule cs ON cb.scheduleId = cs.scheduleId "
                 + "JOIN " + sessionTable + " ts ON ts.sessionId = ? "
                 + "SET cb.bookingStatus = 'Completed', ts.sessionDate = CURDATE() "
-                + "WHERE cs.teacherId = ? AND " + linkClause;
+                + "WHERE cs.teacherId = ? AND " + linkClause + " " + absentExclusion;
         }
 
         try (PreparedStatement ps = conn.prepareStatement(util.TalaqqiSchemaUtil.sql(updateSql, conn))) {
@@ -810,6 +815,16 @@ public class TalaqqiSessionDAO {
             }
             return rows;
         }
+    }
+
+    /** Skip absent students when marking bookings completed after session end. */
+    private static String absentBookingExclusionClause() {
+        return "AND NOT EXISTS ("
+            + "  SELECT 1 FROM attendance a "
+            + "  WHERE a.studentId = cb.studentId AND a.scheduleId = cb.scheduleId "
+            + "    AND a.attendanceStatus = 'Absent'"
+            + "    AND (a.attendanceDate = cb.bookingDate OR a.attendanceDate = CURDATE())"
+            + ")";
     }
 
     /** Link legacy session rows to their bookingId for future joins. */
@@ -1525,7 +1540,7 @@ public class TalaqqiSessionDAO {
             if (conn == null) return 0;
 
             String findMissingStudentsSql = usesBookingIdLink(conn)
-                ? "SELECT DISTINCT cb.studentId, cb.scheduleId, cs.teacherId, ts.sessionDate "
+                ? "SELECT DISTINCT cb.studentId, cb.scheduleId, cs.teacherId, cb.bookingDate "
                     + "FROM talaqqisession ts "
                     + "JOIN classbooking cb ON ts.bookingId = cb.bookingId "
                     + "JOIN classschedule cs ON cb.scheduleId = cs.scheduleId "
@@ -1536,10 +1551,10 @@ public class TalaqqiSessionDAO {
                     + "      SELECT 1 FROM attendance a "
                     + "      WHERE a.scheduleId = cb.scheduleId "
                     + "        AND a.studentId = cb.studentId "
-                    + "        AND a.attendanceDate = COALESCE(ts.sessionDate, CURDATE()) "
+                    + "        AND a.attendanceDate = cb.bookingDate "
                     + "        AND a.attendanceStatus IN ('Present', 'Late')"
                     + "  )"
-                : "SELECT DISTINCT cb.studentId, cb.scheduleId, cs.teacherId, ts.sessionDate "
+                : "SELECT DISTINCT cb.studentId, cb.scheduleId, cs.teacherId, cb.bookingDate "
                     + "FROM talaqqisession ts "
                     + "JOIN classschedule cs ON ts.scheduleId = cs.scheduleId "
                     + "LEFT JOIN classbooking cb ON cb.scheduleId = cs.scheduleId "
@@ -1551,7 +1566,7 @@ public class TalaqqiSessionDAO {
                     + "      SELECT 1 FROM attendance a "
                     + "      WHERE a.scheduleId = cb.scheduleId "
                     + "        AND a.studentId = cb.studentId "
-                    + "        AND a.attendanceDate = COALESCE(ts.sessionDate, CURDATE()) "
+                    + "        AND a.attendanceDate = cb.bookingDate "
                     + "        AND a.attendanceStatus IN ('Present', 'Late')"
                     + "  )";
 
@@ -1565,14 +1580,13 @@ public class TalaqqiSessionDAO {
             while (rs.next()) {
                 String studentId = rs.getString("studentId");
                 String scheduleId = rs.getString("scheduleId");
-                java.sql.Date sessionDate = rs.getDate("sessionDate");
-                if (sessionDate == null) {
-                    sessionDate = java.sql.Date.valueOf(LocalDate.now());
+                java.sql.Date bookingDate = rs.getDate("bookingDate");
+                if (bookingDate == null) {
+                    bookingDate = java.sql.Date.valueOf(LocalDate.now());
                 }
 
-                // Record ABSENT attendance
+                // Record ABSENT on the booking date so student portal can match it
                 String attendanceId = "AT" + UUID.randomUUID().toString().replace("-", "").substring(0, 8).toUpperCase();
-                java.sql.Date today = sessionDate;
 
                 String insertAbsentSql =
                     "INSERT INTO attendance (attendanceId, attendanceDate, attendanceStatus, " +
@@ -1581,7 +1595,7 @@ public class TalaqqiSessionDAO {
 
                 try (PreparedStatement insertPs = conn.prepareStatement(util.TalaqqiSchemaUtil.sql(insertAbsentSql, conn))) {
                     insertPs.setString(1, attendanceId);
-                    insertPs.setDate(2, today);
+                    insertPs.setDate(2, bookingDate);
                     insertPs.setString(3, studentId);
                     insertPs.setString(4, teacherId);
                     insertPs.setString(5, scheduleId);

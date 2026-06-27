@@ -144,6 +144,11 @@ public class StudentBooking {
         return attendanceStatus != null && "Absent".equalsIgnoreCase(attendanceStatus.trim());
     }
 
+    /** Past session where student was absent — show Not Completed + Reschedule. */
+    public boolean needsReschedule() {
+        return isAbsent() && !isFutureSession();
+    }
+
     public boolean isFutureSession() {
         if (bookingDate == null) {
             return false;

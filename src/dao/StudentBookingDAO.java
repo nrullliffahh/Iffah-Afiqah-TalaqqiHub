@@ -5,7 +5,6 @@ import model.ClassSchedule;
 import util.BookingStatus;
 import util.DBConnection;
 import util.TalaqqiSchemaUtil;
-import util.TalaqqiSchemaUtil;
 import java.sql.Connection;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
@@ -25,11 +24,17 @@ public class StudentBookingDAO {
         int usedSessions = 0;
         int bookedThisMonth = 0;
 
-        String completedSql = "SELECT COUNT(*) as used FROM classbooking "
-            + "WHERE studentId = ? "
-            + "AND MONTH(bookingDate) = MONTH(CURRENT_DATE()) "
-            + "AND YEAR(bookingDate) = YEAR(CURRENT_DATE()) "
-            + "AND bookingStatus = 'Completed'";
+        String completedSql = "SELECT COUNT(*) as used FROM classbooking cb "
+            + "WHERE cb.studentId = ? "
+            + "AND MONTH(cb.bookingDate) = MONTH(CURRENT_DATE()) "
+            + "AND YEAR(cb.bookingDate) = YEAR(CURRENT_DATE()) "
+            + "AND cb.bookingStatus = 'Completed' "
+            + "AND NOT EXISTS ("
+            + "  SELECT 1 FROM attendance a "
+            + "  WHERE a.studentId = cb.studentId AND a.scheduleId = cb.scheduleId "
+            + "    AND a.attendanceStatus = 'Absent'"
+            + "    AND (a.attendanceDate = cb.bookingDate OR a.attendanceDate = CURDATE())"
+            + ")";
 
         String bookedSql = "SELECT COUNT(*) as booked FROM classbooking "
             + "WHERE studentId = ? "
@@ -949,8 +954,10 @@ public class StudentBookingDAO {
         String attendanceSubquery =
             "(SELECT a.attendanceStatus FROM attendance a "
                 + "WHERE a.studentId = b.studentId AND a.scheduleId = b.scheduleId "
-                + "AND a.attendanceDate = b.bookingDate "
-                + "ORDER BY a.attendanceId DESC LIMIT 1) AS attendanceStatus";
+                + "ORDER BY "
+                + "CASE WHEN a.attendanceDate = b.bookingDate THEN 0 ELSE 1 END, "
+                + "CASE a.attendanceStatus WHEN 'Absent' THEN 0 WHEN 'Late' THEN 1 WHEN 'Present' THEN 2 ELSE 3 END, "
+                + "a.attendanceId DESC LIMIT 1) AS attendanceStatus";
 
         String[] sqlVariants = {
             "SELECT b.bookingId, b.studentId, b.scheduleId, b.bookingDate, b.bookingTime, b.bookingStatus, b.createdAt, "

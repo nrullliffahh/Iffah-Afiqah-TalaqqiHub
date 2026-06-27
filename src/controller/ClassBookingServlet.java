@@ -48,7 +48,7 @@ public class ClassBookingServlet extends HttpServlet {
             }
         }
 
-        // Partition bookings: Upcoming, Completed, then Cancelled/Rescheduled
+        // Partition: Upcoming (active), Completed (incl. absent → Not Completed), Cancelled/Rescheduled
         java.util.List<StudentBooking> upcomingBookings = new java.util.ArrayList<>();
         java.util.List<StudentBooking> completedBookings = new java.util.ArrayList<>();
         java.util.List<StudentBooking> cancelledBookings = new java.util.ArrayList<>();
@@ -58,21 +58,18 @@ public class ClassBookingServlet extends HttpServlet {
                 if (status == null) {
                     status = "";
                 }
-                switch (status) {
-                    case "Completed":
-                        if (b.isFutureSession()) {
-                            upcomingBookings.add(b);
-                        } else {
-                            completedBookings.add(b);
-                        }
-                        break;
-                    case "Cancelled":
-                    case "Rescheduled":
-                        cancelledBookings.add(b);
-                        break;
-                    default:
+                if ("Cancelled".equalsIgnoreCase(status) || "Rescheduled".equalsIgnoreCase(status)) {
+                    cancelledBookings.add(b);
+                } else if (b.needsReschedule()) {
+                    completedBookings.add(b);
+                } else if ("Completed".equalsIgnoreCase(status)) {
+                    if (b.isFutureSession()) {
                         upcomingBookings.add(b);
-                        break;
+                    } else {
+                        completedBookings.add(b);
+                    }
+                } else {
+                    upcomingBookings.add(b);
                 }
             }
         }

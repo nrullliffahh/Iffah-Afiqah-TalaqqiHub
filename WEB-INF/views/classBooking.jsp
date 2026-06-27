@@ -927,7 +927,7 @@
                         <!-- Upcoming bookings -->
                         <c:forEach var="booking" items="${upcomingBookings}">
                             <c:set var="borderClass" value="border-blue-200 bg-blue-50" />
-                            <div class="border-2 rounded-xl p-5 ${borderClass} booking-entry" data-booking-id="${booking.bookingId}" data-booking-date="${booking.bookingDate}" data-booking-time="${booking.bookingTime}" data-teacher-name="${booking.teacherName}" data-class-type="${booking.className}" data-booking-status="${booking.bookingStatus}" data-can-cancel="${booking.cancellationAllowed}">
+                            <div class="border-2 rounded-xl p-5 ${borderClass} booking-entry" data-booking-id="${booking.bookingId}" data-booking-date="${booking.bookingDate}" data-booking-time="${booking.bookingTime}" data-teacher-name="${booking.teacherName}" data-class-type="${booking.className}" data-booking-status="${booking.bookingStatus}" data-attendance-status="${booking.attendanceStatus}" data-can-cancel="${booking.cancellationAllowed}">
                                 <div class="flex items-start justify-between">
                                     <div class="flex-1">
                                         <div class="flex items-center gap-3 mb-3">
@@ -964,7 +964,7 @@
                                             </div>
                                         </div>
                                     </div>
-                                    <div class="flex gap-2 ml-4">
+                                    <div class="flex flex-col gap-2 ml-4">
                                         <button type="button" onclick="openDetailsModal('${booking.bookingId}')" class="px-4 py-2 border-2 border-gray-300 bg-white text-gray-700 rounded-lg text-sm font-semibold hover:bg-gray-100 transition-colors">
                                             View Details
                                         </button>
@@ -976,10 +976,10 @@
                             </div>
                         </c:forEach>
 
-                        <!-- Completed bookings -->
+                        <!-- Completed bookings (incl. absent → Not Completed + Reschedule) -->
                         <c:forEach var="booking" items="${completedBookings}">
                             <c:choose>
-                                <c:when test="${booking.absent}">
+                                <c:when test="${booking.needsReschedule}">
                                     <c:set var="borderClass" value="border-amber-200 bg-amber-50" />
                                 </c:when>
                                 <c:otherwise>
@@ -992,7 +992,7 @@
                                         <div class="flex items-center gap-3 mb-3">
                                             <h4 class="font-bold text-gray-800 text-lg">${booking.className}</h4>
                                             <c:choose>
-                                                <c:when test="${booking.absent}">
+                                                <c:when test="${booking.needsReschedule}">
                                                     <span class="px-3 py-1 bg-amber-100 text-amber-800 text-sm font-semibold rounded-full">Not Completed</span>
                                                 </c:when>
                                                 <c:otherwise>
@@ -1034,7 +1034,7 @@
                                         <button type="button" onclick="openDetailsModal('${booking.bookingId}')" class="px-4 py-2 border-2 border-gray-300 text-gray-700 rounded-lg text-sm font-semibold hover:bg-gray-100 transition-colors">
                                             View Details
                                         </button>
-                                        <c:if test="${booking.absent}">
+                                        <c:if test="${booking.needsReschedule}">
                                             <button type="button"
                                                     class="reschedule-btn px-4 py-2 bg-teal-500 text-white rounded-lg text-sm font-semibold hover:bg-teal-600 transition-colors"
                                                     data-booking-id="${booking.bookingId}"
@@ -1240,8 +1240,11 @@
                     <p id="detailsStatus" class="inline-block px-3 py-1 bg-blue-100 text-blue-700 rounded-full text-xs font-semibold">Upcoming</p>
                 </div>
             </div>
-            <div class="text-center">
-                <button onclick="closeDetailsModal()" class="px-6 py-3 bg-gradient-to-r from-teal-400 to-teal-600 text-white rounded-xl font-semibold">Close</button>
+            <div class="text-center space-y-3">
+                <button type="button" id="detailsRescheduleBtn" onclick="rescheduleFromDetailsModal()" class="hidden w-full px-6 py-3 bg-teal-500 text-white rounded-xl font-semibold hover:bg-teal-600 transition-colors">
+                    Reschedule
+                </button>
+                <button onclick="closeDetailsModal()" class="w-full px-6 py-3 bg-gradient-to-r from-teal-400 to-teal-600 text-white rounded-xl font-semibold">Close</button>
             </div>
         </div>
     </div>
@@ -1402,6 +1405,8 @@
                 let displaySts = sts;
                 if (sts === 'Completed' && att === 'Absent') {
                     displaySts = 'Not Completed';
+                } else if (att === 'Absent') {
+                    displaySts = 'Not Completed';
                 } else if (sts === 'Rescheduled' || sts === 'Cancelled') {
                     const card = el.closest('.booking-entry');
                     const isRescheduled = card && card.classList.contains('bg-teal-50');
@@ -1412,7 +1417,11 @@
                 statusEl.textContent = displaySts;
                 statusEl.className = 'inline-block px-3 py-1 rounded-full text-xs font-semibold';
                 if (sts === 'Upcoming' || sts === 'Confirmed') {
-                    statusEl.classList.add('bg-blue-100','text-blue-700');
+                    if (att === 'Absent') {
+                        statusEl.classList.add('bg-amber-100','text-amber-800');
+                    } else {
+                        statusEl.classList.add('bg-blue-100','text-blue-700');
+                    }
                 } else if (displaySts === 'Not Completed') {
                     statusEl.classList.add('bg-amber-100','text-amber-800');
                 } else if (displaySts === 'Rescheduled') {
@@ -1425,7 +1434,41 @@
                     statusEl.classList.add('bg-gray-100','text-gray-700');
                 }
             }
+            const rescheduleBtn = document.getElementById('detailsRescheduleBtn');
+            if (rescheduleBtn) {
+                const att = (el.dataset.attendanceStatus || '');
+                const card = el.closest('.booking-entry');
+                const needsReschedule = att === 'Absent' && card && card.classList.contains('bg-amber-50');
+                if (needsReschedule) {
+                    rescheduleBtn.classList.remove('hidden');
+                    rescheduleBtn.dataset.bookingId = bookingId;
+                    rescheduleBtn.dataset.bookingDate = rawDate;
+                } else {
+                    rescheduleBtn.classList.add('hidden');
+                    rescheduleBtn.dataset.bookingId = '';
+                    rescheduleBtn.dataset.bookingDate = '';
+                }
+            }
             document.getElementById('detailsModal').classList.remove('hidden');
+        }
+
+        function rescheduleFromDetailsModal() {
+            const btn = document.getElementById('detailsRescheduleBtn');
+            if (!btn) return;
+            const bookingId = btn.dataset.bookingId;
+            const bookingDate = btn.dataset.bookingDate;
+            closeDetailsModal();
+            try {
+                window.talaqqi.openReschedule(bookingId, bookingDate);
+            } catch (e) {
+                try { localStorage.setItem('rescheduleBookingId', bookingId || ''); } catch (err) {}
+                try { window.talaqqi.pendingReschedule = bookingId || ''; } catch (err) {}
+            }
+            try {
+                if (typeof calendarGrid !== 'undefined' && calendarGrid) {
+                    calendarGrid.dataset.pendingReschedule = bookingId || '';
+                }
+            } catch (e) {}
         }
 
         function closeDetailsModal() {
