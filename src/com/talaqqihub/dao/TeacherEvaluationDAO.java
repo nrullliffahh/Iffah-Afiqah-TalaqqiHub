@@ -96,6 +96,25 @@ public class TeacherEvaluationDAO {
             tryAddColumn("studentevaluation", col[0], col[1]);
         }
         tryModifyColumnNullable("studentevaluation", "sessionId", "VARCHAR(50) DEFAULT NULL");
+        tryModifyColumnNullable("studentevaluation", "scheduleId", "VARCHAR(10) DEFAULT NULL");
+        ensureScheduleIdAllowsNull();
+    }
+
+    /** Legacy production may have NOT NULL scheduleId (INT/VARCHAR) — allow NULL when lookup fails. */
+    private void ensureScheduleIdAllowsNull() {
+        if (!hasEvalColumn("scheduleId")) {
+            return;
+        }
+        tryModifyColumnNullable("studentevaluation", "scheduleId", "VARCHAR(10) DEFAULT NULL");
+        try (Statement stmt = connection.createStatement()) {
+            stmt.execute("ALTER TABLE studentevaluation MODIFY COLUMN scheduleId INT DEFAULT NULL");
+            System.out.println("[TeacherEvaluationDAO] modified column studentevaluation.scheduleId (INT NULL)");
+        } catch (SQLException e) {
+            String msg = e.getMessage() != null ? e.getMessage() : "";
+            if (!msg.contains("Duplicate column") && !msg.contains("Unknown column")) {
+                System.err.println("[TeacherEvaluationDAO] ensureScheduleIdAllowsNull INT: " + msg);
+            }
+        }
     }
 
     private void tryModifyColumnNullable(String table, String column, String definition) {
@@ -682,10 +701,9 @@ public class TeacherEvaluationDAO {
         if (!hasEvalColumn("scheduleId")) {
             return;
         }
+        hydrateLegacyKeys(evaluation);
         String scheduleId = resolveScheduleIdString(evaluation);
-        if (scheduleId != null) {
-            parts.add("scheduleId", scheduleId);
-        }
+        parts.add("scheduleId", scheduleId);
     }
 
     private void hydrateLegacyKeys(Evaluation evaluation) {
@@ -716,7 +734,7 @@ public class TeacherEvaluationDAO {
             try (ResultSet rs = stmt.executeQuery()) {
                 if (rs.next()) {
                     String scheduleId = readScheduleIdColumn(rs);
-                    if (scheduleIdExistsInClassSchedule(scheduleId)) {
+                    if (scheduleId != null && !scheduleId.isEmpty()) {
                         return scheduleId;
                     }
                 }
@@ -726,7 +744,31 @@ public class TeacherEvaluationDAO {
         }
 
         if (studentId != null && !studentId.trim().isEmpty()) {
+            String bookingOn = TalaqqiSchemaUtil.hasColumn(connection, table, "bookingId")
+                ? "((ts.bookingId IS NOT NULL AND ts.bookingId <> '' AND ts.bookingId = cb.bookingId) "
+                    + "OR ((ts.bookingId IS NULL OR ts.bookingId = '') AND ts.scheduleId = cb.scheduleId))"
+                : "ts.scheduleId = cb.scheduleId";
             String bookingSql =
+                "SELECT cb.scheduleId FROM " + table + " ts "
+                + "JOIN classbooking cb ON " + bookingOn + " "
+                + "WHERE ts.sessionId = ? AND cb.studentId = ? "
+                + "ORDER BY cb.bookingDate DESC, cb.bookingTime DESC LIMIT 1";
+            try (PreparedStatement stmt = connection.prepareStatement(bookingSql)) {
+                stmt.setString(1, sessionId.trim());
+                stmt.setString(2, studentId.trim());
+                try (ResultSet rs = stmt.executeQuery()) {
+                    if (rs.next()) {
+                        String scheduleId = readScheduleIdColumn(rs);
+                        if (scheduleId != null) {
+                            return scheduleId;
+                        }
+                    }
+                }
+            } catch (SQLException e) {
+                System.err.println("[TeacherEvaluationDAO] lookupScheduleIdForSession booking: " + e.getMessage());
+            }
+
+            bookingSql =
                 "SELECT cb.scheduleId FROM " + table + " ts "
                 + "JOIN classbooking cb ON cb.scheduleId = ts.scheduleId "
                 + "WHERE ts.sessionId = ? AND cb.studentId = ? "
@@ -737,13 +779,14 @@ public class TeacherEvaluationDAO {
                 try (ResultSet rs = stmt.executeQuery()) {
                     if (rs.next()) {
                         String scheduleId = readScheduleIdColumn(rs);
-                        if (scheduleIdExistsInClassSchedule(scheduleId)) {
+                        if (scheduleId != null) {
                             return scheduleId;
                         }
                     }
                 }
             } catch (SQLException e) {
-                System.err.println("[TeacherEvaluationDAO] lookupScheduleIdForSession booking: " + e.getMessage());
+                System.err.println("[TeacherEvaluationDAO] lookupScheduleIdForSession schedule join: "
+                    + e.getMessage());
             }
         }
         return null;
@@ -756,7 +799,18 @@ public class TeacherEvaluationDAO {
             return null;
         }
         scheduleId = scheduleId.trim();
-        return scheduleIdExistsInClassSchedule(scheduleId) ? scheduleId : null;
+        if (scheduleIdExistsInClassSchedule(scheduleId)) {
+            return scheduleId;
+        }
+        // Keep FK value when classschedule probe fails but form/session provided an id.
+        return scheduleId;
+    }
+
+    private boolean isScheduleIdRequiredError(SQLException e) {
+        String msg = e.getMessage();
+        return msg != null && (msg.contains("Field 'scheduleId' doesn't have a default value")
+            || msg.contains("fk_StudentEvaluation_scheduleId")
+            || msg.contains("Column 'scheduleId' cannot be null"));
     }
 
     private boolean scheduleIdExistsInClassSchedule(String scheduleId) {
@@ -785,8 +839,7 @@ public class TeacherEvaluationDAO {
     }
 
     private boolean isScheduleIdConstraintError(SQLException e) {
-        String msg = e.getMessage();
-        return msg != null && msg.contains("fk_StudentEvaluation_scheduleId");
+        return isScheduleIdRequiredError(e);
     }
 
     private void bindParams(PreparedStatement stmt, List<Object> values) throws SQLException {
@@ -911,13 +964,30 @@ public class TeacherEvaluationDAO {
                 }
             }
             System.err.println("[TeacherEvaluationDAO] insertEvaluation primary failed: " + e.getMessage());
-            if (isScheduleIdConstraintError(e)) {
-                evaluation.setScheduleId(null);
+            if (isScheduleIdRequiredError(e)) {
+                ensureScheduleIdAllowsNull();
+                if (isBlank(evaluation.getScheduleId())) {
+                    evaluation.setScheduleId(lookupScheduleIdForSession(
+                        evaluation.getSessionId(), resolveStudentId(evaluation)));
+                }
                 EvalSqlParts retryParts = buildEvaluationInsertParts(evaluation);
                 String retrySql = "INSERT INTO studentevaluation (" + retryParts.columns + ") VALUES ("
                     + retryParts.placeholders + ")";
                 try (PreparedStatement retryStmt = connection.prepareStatement(retrySql)) {
                     bindParams(retryStmt, retryParts.values);
+                    if (retryStmt.executeUpdate() > 0) {
+                        return true;
+                    }
+                } catch (SQLException retryError) {
+                    System.err.println("[TeacherEvaluationDAO] insertEvaluation scheduleId retry: "
+                        + retryError.getMessage());
+                }
+                evaluation.setScheduleId(null);
+                EvalSqlParts nullScheduleParts = buildEvaluationInsertParts(evaluation);
+                String nullScheduleSql = "INSERT INTO studentevaluation (" + nullScheduleParts.columns
+                    + ") VALUES (" + nullScheduleParts.placeholders + ")";
+                try (PreparedStatement retryStmt = connection.prepareStatement(nullScheduleSql)) {
+                    bindParams(retryStmt, nullScheduleParts.values);
                     if (retryStmt.executeUpdate() > 0) {
                         return true;
                     }
@@ -955,6 +1025,8 @@ public class TeacherEvaluationDAO {
             String scheduleId = resolveScheduleIdString(evaluation);
             if (scheduleId != null) {
                 helper.addSet("scheduleId", scheduleId, setClause, params);
+            } else {
+                addSetNullable(helper, "scheduleId", null, setClause, params);
             }
         }
         if (hasEvalColumn("class_name")) {
