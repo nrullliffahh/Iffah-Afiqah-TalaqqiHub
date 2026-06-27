@@ -351,6 +351,7 @@ public class TalaqqiSessionDAO {
                 forTeacher ? userId : null,
                 forTeacher ? null : userId);
             if (session != null) {
+                enrichSessionFromBooking(session, booking);
                 sessions.add(session);
                 if (limit > 0 && sessions.size() >= limit) {
                     break;
@@ -393,16 +394,18 @@ public class TalaqqiSessionDAO {
                 return;
             }
             boolean modern = usesBookingIdLink(conn);
-            if (sessionExistsForBooking(conn, modern, bookingId, scheduleId)) {
-                return;
-            }
-
             java.sql.Date sessionDate = booking.getBookingDate() != null
                 ? java.sql.Date.valueOf(booking.getBookingDate())
                 : null;
             if (sessionDate == null && scheduleId != null) {
                 sessionDate = loadScheduleDate(conn, scheduleId);
             }
+
+            if (sessionExistsForBooking(conn, modern, bookingId, scheduleId)) {
+                syncSessionDateForBooking(conn, modern, bookingId, scheduleId, sessionDate);
+                return;
+            }
+
             if (sessionDate == null) {
                 return;
             }
@@ -462,6 +465,52 @@ public class TalaqqiSessionDAO {
             }
         }
         return null;
+    }
+
+    private static void syncSessionDateForBooking(Connection conn, boolean modern,
+            String bookingId, String scheduleId, java.sql.Date sessionDate) {
+        if (conn == null || sessionDate == null) {
+            return;
+        }
+        try {
+            String sql = modern && bookingId != null && !bookingId.trim().isEmpty()
+                ? "UPDATE talaqqisession SET sessionDate = ? WHERE bookingId = ? "
+                    + "AND (sessionDate IS NULL OR sessionDate <> ?)"
+                : "UPDATE talaqqisession SET sessionDate = ? WHERE scheduleId = ? "
+                    + "AND (sessionDate IS NULL OR sessionDate <> ?)";
+            String linkValue = modern && bookingId != null && !bookingId.trim().isEmpty()
+                ? bookingId.trim()
+                : (scheduleId != null ? scheduleId.trim() : null);
+            if (linkValue == null || linkValue.isEmpty()) {
+                return;
+            }
+            try (PreparedStatement ps = conn.prepareStatement(util.TalaqqiSchemaUtil.sql(sql, conn))) {
+                ps.setDate(1, sessionDate);
+                ps.setString(2, linkValue);
+                ps.setDate(3, sessionDate);
+                ps.executeUpdate();
+            }
+        } catch (SQLException e) {
+            System.err.println("[TalaqqiSessionDAO] syncSessionDateForBooking: " + e.getMessage());
+        }
+    }
+
+    /** Switch Session labels must match class booking (booking date/time, not stale talaqqisession.sessionDate). */
+    private static void enrichSessionFromBooking(TalaqqiSession session, StudentBooking booking) {
+        if (session == null || booking == null) {
+            return;
+        }
+        SimpleDateFormat dateFmt = new SimpleDateFormat("EEEE, MMMM d, yyyy");
+        SimpleDateFormat timeFmt = new SimpleDateFormat("hh:mm a");
+        if (booking.getBookingDate() != null) {
+            session.setSessionDate(dateFmt.format(java.sql.Date.valueOf(booking.getBookingDate())));
+        }
+        if (booking.getBookingTime() != null) {
+            session.setSessionStartTime(timeFmt.format(java.sql.Time.valueOf(booking.getBookingTime())));
+            int mins = booking.getDuration() > 0 ? booking.getDuration() : 15;
+            java.time.LocalTime end = booking.getBookingTime().plusMinutes(mins);
+            session.setSessionEndTime(timeFmt.format(java.sql.Time.valueOf(end)));
+        }
     }
 
     private TalaqqiSession querySessionByScheduleId(String scheduleId, String teacherId, String studentId) {
@@ -1457,15 +1506,18 @@ public class TalaqqiSessionDAO {
         String tName = rs.getString("teacherName");
         ts.setTeacherName(tName != null ? tName : "Teacher");
 
-        // ── Date / time formatting ────────────────────────────────────────────
-        java.sql.Date sessionDate = rs.getDate("tsDate");   // from talaqqisession
+        // ── Date / time formatting (prefer classschedule date over stale talaqqisession.sessionDate) ─
+        java.sql.Date scheduleDate = null;
+        try { scheduleDate = rs.getDate("scheduleDate"); } catch (SQLException ignored) {}
+        java.sql.Date sessionDate = rs.getDate("tsDate");
+        java.sql.Date displayDate = scheduleDate != null ? scheduleDate : sessionDate;
         java.sql.Time startTime   = rs.getTime("startTime");
         java.sql.Time endTime     = rs.getTime("endTime");
 
         SimpleDateFormat dateFmt = new SimpleDateFormat("EEEE, MMMM d, yyyy");
         SimpleDateFormat timeFmt = new SimpleDateFormat("hh:mm a");
 
-        ts.setSessionDate(sessionDate != null ? dateFmt.format(sessionDate) : "TBD");
+        ts.setSessionDate(displayDate != null ? dateFmt.format(displayDate) : "TBD");
         ts.setSessionStartTime(startTime != null ? timeFmt.format(startTime) : "--:--");
         ts.setSessionEndTime(endTime     != null ? timeFmt.format(endTime)   : "--:--");
 

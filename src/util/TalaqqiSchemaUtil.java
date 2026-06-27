@@ -234,6 +234,7 @@ public final class TalaqqiSchemaUtil {
             ? "ts.sessionStartTime, ts.sessionDuration, "
             : "NULL AS sessionStartTime, NULL AS sessionDuration, ";
         String ayahEndCol = ayahEnd ? "cs.classAyahEnd, " : "NULL AS classAyahEnd, ";
+        String scheduleDateCol = "cs.scheduleDate AS scheduleDate, ";
         boolean quranDisplay = hasQuranDisplayTable(conn);
         String quranDisplayCols = quranDisplay
             ? "qd.currentSurah AS displaySurah, qd.currentAyah AS displayAyah, "
@@ -249,6 +250,7 @@ public final class TalaqqiSchemaUtil {
                 + "ts.bookingId, "
                 + "cb.studentId, cb.scheduleId, cb.bookingStatus, "
                 + "cs.teacherId, cs.className, cs.startTime, cs.endTime, cs.duration, "
+                + scheduleDateCol
                 + "cs.classSurah, cs.classAyah, " + ayahEndCol
                 + quranDisplayCols
                 + "s.studentName, t.teacherName AS teacherName "
@@ -263,6 +265,7 @@ public final class TalaqqiSchemaUtil {
                 + timingCols
                 + "cb.bookingId, cb.studentId, cs.scheduleId, cb.bookingStatus, "
                 + "cs.teacherId, cs.className, cs.startTime, cs.endTime, cs.duration, "
+                + scheduleDateCol
                 + "cs.classSurah, cs.classAyah, " + ayahEndCol
                 + quranDisplayCols
                 + "s.studentName, t.teacherName AS teacherName "
