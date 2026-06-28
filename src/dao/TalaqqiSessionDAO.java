@@ -468,9 +468,9 @@ public class TalaqqiSessionDAO {
         try {
             String sql = modern && bookingId != null && !bookingId.trim().isEmpty()
                 ? "UPDATE talaqqisession SET sessionDate = ? WHERE bookingId = ? "
-                    + "AND (sessionDate IS NULL OR sessionDate <> ?)"
+                    + "AND sessionDate IS NULL"
                 : "UPDATE talaqqisession SET sessionDate = ? WHERE scheduleId = ? "
-                    + "AND (sessionDate IS NULL OR sessionDate <> ?)";
+                    + "AND sessionDate IS NULL";
             String linkValue = modern && bookingId != null && !bookingId.trim().isEmpty()
                 ? bookingId.trim()
                 : (scheduleId != null ? scheduleId.trim() : null);
@@ -480,7 +480,6 @@ public class TalaqqiSessionDAO {
             try (PreparedStatement ps = conn.prepareStatement(util.TalaqqiSchemaUtil.sql(sql, conn))) {
                 ps.setDate(1, sessionDate);
                 ps.setString(2, linkValue);
-                ps.setDate(3, sessionDate);
                 ps.executeUpdate();
             }
         } catch (SQLException e) {
@@ -1246,6 +1245,8 @@ public class TalaqqiSessionDAO {
             conn = DBConnection.getConnection();
             if (conn == null) return false;
 
+            backfillSessionBookingIdResolved(conn, sessionId, teacherId);
+
             String updateSql;
             if (usesBookingIdLink(conn) && hasSessionTimingColumns(conn)) {
                 updateSql =
@@ -1515,6 +1516,7 @@ public class TalaqqiSessionDAO {
         try {
             String sql =
                 "SELECT 1 FROM attendance a "
+                + "JOIN classbooking cb ON cb.scheduleId = a.scheduleId AND cb.studentId = a.studentId "
                 + joinSessionToBooking(conn)
                 + "WHERE ts.sessionId = ? "
                 + "  AND a.attendanceStatus IN ('Present','Late') "
@@ -1580,6 +1582,16 @@ public class TalaqqiSessionDAO {
             conn = DBConnection.getConnection();
             if (conn == null) {
                 return false;
+            }
+            backfillSessionBookingIdResolved(conn, sessionId, teacherId);
+            session = getSessionBySessionId(sessionId, teacherId);
+            if (session == null) {
+                session = querySingleSession(" WHERE ts.sessionId = ? LIMIT 1", sessionId);
+            }
+            if (session != null) {
+                bookingId = session.getBookingId();
+                scheduleId = session.getScheduleId();
+                studentId = session.getStudentId();
             }
             String sessionTable = util.TalaqqiSchemaUtil.sessionTable(conn);
 
@@ -1678,7 +1690,9 @@ public class TalaqqiSessionDAO {
         if (session == null) {
             return;
         }
-        if (session.getBookingId() != null && !session.getBookingId().trim().isEmpty()) {
+        String currentBookingId = session.getBookingId();
+        if (currentBookingId != null && !currentBookingId.trim().isEmpty()
+                && isActiveBookingId(conn, currentBookingId.trim())) {
             return;
         }
         String scheduleId = session.getScheduleId();
@@ -1708,14 +1722,24 @@ public class TalaqqiSessionDAO {
             return;
         }
         String updateSql =
-            "UPDATE " + sessionTable + " SET bookingId = ? "
-            + "WHERE sessionId = ? AND (bookingId IS NULL OR bookingId = '')";
+            "UPDATE " + sessionTable + " SET bookingId = ? WHERE sessionId = ?";
         try (PreparedStatement ps = conn.prepareStatement(updateSql)) {
             ps.setString(1, bookingId.trim());
             ps.setString(2, sessionId);
             ps.executeUpdate();
         } catch (SQLException e) {
             System.err.println("[TalaqqiSessionDAO] backfillSessionBookingIdResolved: " + e.getMessage());
+        }
+    }
+
+    private static boolean isActiveBookingId(Connection conn, String bookingId) throws SQLException {
+        try (PreparedStatement ps = conn.prepareStatement(
+                "SELECT 1 FROM classbooking WHERE bookingId = ? "
+                    + "AND bookingStatus NOT IN ('Cancelled', 'Rescheduled') LIMIT 1")) {
+            ps.setString(1, bookingId);
+            try (ResultSet rs = ps.executeQuery()) {
+                return rs.next();
+            }
         }
     }
 
@@ -1740,7 +1764,10 @@ public class TalaqqiSessionDAO {
             return false;
         }
 
-        java.sql.Date sessionDate = getSessionDateBySessionId(sessionId);
+        java.sql.Date sessionDate = getBookingDateBySessionId(sessionId);
+        if (sessionDate == null) {
+            sessionDate = getSessionDateBySessionId(sessionId);
+        }
         if (sessionDate == null) {
             sessionDate = java.sql.Date.valueOf(LocalDate.now());
         }
@@ -2427,8 +2454,8 @@ public class TalaqqiSessionDAO {
                     + "      SELECT 1 FROM attendance a "
                     + "      WHERE a.scheduleId = cb.scheduleId "
                     + "        AND a.studentId = cb.studentId "
-                    + "        AND a.attendanceDate = cb.bookingDate "
-                    + "        AND a.attendanceStatus IN ('Present', 'Late')"
+                    + "        AND a.attendanceStatus IN ('Present', 'Late') "
+                    + "        AND a.joinTime IS NOT NULL"
                     + "  )";
 
             ps = conn.prepareStatement(util.TalaqqiSchemaUtil.sql(findMissingStudentsSql, conn));
@@ -2633,6 +2660,43 @@ public class TalaqqiSessionDAO {
             }
         } catch (SQLException e) {
             System.err.println("[TalaqqiSessionDAO] getSessionDateBySessionId: " + e.getMessage());
+        } finally {
+            closeQuietly(rs, ps, conn);
+        }
+        return null;
+    }
+
+    /** Class booking date for attendance rows (must match classbooking.bookingDate). */
+    private java.sql.Date getBookingDateBySessionId(String sessionId) {
+        Connection conn = null;
+        PreparedStatement ps = null;
+        ResultSet rs = null;
+        try {
+            conn = DBConnection.getConnection();
+            if (conn == null) {
+                return null;
+            }
+            String sql = usesBookingIdLink(conn)
+                ? "SELECT cb.bookingDate FROM talaqqisession ts "
+                    + "JOIN classbooking cb ON "
+                    + util.TalaqqiSchemaUtil.sessionToBookingOnClause("ts", conn)
+                    + " WHERE ts.sessionId = ? "
+                    + "AND cb.bookingStatus NOT IN ('Cancelled','Rescheduled') "
+                    + "ORDER BY cb.bookingDate DESC, cb.bookingTime DESC LIMIT 1"
+                : "SELECT cb.bookingDate FROM talaqqisession ts "
+                    + "JOIN classschedule cs ON ts.scheduleId = cs.scheduleId "
+                    + "JOIN classbooking cb ON cb.scheduleId = cs.scheduleId "
+                    + "WHERE ts.sessionId = ? "
+                    + "AND cb.bookingStatus NOT IN ('Cancelled','Rescheduled') "
+                    + "ORDER BY cb.bookingDate DESC, cb.bookingTime DESC LIMIT 1";
+            ps = conn.prepareStatement(util.TalaqqiSchemaUtil.sql(sql, conn));
+            ps.setString(1, sessionId);
+            rs = ps.executeQuery();
+            if (rs.next()) {
+                return rs.getDate("bookingDate");
+            }
+        } catch (SQLException e) {
+            System.err.println("[TalaqqiSessionDAO] getBookingDateBySessionId: " + e.getMessage());
         } finally {
             closeQuietly(rs, ps, conn);
         }

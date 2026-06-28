@@ -399,6 +399,33 @@ public final class TalaqqiSchemaUtil {
         }
     }
 
+    /** Adds live session timing columns when production predates db/0008_add_session_duration.sql. */
+    public static void ensureSessionTimingColumns(Connection conn) {
+        if (hasSessionTimingColumns(conn)) {
+            return;
+        }
+        String table = sessionTable(conn).replace("`", "");
+        Connection probe = probe(conn);
+        try (Statement st = probe.createStatement()) {
+            if (!hasColumn(probe, table, "sessionStartTime")) {
+                st.execute("ALTER TABLE `" + table + "` ADD COLUMN sessionStartTime TIMESTAMP NULL DEFAULT NULL");
+            }
+            if (!hasColumn(probe, table, "sessionDuration")) {
+                st.execute("ALTER TABLE `" + table + "` ADD COLUMN sessionDuration DOUBLE NULL DEFAULT NULL");
+            }
+            sessionTimingColumns = true;
+            System.out.println("[TalaqqiSchemaUtil] Added session timing columns to " + table);
+        } catch (SQLException e) {
+            if (e.getMessage() == null || !e.getMessage().contains("Duplicate column")) {
+                System.err.println("[TalaqqiSchemaUtil] ensureSessionTimingColumns: " + e.getMessage());
+            } else {
+                sessionTimingColumns = columnExists(probe(conn), table, "sessionStartTime");
+            }
+        } finally {
+            closeIfOwned(probe, conn);
+        }
+    }
+
     /** Adds {@code classAyahEnd} when production classschedule predates ayah range sync. */
     public static void ensureClassAyahEndColumn(Connection conn) {
         if (hasColumn(conn, "classschedule", "classAyahEnd")) {

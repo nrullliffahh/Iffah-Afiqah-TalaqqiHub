@@ -175,31 +175,16 @@ public class StudentBooking {
         return "Present".equalsIgnoreCase(att) || "Late".equalsIgnoreCase(att);
     }
 
-    /** JSP EL: ${booking.needsReschedule} */
+    /** JSP EL: ${booking.needsReschedule} — only after teacher ended live session without completing booking. */
     public boolean isNeedsReschedule() {
-        if (isAbsent()) {
-            return true;
-        }
-        if (talaqqiSessionEnded && !BookingStatus.isCompleted(bookingStatus) && !isConductedPendingCompletion()) {
-            return true;
-        }
-        if (!isSessionEnded()) {
+        if (BookingStatus.isCompleted(bookingStatus)) {
             return false;
         }
-        String status = bookingStatus != null ? bookingStatus.trim() : "";
-        if ("Cancelled".equalsIgnoreCase(status) || "Rescheduled".equalsIgnoreCase(status)) {
+        if (isConductedPendingCompletion()) {
             return false;
         }
-        if ("Completed".equalsIgnoreCase(status)) {
-            return false;
-        }
-        if (attendanceStatus != null && !attendanceStatus.trim().isEmpty()) {
-            String att = attendanceStatus.trim();
-            if ("Present".equalsIgnoreCase(att) || "Late".equalsIgnoreCase(att)) {
-                return false;
-            }
-        }
-        return BookingStatus.isActive(status);
+        // New/future bookings: teacher has not ended the session yet → stay Upcoming
+        return talaqqiSessionEnded;
     }
 
     public boolean isAbsent() {

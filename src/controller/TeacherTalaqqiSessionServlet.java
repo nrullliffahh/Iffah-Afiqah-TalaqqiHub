@@ -196,13 +196,17 @@ public class TeacherTalaqqiSessionServlet extends HttpServlet {
                     talaqqiSessionDAO.updateLeaveTime(sessionId, studentId, currentSqlTime());
                 }
 
-                // Mark all missing students (who didn't join) as ABSENT
-                int absentMarkedCount = talaqqiSessionDAO.markMissingStudentsAsAbsent(sessionId, teacherId);
-
-                // Completed only when student joined; otherwise finalize as Not Completed (no booking Completed)
+                // Completed only when teacher started and student joined (Present/Late)
                 boolean conducted = talaqqiSessionDAO.hasConductedSession(sessionId);
                 boolean completed;
                 boolean notCompleted = false;
+
+                // Mark absent only when the session was not conducted (student never joined)
+                int absentMarkedCount = 0;
+                if (!conducted) {
+                    absentMarkedCount = talaqqiSessionDAO.markMissingStudentsAsAbsent(sessionId, teacherId);
+                }
+
                 if (conducted) {
                     completed = talaqqiSessionDAO.completeSession(sessionId, teacherId);
                 } else {

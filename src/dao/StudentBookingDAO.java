@@ -553,13 +553,21 @@ public class StudentBookingDAO {
         }
 
         String nextSessionId = generateNextSessionId(conn);
-        String insertSql =
+        String insertNullDate =
+            "INSERT INTO talaqqisession (sessionId, sessionType, sessionDate, bookingId) VALUES (?, 'Live Talaqqi', NULL, ?)";
+        String insertWithDate =
             "INSERT INTO talaqqisession (sessionId, sessionType, sessionDate, bookingId) VALUES (?, 'Live Talaqqi', ?, ?)";
-        try (PreparedStatement insertPs = conn.prepareStatement(TalaqqiSchemaUtil.sql(insertSql, conn))) {
+        try (PreparedStatement insertPs = conn.prepareStatement(TalaqqiSchemaUtil.sql(insertNullDate, conn))) {
             insertPs.setString(1, nextSessionId);
-            insertPs.setDate(2, java.sql.Date.valueOf(sessionDate));
-            insertPs.setString(3, bookingId);
+            insertPs.setString(2, bookingId);
             return insertPs.executeUpdate() > 0;
+        } catch (SQLException nullDateRejected) {
+            try (PreparedStatement insertPs = conn.prepareStatement(TalaqqiSchemaUtil.sql(insertWithDate, conn))) {
+                insertPs.setString(1, nextSessionId);
+                insertPs.setDate(2, java.sql.Date.valueOf(sessionDate));
+                insertPs.setString(3, bookingId);
+                return insertPs.executeUpdate() > 0;
+            }
         }
     }
 
@@ -972,13 +980,7 @@ public class StudentBookingDAO {
                 + "LEFT JOIN classschedule cs ON b.scheduleId = cs.scheduleId "
                 + "LEFT JOIN teacher t ON cs.teacherId = t.teacherId ";
 
-        String attendanceSubquery =
-            "(SELECT a.attendanceStatus FROM attendance a "
-                + "WHERE a.studentId = b.studentId AND a.scheduleId = b.scheduleId "
-                + "ORDER BY "
-                + "CASE WHEN a.attendanceDate = b.bookingDate THEN 0 ELSE 1 END, "
-                + "CASE a.attendanceStatus WHEN 'Absent' THEN 0 WHEN 'Late' THEN 1 WHEN 'Present' THEN 2 ELSE 3 END, "
-                + "a.attendanceId DESC LIMIT 1) AS attendanceStatus";
+        String attendanceSubquery = attendanceStatusSubquery();
 
         String talaqqiEndedSubquery = buildTalaqqiSessionEndedSubquery(conn);
 
@@ -1046,13 +1048,7 @@ public class StudentBookingDAO {
                 + "INNER JOIN student s ON b.studentId = s.studentId "
                 + "LEFT JOIN teacher t ON cs.teacherId = t.teacherId ";
 
-        String attendanceSubquery =
-            "(SELECT a.attendanceStatus FROM attendance a "
-                + "WHERE a.studentId = b.studentId AND a.scheduleId = b.scheduleId "
-                + "ORDER BY "
-                + "CASE WHEN a.attendanceDate = b.bookingDate THEN 0 ELSE 1 END, "
-                + "CASE a.attendanceStatus WHEN 'Absent' THEN 0 WHEN 'Late' THEN 1 WHEN 'Present' THEN 2 ELSE 3 END, "
-                + "a.attendanceId DESC LIMIT 1) AS attendanceStatus";
+        String attendanceSubquery = attendanceStatusSubquery();
 
         String talaqqiEndedSubquery = buildTalaqqiSessionEndedSubquery(conn);
 
@@ -1139,17 +1135,28 @@ public class StudentBookingDAO {
         }
     }
 
+    private static String attendanceStatusSubquery() {
+        // Scope to this booking's date only — never inherit Absent/Present from another class on same schedule.
+        return "(SELECT a.attendanceStatus FROM attendance a "
+            + "WHERE a.studentId = b.studentId AND a.scheduleId = b.scheduleId "
+            + "AND a.attendanceDate = b.bookingDate "
+            + "ORDER BY "
+            + "CASE a.attendanceStatus WHEN 'Present' THEN 0 WHEN 'Late' THEN 1 WHEN 'Absent' THEN 2 ELSE 3 END, "
+            + "a.attendanceId DESC LIMIT 1) AS attendanceStatus";
+    }
+
     private static String buildTalaqqiSessionEndedSubquery(Connection conn) {
-        String sessionTable = util.TalaqqiSchemaUtil.sessionTable(conn);
-        String link;
-        if (util.TalaqqiSchemaUtil.usesBookingIdLink(conn)) {
-            link = "((ts.bookingId IS NOT NULL AND ts.bookingId <> '' AND ts.bookingId = b.bookingId) "
-                + "OR ((ts.bookingId IS NULL OR ts.bookingId = '') AND ts.scheduleId = b.scheduleId))";
-        } else {
-            link = "ts.scheduleId = b.scheduleId";
-        }
-        return "EXISTS (SELECT 1 FROM " + sessionTable + " ts "
-            + "WHERE ts.sessionDate IS NOT NULL AND " + link + ") AS talaqqiSessionEnded";
+        // Ended only for THIS booking date — new bookings must not inherit old absent/leave rows.
+        return "(b.bookingStatus = 'Completed' "
+            + "OR EXISTS (SELECT 1 FROM attendance a_abs "
+            + "WHERE a_abs.studentId = b.studentId AND a_abs.scheduleId = b.scheduleId "
+            + "AND a_abs.attendanceDate = b.bookingDate "
+            + "AND a_abs.attendanceStatus = 'Absent' AND a_abs.markAutoAttendance = 1) "
+            + "OR EXISTS (SELECT 1 FROM attendance a_done "
+            + "WHERE a_done.studentId = b.studentId AND a_done.scheduleId = b.scheduleId "
+            + "AND a_done.attendanceDate = b.bookingDate "
+            + "AND a_done.attendanceStatus IN ('Present','Late') AND a_done.leaveTime IS NOT NULL)"
+            + ") AS talaqqiSessionEnded";
     }
 
     private static boolean isSchemaMismatch(SQLException e) {
