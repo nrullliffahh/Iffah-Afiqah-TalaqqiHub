@@ -1692,48 +1692,34 @@ public class TalaqqiSessionDAO {
 
     /**
      * Sets leaveTime on attendance row(s) for a student in this session.
-     * Uses the talaqqisession → booking chain so attendanceDate mismatches do not block updates.
+     * Matches attendance by session + booking date, not only exact scheduleId on booking row.
      */
     public boolean updateLeaveTime(String sessionId, String studentId, Time leaveTime) {
-        if (sessionId == null || sessionId.isEmpty() || leaveTime == null) {
+        if (sessionId == null || sessionId.isEmpty() || leaveTime == null
+                || studentId == null || studentId.isEmpty()) {
             return false;
         }
 
         Connection conn = null;
-        PreparedStatement ps = null;
         try {
             conn = DBConnection.getConnection();
-            if (conn == null) return false;
-
-            String sql =
-                "UPDATE attendance a "
-                + "JOIN classbooking cb ON cb.scheduleId = a.scheduleId AND cb.studentId = a.studentId "
-                + joinSessionToBooking(conn)
-                + "SET a.leaveTime = CASE "
-                + "  WHEN a.leaveTime IS NULL THEN ? "
-                + "  WHEN ? > a.leaveTime THEN ? "
-                + "  ELSE a.leaveTime END "
-                + "WHERE ts.sessionId = ? "
-                + "  AND a.joinTime IS NOT NULL ";
-
-            if (studentId != null && !studentId.isEmpty()) {
-                sql += " AND a.studentId = ?";
+            if (conn == null) {
+                return false;
             }
-
-            ps = conn.prepareStatement(util.TalaqqiSchemaUtil.sql(sql, conn));
-            ps.setTime(1, leaveTime);
-            ps.setTime(2, leaveTime);
-            ps.setTime(3, leaveTime);
-            ps.setString(4, sessionId);
-            if (studentId != null && !studentId.isEmpty()) {
-                ps.setString(5, studentId);
+            int rows = executeLeaveTimeUpdate(conn, sessionId, studentId, leaveTime);
+            if (rows == 0) {
+                rows = executeLeaveTimeFallback(conn, sessionId, studentId, leaveTime);
             }
-            return ps.executeUpdate() > 0;
+            return rows > 0;
         } catch (SQLException e) {
             System.err.println("[TalaqqiSessionDAO] updateLeaveTime: " + e.getMessage());
             return false;
         } finally {
-            closeQuietly(null, ps, conn);
+            if (conn != null) {
+                try {
+                    conn.close();
+                } catch (SQLException ignored) {}
+            }
         }
     }
 
@@ -1746,28 +1732,87 @@ public class TalaqqiSessionDAO {
         }
 
         Connection conn = null;
-        PreparedStatement ps = null;
         try {
             conn = DBConnection.getConnection();
-            if (conn == null) return 0;
-
-            String sql =
-                "UPDATE attendance a "
-                + "JOIN classbooking cb ON cb.scheduleId = a.scheduleId AND cb.studentId = a.studentId "
-                + joinSessionToBooking(conn)
-                + "SET a.leaveTime = ? "
-                + "WHERE ts.sessionId = ? "
-                + "  AND a.joinTime IS NOT NULL "
-                + "  AND a.leaveTime IS NULL";
-            ps = conn.prepareStatement(util.TalaqqiSchemaUtil.sql(sql, conn));
-            ps.setTime(1, leaveTime);
-            ps.setString(2, sessionId);
-            return ps.executeUpdate();
+            if (conn == null) {
+                return 0;
+            }
+            return executeLeaveTimeUpdate(conn, sessionId, null, leaveTime);
         } catch (SQLException e) {
             System.err.println("[TalaqqiSessionDAO] updateLeaveTimesForSession: " + e.getMessage());
             return 0;
         } finally {
-            closeQuietly(null, ps, conn);
+            if (conn != null) {
+                try {
+                    conn.close();
+                } catch (SQLException ignored) {}
+            }
+        }
+    }
+
+    private int executeLeaveTimeUpdate(
+            Connection conn, String sessionId, String studentId, Time leaveTime) throws SQLException {
+        String sessionTable = util.TalaqqiSchemaUtil.sessionTable(conn);
+        String bookingOn = util.TalaqqiSchemaUtil.sessionToBookingOnClause("ts", conn);
+        String sql =
+            "UPDATE attendance a "
+            + "INNER JOIN " + sessionTable + " ts ON ts.sessionId = ? "
+            + "LEFT JOIN classbooking cb ON " + bookingOn + " "
+            + "SET a.leaveTime = CASE "
+            + "  WHEN a.leaveTime IS NULL THEN ? "
+            + "  WHEN ? > a.leaveTime THEN ? "
+            + "  ELSE a.leaveTime END "
+            + "WHERE a.joinTime IS NOT NULL "
+            + "AND a.attendanceDate = COALESCE(cb.bookingDate, ts.sessionDate) "
+            + "AND (a.scheduleId = COALESCE(cb.scheduleId, ts.scheduleId) "
+            + "     OR (cb.scheduleId IS NOT NULL AND a.scheduleId = cb.scheduleId) "
+            + "     OR (ts.scheduleId IS NOT NULL AND a.scheduleId = ts.scheduleId))";
+
+        if (studentId != null && !studentId.isEmpty()) {
+            sql += " AND a.studentId = ?";
+        }
+
+        try (PreparedStatement ps = conn.prepareStatement(util.TalaqqiSchemaUtil.sql(sql, conn))) {
+            int param = 1;
+            ps.setString(param++, sessionId);
+            ps.setTime(param++, leaveTime);
+            ps.setTime(param++, leaveTime);
+            ps.setTime(param++, leaveTime);
+            if (studentId != null && !studentId.isEmpty()) {
+                ps.setString(param, studentId);
+            }
+            return ps.executeUpdate();
+        }
+    }
+
+    /** Fallback: latest joined attendance row for this student on the session date. */
+    private int executeLeaveTimeFallback(
+            Connection conn, String sessionId, String studentId, Time leaveTime) throws SQLException {
+        String sessionTable = util.TalaqqiSchemaUtil.sessionTable(conn);
+        String bookingOn = util.TalaqqiSchemaUtil.sessionToBookingOnClause("ts", conn);
+        String sql =
+            "UPDATE attendance a "
+            + "INNER JOIN ( "
+            + "  SELECT a2.attendanceId FROM attendance a2 "
+            + "  INNER JOIN " + sessionTable + " ts ON ts.sessionId = ? "
+            + "  LEFT JOIN classbooking cb ON " + bookingOn + " "
+            + "  WHERE a2.studentId = ? "
+            + "    AND a2.joinTime IS NOT NULL "
+            + "    AND a2.attendanceDate = COALESCE(cb.bookingDate, ts.sessionDate) "
+            + "  ORDER BY a2.joinTime DESC LIMIT 1 "
+            + ") pick ON pick.attendanceId = a.attendanceId "
+            + "SET a.leaveTime = CASE "
+            + "  WHEN a.leaveTime IS NULL THEN ? "
+            + "  WHEN ? > a.leaveTime THEN ? "
+            + "  ELSE a.leaveTime END";
+
+        try (PreparedStatement ps = conn.prepareStatement(util.TalaqqiSchemaUtil.sql(sql, conn))) {
+            ps.setString(1, sessionId);
+            ps.setString(2, studentId);
+            ps.setTime(3, leaveTime);
+            ps.setTime(4, leaveTime);
+            ps.setTime(5, leaveTime);
+            return ps.executeUpdate();
         }
     }
 

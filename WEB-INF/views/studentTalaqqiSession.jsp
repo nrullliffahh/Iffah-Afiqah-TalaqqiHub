@@ -564,11 +564,15 @@
         body.append('sessionId', sessionId || '');
         const url = '<c:out value="${contextPath}" />/student/sessions';
 
-        if (navigator.sendBeacon) {
-            navigator.sendBeacon(url, new Blob([body.toString()], { type: 'application/x-www-form-urlencoded' }));
-        } else {
-            recordSessionEvent('leaveSession');
-        }
+        fetch(url, {
+            method: 'POST',
+            credentials: 'same-origin',
+            headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+            body: body.toString(),
+            keepalive: true
+        }).then(function(response) { return response.json(); })
+          .then(function(data) { console.log('Leave recorded:', data); })
+          .catch(function(error) { console.error('Leave session failed:', error); });
     }
 
     // Record leave time when student closes tab or navigates away during session
