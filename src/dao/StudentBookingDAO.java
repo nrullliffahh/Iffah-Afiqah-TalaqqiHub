@@ -997,13 +997,7 @@ public class StudentBookingDAO {
                 + "LEFT JOIN classschedule cs ON b.scheduleId = cs.scheduleId "
                 + "LEFT JOIN teacher t ON cs.teacherId = t.teacherId ";
 
-        String attendanceSubquery =
-            "(SELECT a.attendanceStatus FROM attendance a "
-                + "WHERE a.studentId = b.studentId AND a.scheduleId = b.scheduleId "
-                + "AND a.attendanceDate = b.bookingDate "
-                + "ORDER BY "
-                + "CASE a.attendanceStatus WHEN 'Absent' THEN 0 WHEN 'Late' THEN 1 WHEN 'Present' THEN 2 ELSE 3 END, "
-                + "a.attendanceId DESC LIMIT 1) AS attendanceStatus";
+        String attendanceSubquery = bookingAttendanceSubquery();
 
         String[] sqlVariants = {
             "SELECT b.bookingId, b.studentId, b.scheduleId, b.bookingDate, b.bookingTime, b.bookingStatus, b.createdAt, "
@@ -1018,7 +1012,7 @@ public class StudentBookingDAO {
                 + "WHERE b.studentId = ?" + monthFilter + orderBy,
             "SELECT b.bookingId, b.studentId, b.scheduleId, b.bookingDate, b.bookingTime, b.bookingStatus, NULL AS createdAt, "
                 + "cs.className, t.teacherName AS teacherName, cs.teacherId, cs.duration, NULL AS cancellationReason, "
-                + "NULL AS attendanceStatus "
+                + attendanceSubquery + " "
                 + baseFrom + "WHERE b.studentId = ?" + monthFilter + orderBy
         };
 
@@ -1067,13 +1061,7 @@ public class StudentBookingDAO {
                 + "INNER JOIN student s ON b.studentId = s.studentId "
                 + "LEFT JOIN teacher t ON cs.teacherId = t.teacherId ";
 
-        String attendanceSubquery =
-            "(SELECT a.attendanceStatus FROM attendance a "
-                + "WHERE a.studentId = b.studentId AND a.scheduleId = b.scheduleId "
-                + "AND a.attendanceDate = b.bookingDate "
-                + "ORDER BY "
-                + "CASE a.attendanceStatus WHEN 'Absent' THEN 0 WHEN 'Late' THEN 1 WHEN 'Present' THEN 2 ELSE 3 END, "
-                + "a.attendanceId DESC LIMIT 1) AS attendanceStatus";
+        String attendanceSubquery = bookingAttendanceSubquery();
 
         String[] sqlVariants = {
             "SELECT b.bookingId, b.studentId, b.scheduleId, b.bookingDate, b.bookingTime, b.bookingStatus, b.createdAt, "
@@ -1088,7 +1076,7 @@ public class StudentBookingDAO {
                 + "WHERE cs.teacherId = ?" + orderBy,
             "SELECT b.bookingId, b.studentId, b.scheduleId, b.bookingDate, b.bookingTime, b.bookingStatus, NULL AS createdAt, "
                 + "cs.className, t.teacherName AS teacherName, cs.teacherId, cs.duration, s.studentName AS studentName, "
-                + "NULL AS cancellationReason, NULL AS attendanceStatus "
+                + "NULL AS cancellationReason, " + attendanceSubquery + " "
                 + baseFrom + "WHERE cs.teacherId = ?" + orderBy
         };
 
@@ -1120,6 +1108,22 @@ public class StudentBookingDAO {
             } catch (SQLException ignored) {}
         }
         return empty;
+    }
+
+    /**
+     * Match attendance to a booking by scheduleId, or same student/date/time/teacher
+     * when session attendance was stored under a different schedule row.
+     */
+    private static String bookingAttendanceSubquery() {
+        return "(SELECT a.attendanceStatus FROM attendance a "
+            + "LEFT JOIN classschedule cs_a ON cs_a.scheduleId = a.scheduleId "
+            + "WHERE a.studentId = b.studentId "
+            + "AND a.attendanceDate = b.bookingDate "
+            + "AND (a.scheduleId = b.scheduleId "
+            + "     OR (cs_a.startTime = b.bookingTime AND cs_a.teacherId = cs.teacherId)) "
+            + "ORDER BY "
+            + "CASE a.attendanceStatus WHEN 'Absent' THEN 0 WHEN 'Late' THEN 1 WHEN 'Present' THEN 2 ELSE 3 END, "
+            + "a.attendanceId DESC LIMIT 1) AS attendanceStatus";
     }
 
     private static void mapStudentBookingRow(ResultSet rs, StudentBooking booking) throws SQLException {

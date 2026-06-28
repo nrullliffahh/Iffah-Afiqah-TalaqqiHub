@@ -156,9 +156,6 @@ public class StudentBooking {
 
     /** Student was marked absent, or past session ended without attendance. */
     public boolean isNeedsReschedule() {
-        if (isFutureSession()) {
-            return false;
-        }
         String status = bookingStatus != null ? bookingStatus.trim() : "";
         if ("Cancelled".equalsIgnoreCase(status) || "Rescheduled".equalsIgnoreCase(status)) {
             return false;
@@ -166,8 +163,12 @@ public class StudentBooking {
         if (isRescheduledReplacement()) {
             return false;
         }
+        // Absent overrides future slot — show Not Completed + Reschedule immediately
         if (isAbsent()) {
             return true;
+        }
+        if (isFutureSession()) {
+            return false;
         }
         if (!isSessionEnded()) {
             return false;

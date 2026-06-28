@@ -2522,9 +2522,12 @@ public class TalaqqiSessionDAO {
     private static String sqlBookingStudentAttended() {
         return "EXISTS ("
             + "SELECT 1 FROM attendance a "
+            + "LEFT JOIN classschedule cs_a ON cs_a.scheduleId = a.scheduleId "
             + "WHERE a.studentId = cb.studentId "
-            + "  AND a.scheduleId = cb.scheduleId "
             + "  AND a.attendanceDate = cb.bookingDate "
+            + "  AND (a.scheduleId = cb.scheduleId "
+            + "       OR (cs_a.startTime = cb.bookingTime AND cs_a.teacherId = ("
+            + "           SELECT cs2.teacherId FROM classschedule cs2 WHERE cs2.scheduleId = cb.scheduleId LIMIT 1))) "
             + "  AND a.attendanceStatus IN ('Present', 'Late')"
             + ")";
     }

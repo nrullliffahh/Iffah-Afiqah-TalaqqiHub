@@ -61,7 +61,7 @@ public final class BookingPartitionUtil {
         Partition p = partition(bookings);
         List<StudentBooking> out = new ArrayList<>();
         for (StudentBooking b : p.upcoming) {
-            if (b != null && b.isFutureSession()) {
+            if (b != null && b.isFutureSession() && !b.isNeedsReschedule()) {
                 out.add(b);
             }
         }
