@@ -468,9 +468,9 @@ public class TalaqqiSessionDAO {
         try {
             String sql = modern && bookingId != null && !bookingId.trim().isEmpty()
                 ? "UPDATE talaqqisession SET sessionDate = ? WHERE bookingId = ? "
-                    + "AND (sessionDate IS NULL OR sessionDate <> ?)"
+                    + "AND sessionDate IS NULL"
                 : "UPDATE talaqqisession SET sessionDate = ? WHERE scheduleId = ? "
-                    + "AND (sessionDate IS NULL OR sessionDate <> ?)";
+                    + "AND sessionDate IS NULL";
             String linkValue = modern && bookingId != null && !bookingId.trim().isEmpty()
                 ? bookingId.trim()
                 : (scheduleId != null ? scheduleId.trim() : null);
@@ -480,7 +480,6 @@ public class TalaqqiSessionDAO {
             try (PreparedStatement ps = conn.prepareStatement(util.TalaqqiSchemaUtil.sql(sql, conn))) {
                 ps.setDate(1, sessionDate);
                 ps.setString(2, linkValue);
-                ps.setDate(3, sessionDate);
                 ps.executeUpdate();
             }
         } catch (SQLException e) {
@@ -1246,6 +1245,8 @@ public class TalaqqiSessionDAO {
             conn = DBConnection.getConnection();
             if (conn == null) return false;
 
+            backfillSessionBookingIdResolved(conn, sessionId, teacherId);
+
             String updateSql;
             if (usesBookingIdLink(conn) && hasSessionTimingColumns(conn)) {
                 updateSql =
@@ -1515,6 +1516,7 @@ public class TalaqqiSessionDAO {
         try {
             String sql =
                 "SELECT 1 FROM attendance a "
+                + "JOIN classbooking cb ON cb.scheduleId = a.scheduleId AND cb.studentId = a.studentId "
                 + joinSessionToBooking(conn)
                 + "WHERE ts.sessionId = ? "
                 + "  AND a.attendanceStatus IN ('Present','Late') "

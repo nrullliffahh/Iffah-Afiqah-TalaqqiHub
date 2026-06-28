@@ -1148,8 +1148,16 @@ public class StudentBookingDAO {
         } else {
             link = "ts.scheduleId = b.scheduleId";
         }
-        return "EXISTS (SELECT 1 FROM " + sessionTable + " ts "
-            + "WHERE ts.sessionDate IS NOT NULL AND " + link + ") AS talaqqiSessionEnded";
+        // sessionDate is often the scheduled class date at insert — use end-of-live signals instead.
+        if (util.TalaqqiSchemaUtil.hasSessionTimingColumns(conn)) {
+            return "EXISTS (SELECT 1 FROM " + sessionTable + " ts "
+                + "WHERE " + link + " AND ts.sessionDuration IS NOT NULL) AS talaqqiSessionEnded";
+        }
+        return "(b.bookingStatus = 'Completed' OR EXISTS (SELECT 1 FROM " + sessionTable + " ts "
+            + "WHERE " + link + " AND ts.sessionDate IS NOT NULL "
+            + "AND EXISTS (SELECT 1 FROM attendance a_end "
+            + "WHERE a_end.studentId = b.studentId AND a_end.scheduleId = b.scheduleId "
+            + "AND (a_end.leaveTime IS NOT NULL OR a_end.attendanceStatus = 'Absent')))) AS talaqqiSessionEnded";
     }
 
     private static boolean isSchemaMismatch(SQLException e) {
