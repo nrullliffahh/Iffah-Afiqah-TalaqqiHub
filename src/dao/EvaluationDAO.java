@@ -400,20 +400,22 @@ public class EvaluationDAO {
                 queryEvaluableSessionsFromAttendedBookings(conn, studentId));
             mergeEvaluableSessions(byKey,
                 queryCompletedSessionsForStudent(conn, studentId, true));
+
+            // Legacy fallbacks only when attendance/booking queries find nothing.
             if (byKey.isEmpty()) {
                 mergeEvaluableSessions(byKey,
                     queryCompletedSessionsForStudent(conn, studentId, false));
+                mergeEvaluableSessions(byKey,
+                    queryCompletedSessionsBookingOnly(conn, studentId));
+                mergeEvaluableSessions(byKey,
+                    queryCompletedSessionsFromEndedSessions(conn, studentId));
+                mergeEvaluableSessions(byKey,
+                    queryCompletedSessionsFromTeacherEval(conn, studentId));
+                mergeEvaluableSessions(byKey,
+                    queryCompletedSessionsFromPendingTeacherEval(conn, studentId));
             }
-            mergeEvaluableSessions(byKey,
-                queryCompletedSessionsBookingOnly(conn, studentId));
-            mergeEvaluableSessions(byKey,
-                queryCompletedSessionsFromEndedSessions(conn, studentId));
-            mergeEvaluableSessions(byKey,
-                queryCompletedSessionsFromTeacherEval(conn, studentId));
-            mergeEvaluableSessions(byKey,
-                queryCompletedSessionsFromPendingTeacherEval(conn, studentId));
 
-            merged.addAll(byKey.values());
+            merged.addAll(filterEvaluableSessionsForStudent(conn, studentId, byKey.values()));
 
             System.out.println("EvaluationDAO.getCompletedSessionsForStudent: studentId="
                 + studentId + " found=" + merged.size());
@@ -475,10 +477,98 @@ public class EvaluationDAO {
         if (!nullToEmpty(e.getAyahRange()).isEmpty()) {
             score += 2;
         }
+        if (!nullToEmpty(e.getStartTime()).isEmpty()) {
+            score += 3;
+        }
         if (!nullToEmpty(e.getTeacherName()).isEmpty()) {
             score += 1;
         }
         return score;
+    }
+
+    /** Keep only Present/Late attended slots the student has not already rated. */
+    private List<Evaluation> filterEvaluableSessionsForStudent(Connection conn, String studentId,
+            java.util.Collection<Evaluation> candidates) {
+        List<Evaluation> filtered = new ArrayList<>();
+        if (candidates == null || candidates.isEmpty()) {
+            return filtered;
+        }
+        for (Evaluation e : candidates) {
+            if (e == null) {
+                continue;
+            }
+            try {
+                if (!hasPresentOrLateAttendance(conn, studentId, e)) {
+                    continue;
+                }
+                if (hasFeedbackForEvaluableSession(conn, studentId, e)) {
+                    continue;
+                }
+            } catch (SQLException ex) {
+                System.err.println("EvaluationDAO.filterEvaluableSessionsForStudent: " + ex.getMessage());
+                continue;
+            }
+            filtered.add(e);
+        }
+        return filtered;
+    }
+
+    private boolean hasPresentOrLateAttendance(Connection conn, String studentId, Evaluation e)
+            throws SQLException {
+        String scheduleId = nullToEmpty(e.getScheduleId());
+        if (scheduleId.isEmpty()) {
+            return false;
+        }
+        String sessionDate = nullToEmpty(e.getSessionDate());
+        String sql =
+            "SELECT 1 FROM attendance a "
+            + "WHERE a.scheduleId = ? "
+            + (sessionDate.isEmpty()
+                ? ""
+                : "AND DATE_FORMAT(a.attendanceDate,'%b %d, %Y') = ? ")
+            + "AND " + studentIdMatchClause("a.studentId", studentIdVariants(studentId))
+            + " AND UPPER(TRIM(a.attendanceStatus)) IN ('PRESENT', 'LATE') "
+            + " AND a.joinTime IS NOT NULL LIMIT 1";
+        try (PreparedStatement ps = conn.prepareStatement(sql)) {
+            int idx = 1;
+            ps.setString(idx++, scheduleId);
+            if (!sessionDate.isEmpty()) {
+                ps.setString(idx++, sessionDate);
+            }
+            bindStudentIdVariants(ps, idx, studentId);
+            try (ResultSet rs = ps.executeQuery()) {
+                return rs.next();
+            }
+        }
+    }
+
+    private boolean hasFeedbackForEvaluableSession(Connection conn, String studentId, Evaluation e)
+            throws SQLException {
+        String sessionId = nullToEmpty(e.getSessionId());
+        String scheduleId = nullToEmpty(e.getScheduleId());
+        if (sessionId.isEmpty() && scheduleId.isEmpty()) {
+            return false;
+        }
+        String sql =
+            "SELECT 1 FROM studentfeedback sf "
+            + "WHERE " + studentIdMatchClause("sf.studentId", studentIdVariants(studentId))
+            + " AND ("
+            + (!sessionId.isEmpty() ? "sf.sessionId = ? OR sf.sessionId = ? OR " : "")
+            + (!scheduleId.isEmpty() ? "sf.scheduleId = ?" : "1=0")
+            + ") LIMIT 1";
+        try (PreparedStatement ps = conn.prepareStatement(sql)) {
+            int idx = 1;
+            if (!sessionId.isEmpty()) {
+                ps.setString(idx++, sessionId);
+                ps.setString(idx++, scheduleId.isEmpty() ? sessionId : scheduleId);
+            }
+            if (!scheduleId.isEmpty()) {
+                bindFeedbackScheduleId(ps, idx, conn, scheduleId);
+            }
+            try (ResultSet rs = ps.executeQuery()) {
+                return rs.next();
+            }
+        }
     }
 
     private static String nullToEmpty(String value) {
