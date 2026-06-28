@@ -463,8 +463,22 @@ public class EvaluationDAO {
     }
 
     private Evaluation pickRicherEvaluableSession(Evaluation current, Evaluation candidate) {
-        return evaluableSessionRichness(candidate) > evaluableSessionRichness(current)
+        Evaluation richer = evaluableSessionRichness(candidate) > evaluableSessionRichness(current)
             ? candidate : current;
+        Evaluation other = richer == candidate ? current : candidate;
+        Evaluation timing = !nullToEmpty(current.getStartTime()).isEmpty() ? current
+            : (!nullToEmpty(candidate.getStartTime()).isEmpty() ? candidate : richer);
+        if (!nullToEmpty(timing.getSessionDate()).isEmpty()) {
+            richer.setSessionDate(timing.getSessionDate());
+        }
+        if (!nullToEmpty(timing.getStartTime()).isEmpty()) {
+            richer.setStartTime(timing.getStartTime());
+            richer.setEndTime(timing.getEndTime());
+        }
+        if (nullToEmpty(richer.getTeacherName()).isEmpty() && !nullToEmpty(other.getTeacherName()).isEmpty()) {
+            richer.setTeacherName(other.getTeacherName());
+        }
+        return richer;
     }
 
     private int evaluableSessionRichness(Evaluation e) {
@@ -486,7 +500,7 @@ public class EvaluationDAO {
         return score;
     }
 
-    /** Keep only Present/Late attended slots the student has not already rated. */
+    /** Drop rows already rated or without a real attended class time. */
     private List<Evaluation> filterEvaluableSessionsForStudent(Connection conn, String studentId,
             java.util.Collection<Evaluation> candidates) {
         List<Evaluation> filtered = new ArrayList<>();
@@ -494,14 +508,14 @@ public class EvaluationDAO {
             return filtered;
         }
         for (Evaluation e : candidates) {
-            if (e == null) {
+            if (e == null || nullToEmpty(e.getStartTime()).isEmpty()) {
                 continue;
             }
             try {
-                if (!hasPresentOrLateAttendance(conn, studentId, e)) {
+                if (findExistingFeedbackId(conn, studentId, e.getSessionId(), e.getScheduleId()) != null) {
                     continue;
                 }
-                if (hasFeedbackForEvaluableSession(conn, studentId, e)) {
+                if (!hasPresentOrLateAttendance(conn, studentId, e)) {
                     continue;
                 }
             } catch (SQLException ex) {
@@ -516,14 +530,19 @@ public class EvaluationDAO {
     private boolean hasPresentOrLateAttendance(Connection conn, String studentId, Evaluation e)
             throws SQLException {
         String scheduleId = nullToEmpty(e.getScheduleId());
-        if (scheduleId.isEmpty()) {
+        String sessionDate = nullToEmpty(e.getSessionDate());
+        if (scheduleId.isEmpty() || sessionDate.isEmpty()) {
             return false;
         }
-        String sessionDate = nullToEmpty(e.getSessionDate());
+        return attendanceExists(conn, studentId, scheduleId, sessionDate);
+    }
+
+    private boolean attendanceExists(Connection conn, String studentId, String scheduleId,
+                                     String sessionDate) throws SQLException {
         String sql =
             "SELECT 1 FROM attendance a "
             + "WHERE a.scheduleId = ? "
-            + (sessionDate.isEmpty()
+            + (sessionDate == null || sessionDate.isEmpty()
                 ? ""
                 : "AND DATE_FORMAT(a.attendanceDate,'%b %d, %Y') = ? ")
             + "AND " + studentIdMatchClause("a.studentId", studentIdVariants(studentId))
@@ -532,39 +551,10 @@ public class EvaluationDAO {
         try (PreparedStatement ps = conn.prepareStatement(sql)) {
             int idx = 1;
             ps.setString(idx++, scheduleId);
-            if (!sessionDate.isEmpty()) {
+            if (sessionDate != null && !sessionDate.isEmpty()) {
                 ps.setString(idx++, sessionDate);
             }
             bindStudentIdVariants(ps, idx, studentId);
-            try (ResultSet rs = ps.executeQuery()) {
-                return rs.next();
-            }
-        }
-    }
-
-    private boolean hasFeedbackForEvaluableSession(Connection conn, String studentId, Evaluation e)
-            throws SQLException {
-        String sessionId = nullToEmpty(e.getSessionId());
-        String scheduleId = nullToEmpty(e.getScheduleId());
-        if (sessionId.isEmpty() && scheduleId.isEmpty()) {
-            return false;
-        }
-        String sql =
-            "SELECT 1 FROM studentfeedback sf "
-            + "WHERE " + studentIdMatchClause("sf.studentId", studentIdVariants(studentId))
-            + " AND ("
-            + (!sessionId.isEmpty() ? "sf.sessionId = ? OR sf.sessionId = ? OR " : "")
-            + (!scheduleId.isEmpty() ? "sf.scheduleId = ?" : "1=0")
-            + ") LIMIT 1";
-        try (PreparedStatement ps = conn.prepareStatement(sql)) {
-            int idx = 1;
-            if (!sessionId.isEmpty()) {
-                ps.setString(idx++, sessionId);
-                ps.setString(idx++, scheduleId.isEmpty() ? sessionId : scheduleId);
-            }
-            if (!scheduleId.isEmpty()) {
-                bindFeedbackScheduleId(ps, idx, conn, scheduleId);
-            }
             try (ResultSet rs = ps.executeQuery()) {
                 return rs.next();
             }
@@ -594,7 +584,7 @@ public class EvaluationDAO {
             : "";
         String sql =
             "SELECT ts.sessionId, cb.scheduleId, cs.teacherId, t.teacherName, "
-            + "       DATE_FORMAT(cs.scheduleDate,'%b %d, %Y') AS sessionDate, "
+            + "       DATE_FORMAT(COALESCE(cb.bookingDate, ts.sessionDate, cs.scheduleDate),'%b %d, %Y') AS sessionDate, "
             + "       DATE_FORMAT(cs.startTime,'%I:%i %p')     AS startTime, "
             + "       DATE_FORMAT(cs.endTime,'%I:%i %p')       AS endTime, "
             + "       CAST(" + surahCol + " AS CHAR) AS surahName, "
