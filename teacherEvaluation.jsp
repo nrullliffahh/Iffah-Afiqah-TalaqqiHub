@@ -421,7 +421,20 @@
                                                     ${evaluation.overallScore >= 90 ? 'Excellent' : evaluation.overallScore >= 80 ? 'Good' : 'Fair'}
                                                 </span>
                                             </div>
-                                            <p class="text-gray-600 text-sm mb-3">${evaluation.sessionDate} • ${evaluation.startTime} - ${evaluation.endTime}</p>
+                                            <p class="text-gray-600 text-sm mb-3">
+                                                <c:choose>
+                                                    <c:when test="${not empty evaluation.sessionDate and not empty evaluation.startTime}">
+                                                        ${evaluation.sessionDate} • ${evaluation.startTime} - ${evaluation.endTime}
+                                                    </c:when>
+                                                    <c:when test="${not empty evaluation.sessionDate}">
+                                                        ${evaluation.sessionDate}
+                                                    </c:when>
+                                                    <c:when test="${not empty evaluation.startTime}">
+                                                        ${evaluation.startTime}<c:if test="${not empty evaluation.endTime}"> - ${evaluation.endTime}</c:if>
+                                                    </c:when>
+                                                    <c:otherwise>Date/time not set</c:otherwise>
+                                                </c:choose>
+                                            </p>
                                             <p class="text-gray-600 text-sm">
                                             <c:choose>
                                                 <c:when test="${not empty evaluation.surah}">
