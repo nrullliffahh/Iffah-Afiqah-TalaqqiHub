@@ -375,7 +375,6 @@ public class EvaluationDAO {
      */
     public List<Evaluation> getCompletedSessionsForStudent(String studentId) {
         List<Evaluation> merged = new ArrayList<>();
-        java.util.Set<String> seen = new java.util.LinkedHashSet<>();
         Connection conn = null;
         try {
             conn = DBConnection.getConnection();
@@ -394,22 +393,27 @@ public class EvaluationDAO {
             }
 
             // Present/Late attendance is the primary signal that a session is done.
-            mergeEvaluableSessions(merged, seen,
+            java.util.LinkedHashMap<String, Evaluation> byKey = new java.util.LinkedHashMap<>();
+            mergeEvaluableSessions(byKey,
                 queryEvaluableSessionsFromAttendance(conn, studentId));
-            mergeEvaluableSessions(merged, seen,
+            mergeEvaluableSessions(byKey,
                 queryEvaluableSessionsFromAttendedBookings(conn, studentId));
-            mergeEvaluableSessions(merged, seen,
+            mergeEvaluableSessions(byKey,
                 queryCompletedSessionsForStudent(conn, studentId, true));
-            mergeEvaluableSessions(merged, seen,
-                queryCompletedSessionsForStudent(conn, studentId, false));
-            mergeEvaluableSessions(merged, seen,
+            if (byKey.isEmpty()) {
+                mergeEvaluableSessions(byKey,
+                    queryCompletedSessionsForStudent(conn, studentId, false));
+            }
+            mergeEvaluableSessions(byKey,
                 queryCompletedSessionsBookingOnly(conn, studentId));
-            mergeEvaluableSessions(merged, seen,
+            mergeEvaluableSessions(byKey,
                 queryCompletedSessionsFromEndedSessions(conn, studentId));
-            mergeEvaluableSessions(merged, seen,
+            mergeEvaluableSessions(byKey,
                 queryCompletedSessionsFromTeacherEval(conn, studentId));
-            mergeEvaluableSessions(merged, seen,
+            mergeEvaluableSessions(byKey,
                 queryCompletedSessionsFromPendingTeacherEval(conn, studentId));
+
+            merged.addAll(byKey.values());
 
             System.out.println("EvaluationDAO.getCompletedSessionsForStudent: studentId="
                 + studentId + " found=" + merged.size());
@@ -423,7 +427,7 @@ public class EvaluationDAO {
         return merged;
     }
 
-    private void mergeEvaluableSessions(List<Evaluation> merged, java.util.Set<String> seen,
+    private void mergeEvaluableSessions(java.util.LinkedHashMap<String, Evaluation> byKey,
                                         List<Evaluation> batch) {
         if (batch == null || batch.isEmpty()) {
             return;
@@ -433,21 +437,48 @@ public class EvaluationDAO {
                 continue;
             }
             String key = evaluableSessionKey(e);
-            if (seen.add(key)) {
-                merged.add(e);
+            Evaluation existing = byKey.get(key);
+            if (existing == null) {
+                byKey.put(key, e);
+            } else {
+                byKey.put(key, pickRicherEvaluableSession(existing, e));
             }
         }
     }
 
+    /** One evaluation per class slot — schedule + date, not raw sessionId (sources disagree). */
     private String evaluableSessionKey(Evaluation e) {
+        String scheduleId = nullToEmpty(e.getScheduleId());
+        String sessionDate = nullToEmpty(e.getSessionDate());
+        if (!scheduleId.isEmpty() && !sessionDate.isEmpty()) {
+            return "slot:" + scheduleId + ":" + sessionDate;
+        }
         if (e.getSessionId() != null && !e.getSessionId().trim().isEmpty()) {
             return "sid:" + e.getSessionId().trim();
         }
-        if (e.getScheduleId() != null && !e.getScheduleId().trim().isEmpty()) {
-            return "sch:" + e.getScheduleId().trim() + ":" + nullToEmpty(e.getSessionDate());
-        }
-        return "row:" + nullToEmpty(e.getTeacherId()) + ":" + nullToEmpty(e.getSessionDate())
+        return "row:" + nullToEmpty(e.getTeacherId()) + ":" + sessionDate
             + ":" + nullToEmpty(e.getStartTime());
+    }
+
+    private Evaluation pickRicherEvaluableSession(Evaluation current, Evaluation candidate) {
+        return evaluableSessionRichness(candidate) > evaluableSessionRichness(current)
+            ? candidate : current;
+    }
+
+    private int evaluableSessionRichness(Evaluation e) {
+        int score = 0;
+        String sessionId = nullToEmpty(e.getSessionId());
+        String scheduleId = nullToEmpty(e.getScheduleId());
+        if (!sessionId.isEmpty() && !sessionId.equals(scheduleId)) {
+            score += 4;
+        }
+        if (!nullToEmpty(e.getAyahRange()).isEmpty()) {
+            score += 2;
+        }
+        if (!nullToEmpty(e.getTeacherName()).isEmpty()) {
+            score += 1;
+        }
+        return score;
     }
 
     private static String nullToEmpty(String value) {
@@ -682,9 +713,9 @@ public class EvaluationDAO {
     /** Present/Late attendance — primary source for Evaluate Teacher list. */
     private List<Evaluation> queryEvaluableSessionsFromAttendance(Connection conn, String studentId) {
         List<Evaluation> list = new ArrayList<>();
-        String sessionTable = TalaqqiSchemaUtil.sessionTable(conn);
         String sessionIdExpr =
-            "COALESCE(NULLIF(TRIM(ts.sessionId), ''), NULLIF(TRIM(cb.bookingId), ''), a.scheduleId)";
+            "COALESCE(" + sessionIdForAttendanceSubquery(conn)
+            + ", NULLIF(TRIM(cb.bookingId), ''), a.scheduleId)";
         String sql =
             "SELECT " + sessionIdExpr + " AS sessionId, a.scheduleId, cs.teacherId, "
             + "COALESCE(t.teacherName, '') AS teacherName, "
@@ -697,8 +728,7 @@ public class EvaluationDAO {
             + "INNER JOIN classschedule cs ON a.scheduleId = cs.scheduleId "
             + "LEFT JOIN classbooking cb ON cb.scheduleId = a.scheduleId "
             + "  AND cb.bookingDate = a.attendanceDate "
-            + "LEFT JOIN " + sessionTable + " ts ON ts.scheduleId = a.scheduleId "
-            + "  AND (ts.sessionDate = a.attendanceDate OR ts.sessionDate IS NULL) "
+            + "  AND " + studentIdMatchClause("cb.studentId", studentIdVariants(studentId)) + " "
             + "LEFT JOIN teacher t ON cs.teacherId = t.teacherId "
             + "WHERE " + studentIdMatchClause("a.studentId", studentIdVariants(studentId))
             + " AND UPPER(TRIM(a.attendanceStatus)) IN ('PRESENT', 'LATE') "
@@ -706,7 +736,8 @@ public class EvaluationDAO {
             + " AND " + feedbackNotExistsForSession("a.studentId", sessionIdExpr, "a.scheduleId") + " "
             + "ORDER BY a.attendanceDate DESC, cs.startTime DESC";
         try (PreparedStatement ps = conn.prepareStatement(sql)) {
-            bindStudentIdVariants(ps, 1, studentId);
+            int nextParam = bindStudentIdVariants(ps, 1, studentId);
+            bindStudentIdVariants(ps, nextParam, studentId);
             try (ResultSet rs = ps.executeQuery()) {
                 while (rs.next()) {
                     list.add(mapCompletedSessionRow(rs));
@@ -717,6 +748,32 @@ public class EvaluationDAO {
             list = queryEvaluableSessionsFromAttendanceSimple(conn, studentId);
         }
         return list;
+    }
+
+    private String sessionIdForAttendanceSubquery(Connection conn) {
+        String sessionTable = TalaqqiSchemaUtil.sessionTable(conn);
+        return "(SELECT ts2.sessionId FROM " + sessionTable + " ts2 "
+            + "WHERE ts2.scheduleId = a.scheduleId "
+            + "  AND (ts2.sessionDate = a.attendanceDate OR ts2.sessionDate IS NULL) "
+            + "ORDER BY CASE WHEN ts2.sessionDate = a.attendanceDate THEN 0 ELSE 1 END, "
+            + "ts2.sessionId DESC LIMIT 1)";
+    }
+
+    private String sessionIdForBookingAttendanceSubquery(Connection conn) {
+        String sessionTable = TalaqqiSchemaUtil.sessionTable(conn);
+        if (TalaqqiSchemaUtil.hasColumn(conn, sessionTable, "bookingId")) {
+            return "(SELECT ts2.sessionId FROM " + sessionTable + " ts2 "
+                + "WHERE ((ts2.bookingId IS NOT NULL AND ts2.bookingId <> '' AND ts2.bookingId = cb.bookingId) "
+                + "    OR ((ts2.bookingId IS NULL OR ts2.bookingId = '') AND ts2.scheduleId = cb.scheduleId)) "
+                + "  AND (ts2.sessionDate = cb.bookingDate OR ts2.sessionDate IS NULL) "
+                + "ORDER BY CASE WHEN ts2.sessionDate = cb.bookingDate THEN 0 ELSE 1 END, "
+                + "ts2.sessionId DESC LIMIT 1)";
+        }
+        return "(SELECT ts2.sessionId FROM " + sessionTable + " ts2 "
+            + "WHERE ts2.scheduleId = cb.scheduleId "
+            + "  AND (ts2.sessionDate = cb.bookingDate OR ts2.sessionDate IS NULL) "
+            + "ORDER BY CASE WHEN ts2.sessionDate = cb.bookingDate THEN 0 ELSE 1 END, "
+            + "ts2.sessionId DESC LIMIT 1)";
     }
 
     /** Minimal attendance query when extended joins fail on production schema. */
@@ -755,9 +812,9 @@ public class EvaluationDAO {
     /** Bookings where the student attended (Present/Late), even if bookingStatus is not Completed. */
     private List<Evaluation> queryEvaluableSessionsFromAttendedBookings(Connection conn, String studentId) {
         List<Evaluation> list = new ArrayList<>();
-        String sessionTable = TalaqqiSchemaUtil.sessionTable(conn);
         String sessionIdExpr =
-            "COALESCE(NULLIF(TRIM(ts.sessionId), ''), NULLIF(TRIM(cb.bookingId), ''), cb.scheduleId)";
+            "COALESCE(" + sessionIdForBookingAttendanceSubquery(conn)
+            + ", NULLIF(TRIM(cb.bookingId), ''), cb.scheduleId)";
         String sql =
             "SELECT " + sessionIdExpr + " AS sessionId, cb.scheduleId, cs.teacherId, "
             + "COALESCE(t.teacherName, '') AS teacherName, "
@@ -772,8 +829,6 @@ public class EvaluationDAO {
             + "  AND a.attendanceDate = cb.bookingDate "
             + "  AND UPPER(TRIM(a.attendanceStatus)) IN ('PRESENT', 'LATE') "
             + "  AND a.joinTime IS NOT NULL "
-            + "LEFT JOIN " + sessionTable + " ts ON ts.scheduleId = cb.scheduleId "
-            + "  AND (ts.sessionDate = cb.bookingDate OR ts.sessionDate IS NULL) "
             + "LEFT JOIN teacher t ON cs.teacherId = t.teacherId "
             + "WHERE " + studentIdMatchClause("cb.studentId", studentIdVariants(studentId))
             + " AND " + studentIdMatchClause("a.studentId", studentIdVariants(studentId))
