@@ -123,6 +123,11 @@
                         <div class="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
                             <h4 class="text-lg font-semibold text-gray-900 mb-4">Select Date</h4>
 
+                            <div id="rescheduleModeBanner" class="hidden mb-4 p-3 rounded-lg bg-amber-50 border border-amber-200 text-amber-900 text-sm flex items-center justify-between gap-3">
+                                <span>Reschedule mode: pilih slot baru untuk ganti kelas <strong id="rescheduleModeBookingId"></strong></span>
+                                <button type="button" id="cancelRescheduleModeBtn" class="shrink-0 px-3 py-1 text-xs font-medium border border-amber-300 rounded-lg hover:bg-amber-100">Batal</button>
+                            </div>
+
                             <!-- View Filters -->
                             <div class="flex items-center justify-between mb-4">
                                 <div class="flex items-center space-x-2">
@@ -439,12 +444,52 @@
                                 console.error('Error during calendar init', err);
                             }
 
-                            // Expose a small API for other page elements to open calendar for rescheduling
+                            // Reschedule mode: only active after student clicks Reschedule (not stale storage)
                             window.talaqqi = window.talaqqi || {};
+                            window.talaqqi.rescheduleMode = false;
+                            window.talaqqi.pendingReschedule = null;
+
+                            function clearRescheduleMode() {
+                                try { localStorage.removeItem('rescheduleBookingId'); } catch (e) {}
+                                if (window.talaqqi) {
+                                    window.talaqqi.rescheduleMode = false;
+                                    window.talaqqi.pendingReschedule = null;
+                                }
+                                try {
+                                    if (calendarGrid) delete calendarGrid.dataset.pendingReschedule;
+                                } catch (e) {}
+                                var banner = document.getElementById('rescheduleModeBanner');
+                                if (banner) banner.classList.add('hidden');
+                            }
+
+                            function updateRescheduleModeBanner() {
+                                var banner = document.getElementById('rescheduleModeBanner');
+                                var label = document.getElementById('rescheduleModeBookingId');
+                                if (!banner || !label) return;
+                                if (window.talaqqi && window.talaqqi.rescheduleMode && window.talaqqi.pendingReschedule) {
+                                    label.textContent = window.talaqqi.pendingReschedule;
+                                    banner.classList.remove('hidden');
+                                } else {
+                                    banner.classList.add('hidden');
+                                }
+                            }
+                            window.talaqqi.clearRescheduleMode = clearRescheduleMode;
+                            window.talaqqi.updateRescheduleModeBanner = updateRescheduleModeBanner;
+
+                            clearRescheduleMode();
+
+                            var cancelRescheduleBtn = document.getElementById('cancelRescheduleModeBtn');
+                            if (cancelRescheduleBtn) {
+                                cancelRescheduleBtn.addEventListener('click', function() {
+                                    clearRescheduleMode();
+                                });
+                            }
+
                             window.talaqqi.openReschedule = function(bookingId, dateStr) {
-                                try { localStorage.setItem('rescheduleBookingId', bookingId || ''); } catch(e){}
-                                try { window.talaqqi.pendingReschedule = bookingId || ''; } catch(e){}
+                                window.talaqqi.rescheduleMode = true;
+                                window.talaqqi.pendingReschedule = bookingId || '';
                                 try { if (calendarGrid) calendarGrid.dataset.pendingReschedule = bookingId || ''; } catch(e){}
+                                updateRescheduleModeBanner();
                                 // Do NOT auto-select a specific day here — user should pick the new date first.
                                 // If a dateStr is provided, we can jump the calendar to that month for convenience,
                                 // but we will not set `selectedDate` so the student must pick a date.
@@ -535,8 +580,12 @@
                                     document.getElementById('confirm_bookingDate').value = data.bookingDate || '';
                                     document.getElementById('confirm_bookingTime').value = data.bookingTime || '';
                                     document.getElementById('confirm_teacherId').value = data.teacherId || '';
-                                    // prefer explicit value passed in `data`, then pendingReschedule, then dataset, then localStorage
-                                    var rs = (data && data.rescheduleBookingId) || (window.talaqqi && window.talaqqi.pendingReschedule) || (calendarGrid && calendarGrid.dataset && calendarGrid.dataset.pendingReschedule) || localStorage.getItem('rescheduleBookingId');
+                                    var rs = '';
+                                    if (window.talaqqi && window.talaqqi.rescheduleMode) {
+                                        rs = (window.talaqqi.pendingReschedule)
+                                            || (calendarGrid && calendarGrid.dataset && calendarGrid.dataset.pendingReschedule)
+                                            || '';
+                                    }
                                     document.getElementById('confirm_rescheduleBookingId').value = rs && rs !== 'null' ? rs : '';
                                     document.getElementById('confirmModal').classList.remove('hidden');
                                     // ensure the calendar dataset is not cleared until submit
@@ -561,12 +610,7 @@
                                 try { d.setTime(Date.parse(bookingDate + 'T00:00:00')); } catch(e){}
                                 const dateDisplay = (isNaN(d.getTime()) ? bookingDate : d.toLocaleDateString(undefined, { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' }));
 
-                                // Ensure any pending reschedule id is propagated into storage and dataset
-                                var rs = (window.talaqqi && window.talaqqi.pendingReschedule) || (calendarGrid && calendarGrid.dataset && calendarGrid.dataset.pendingReschedule) || localStorage.getItem('rescheduleBookingId') || '';
-                                try { if (rs && rs !== 'null') { localStorage.setItem('rescheduleBookingId', rs); if (window.talaqqi) window.talaqqi.pendingReschedule = rs; if (calendarGrid) calendarGrid.dataset.pendingReschedule = rs; } } catch(e){}
-
-                                // Pass the reschedule id explicitly to the modal so it's always set
-                                openConfirmModal({ scheduleId: scheduleId, bookingDate: bookingDate, bookingTime: bookingTime, teacherId: teacherId, teacherName: teacherName, dateDisplay: dateDisplay, rescheduleBookingId: rs });
+                                openConfirmModal({ scheduleId: scheduleId, bookingDate: bookingDate, bookingTime: bookingTime, teacherId: teacherId, teacherName: teacherName, dateDisplay: dateDisplay });
                             });
 
                             // When confirm form submits, clear pending/localStorage reschedule after a short delay (allow normal form submit)
@@ -578,10 +622,7 @@
                                             var rsEl = document.getElementById('confirm_rescheduleBookingId');
                                             var rsVal = rsEl ? rsEl.value : '';
                                             console.log('[reschedule] submitting rescheduleBookingId=', rsVal);
-                                            // clear after logging so the server receives the value
-                                            localStorage.removeItem('rescheduleBookingId');
-                                            if (window.talaqqi) window.talaqqi.pendingReschedule = null;
-                                            if (calendarGrid) delete calendarGrid.dataset.pendingReschedule;
+                                            setTimeout(function() { clearRescheduleMode(); }, 0);
                                         } catch(e){}
                                     });
                                 } else {
@@ -590,7 +631,7 @@
                                         try {
                                             const t = ev.target || ev.srcElement;
                                             if (t && t.id === 'confirmBookingForm') {
-                                                try { localStorage.removeItem('rescheduleBookingId'); if (window.talaqqi) window.talaqqi.pendingReschedule = null; } catch(e){}
+                                                try { setTimeout(function() { clearRescheduleMode(); }, 0); } catch(e){}
                                             }
                                         } catch(e){}
                                     }, true);
@@ -1411,10 +1452,14 @@
                         const bookingId = btn.getAttribute('data-booking-id');
                         const bookingDate = btn.getAttribute('data-booking-date');
                         try { window.talaqqi.openReschedule(bookingId, bookingDate); } catch(e){
-                            try { localStorage.setItem('rescheduleBookingId', bookingId || ''); } catch(err){}
-                            try { window.talaqqi.pendingReschedule = bookingId || ''; } catch(err){}
+                            try {
+                                window.talaqqi = window.talaqqi || {};
+                                window.talaqqi.rescheduleMode = true;
+                                window.talaqqi.pendingReschedule = bookingId || '';
+                            } catch(err){}
                         }
-                        try { if (calendarGrid) calendarGrid.dataset.pendingReschedule = bookingId || ''; } catch(e){}
+                        try { if (typeof calendarGrid !== 'undefined' && calendarGrid) calendarGrid.dataset.pendingReschedule = bookingId || ''; } catch(e){}
+                        try { if (window.talaqqi && window.talaqqi.updateRescheduleModeBanner) window.talaqqi.updateRescheduleModeBanner(); } catch(e){}
                     };
                     btn._rescheduleHandler = handler;
                     btn.addEventListener('click', handler);
@@ -1506,13 +1551,19 @@
             try {
                 window.talaqqi.openReschedule(bookingId, bookingDate);
             } catch (e) {
-                try { localStorage.setItem('rescheduleBookingId', bookingId || ''); } catch (err) {}
-                try { window.talaqqi.pendingReschedule = bookingId || ''; } catch (err) {}
+                try {
+                    window.talaqqi = window.talaqqi || {};
+                    window.talaqqi.rescheduleMode = true;
+                    window.talaqqi.pendingReschedule = bookingId || '';
+                } catch (err) {}
             }
             try {
                 if (typeof calendarGrid !== 'undefined' && calendarGrid) {
                     calendarGrid.dataset.pendingReschedule = bookingId || '';
                 }
+            } catch (e) {}
+            try {
+                if (window.talaqqi && window.talaqqi.updateRescheduleModeBanner) window.talaqqi.updateRescheduleModeBanner();
             } catch (e) {}
         }
 

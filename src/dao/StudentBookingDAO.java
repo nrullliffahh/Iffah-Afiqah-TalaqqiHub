@@ -715,6 +715,20 @@ public class StudentBookingDAO {
         return loadStudentBookings(studentId, false);
     }
 
+    /** Load one booking for a student; null if not found or not owned. */
+    public StudentBooking getStudentBooking(String studentId, String bookingId) {
+        if (studentId == null || studentId.trim().isEmpty()
+                || bookingId == null || bookingId.trim().isEmpty()) {
+            return null;
+        }
+        for (StudentBooking b : getMyBookings(studentId)) {
+            if (bookingId.trim().equalsIgnoreCase(b.getBookingId())) {
+                return b;
+            }
+        }
+        return null;
+    }
+
     /**
      * Get bookings for the current month only
      * This resets booked classes at the beginning of each new month

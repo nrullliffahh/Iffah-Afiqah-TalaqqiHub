@@ -1,6 +1,7 @@
 package controller;
 
 import dao.StudentBookingDAO;
+import model.StudentBooking;
 import javax.servlet.ServletException;
 import javax.servlet.http.HttpServlet;
 import javax.servlet.http.HttpServletRequest;
@@ -49,7 +50,16 @@ public class BookingActionServlet extends HttpServlet {
                 String newBookingId = bookingDAO.bookSession(studentId, scheduleId, bookingDate, bookingTime);
                 if (newBookingId != null) {
                     String rescheduleBookingId = request.getParameter("rescheduleBookingId");
-                    boolean isReschedule = rescheduleBookingId != null && !rescheduleBookingId.trim().isEmpty();
+                    boolean isReschedule = false;
+                    if (rescheduleBookingId != null && !rescheduleBookingId.trim().isEmpty()) {
+                        StudentBooking previous = bookingDAO.getStudentBooking(studentId, rescheduleBookingId.trim());
+                        if (previous != null && previous.isNeedsReschedule()) {
+                            isReschedule = true;
+                        } else {
+                            System.out.println("[BookingActionServlet] ignored rescheduleBookingId="
+                                + rescheduleBookingId + " (not eligible for reschedule)");
+                        }
+                    }
                     if (isReschedule) {
                         try {
                             System.out.println("[BookingActionServlet] received rescheduleBookingId=" + rescheduleBookingId);
