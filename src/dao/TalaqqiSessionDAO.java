@@ -654,28 +654,29 @@ public class TalaqqiSessionDAO {
             conn = DBConnection.getConnection();
             if (conn == null) return false;
 
+            util.TalaqqiSchemaUtil.ensureClassAyahEndColumn(conn);
+            boolean hasAyahEnd = util.TalaqqiSchemaUtil.hasClassAyahEnd(conn);
+            String setClause = hasAyahEnd
+                ? "SET cs.classSurah = ?, cs.classAyah = ?, cs.classAyahEnd = ? "
+                : "SET cs.classSurah = ?, cs.classAyah = ? ";
+
             String sessionTable = util.TalaqqiSchemaUtil.sessionTable(conn);
             String sessionLink = util.TalaqqiSchemaUtil.sessionToBookingOnClause("ts", conn);
             String sql = usesBookingIdLink(conn)
                 ? "UPDATE classschedule cs "
                     + "JOIN classbooking cb ON cs.scheduleId = cb.scheduleId "
                     + "JOIN " + sessionTable + " ts ON " + sessionLink + " "
-                    + "SET cs.classSurah = ?, cs.classAyah = ?, cs.classAyahEnd = ? "
+                    + setClause
                     + "WHERE ts.sessionId = ? AND cs.teacherId = ?"
-                : util.TalaqqiSchemaUtil.hasClassAyahEnd(conn)
-                    ? "UPDATE classschedule cs "
-                        + "JOIN talaqqisession ts ON ts.scheduleId = cs.scheduleId "
-                        + "SET cs.classSurah = ?, cs.classAyah = ?, cs.classAyahEnd = ? "
-                        + "WHERE ts.sessionId = ? AND cs.teacherId = ?"
-                    : "UPDATE classschedule cs "
-                        + "JOIN talaqqisession ts ON ts.scheduleId = cs.scheduleId "
-                        + "SET cs.classSurah = ?, cs.classAyah = ? "
-                        + "WHERE ts.sessionId = ? AND cs.teacherId = ?";
+                : "UPDATE classschedule cs "
+                    + "JOIN talaqqisession ts ON ts.scheduleId = cs.scheduleId "
+                    + setClause
+                    + "WHERE ts.sessionId = ? AND cs.teacherId = ?";
 
             ps = conn.prepareStatement(util.TalaqqiSchemaUtil.sql(sql, conn));
             ps.setInt(1, surahNumber);
             ps.setInt(2, ayahStart);
-            if (usesBookingIdLink(conn) || util.TalaqqiSchemaUtil.hasClassAyahEnd(conn)) {
+            if (hasAyahEnd) {
                 if (ayahEnd > 0) {
                     ps.setInt(3, ayahEnd);
                 } else {
@@ -690,7 +691,6 @@ public class TalaqqiSessionDAO {
             classScheduleUpdated = ps.executeUpdate() > 0;
         } catch (SQLException e) {
             System.err.println("[TalaqqiSessionDAO] updateQuranReference: " + e.getMessage());
-            return false;
         } finally {
             closeQuietly(null, ps, conn);
         }

@@ -26,12 +26,16 @@ public class DbStartupListener implements ServletContextListener {
         Connection conn = DBConnection.getConnection();
         if (conn != null) {
             System.out.println("DbStartupListener: database connection OK at startup.");
+            TalaqqiSchemaUtil.ensureClassAyahEndColumn(conn);
+            TalaqqiSchemaUtil.ensureQuranDisplayAyahEndColumn(conn);
             System.out.println("DbStartupListener: talaqqi session table="
                 + TalaqqiSchemaUtil.sessionTable(conn)
                 + ", link="
                 + (TalaqqiSchemaUtil.usesBookingIdLink(conn) ? "bookingId" : "scheduleId")
                 + ", timing="
-                + (TalaqqiSchemaUtil.hasSessionTimingColumns(conn) ? "yes" : "no"));
+                + (TalaqqiSchemaUtil.hasSessionTimingColumns(conn) ? "yes" : "no")
+                + ", classAyahEnd="
+                + (TalaqqiSchemaUtil.hasClassAyahEnd(conn) ? "yes" : "no"));
             DBConnection.closeConnection(conn);
         } else {
             System.err.println(

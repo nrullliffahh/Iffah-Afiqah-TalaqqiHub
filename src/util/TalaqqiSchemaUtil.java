@@ -399,6 +399,28 @@ public final class TalaqqiSchemaUtil {
         }
     }
 
+    /** Adds {@code classAyahEnd} when production classschedule predates ayah range sync. */
+    public static void ensureClassAyahEndColumn(Connection conn) {
+        if (hasColumn(conn, "classschedule", "classAyahEnd")) {
+            classAyahEndColumn = true;
+            return;
+        }
+        Connection probe = probe(conn);
+        try (Statement st = probe.createStatement()) {
+            st.execute("ALTER TABLE classschedule ADD COLUMN classAyahEnd INT DEFAULT NULL");
+            classAyahEndColumn = true;
+            System.out.println("[TalaqqiSchemaUtil] Added classschedule.classAyahEnd column.");
+        } catch (SQLException e) {
+            if (e.getMessage() == null || !e.getMessage().contains("Duplicate column")) {
+                System.err.println("[TalaqqiSchemaUtil] ensureClassAyahEndColumn: " + e.getMessage());
+            } else {
+                classAyahEndColumn = true;
+            }
+        } finally {
+            closeIfOwned(probe, conn);
+        }
+    }
+
     /** Adds {@code currentAyahEnd} when production qurandisplay predates live range sync. */
     public static void ensureQuranDisplayAyahEndColumn(Connection conn) {
         if (!hasQuranDisplayTable(conn)) {

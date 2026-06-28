@@ -22,6 +22,12 @@ CREATE TABLE IF NOT EXISTS studentcancellation (
 ALTER TABLE talaqqisession
   ADD COLUMN bookingId VARCHAR(10) DEFAULT NULL;
 
+-- Ayah range end for teacher Quran Apply (see db/0007_add_classAyahEnd.sql)
+ALTER TABLE classschedule
+  ADD COLUMN IF NOT EXISTS classAyahEnd INT DEFAULT NULL
+    COMMENT 'Last ayah of the range set by the teacher (inclusive). NULL = single ayah only.'
+  AFTER classAyah;
+
 -- Announcements (see db/0014_create_announcement_table.sql for full schema + samples)
 CREATE TABLE IF NOT EXISTS announcement (
     announcementId   VARCHAR(10)  NOT NULL PRIMARY KEY,
