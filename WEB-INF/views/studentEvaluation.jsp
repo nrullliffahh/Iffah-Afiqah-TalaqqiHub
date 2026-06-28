@@ -1800,16 +1800,24 @@
             let accuracyData = [];
             
             if (trendDataRaw && trendDataRaw.length > 0) {
-                months = trendDataRaw.map(d => d.month);
-                tajweedData = trendDataRaw.map(d => d.tajweed);
-                fluencyData = trendDataRaw.map(d => d.fluency);
-                accuracyData = trendDataRaw.map(d => d.accuracy);
+                months = trendDataRaw.map(d => d.month || '');
+                tajweedData = trendDataRaw.map(d => Number(d.tajweed) || 0);
+                fluencyData = trendDataRaw.map(d => Number(d.fluency) || 0);
+                accuracyData = trendDataRaw.map(d => Number(d.accuracy) || 0);
             } else {
                 // Show no-data overlay and hide canvas
                 const overlay = document.getElementById('trendNoData');
                 if (overlay) { overlay.style.display = 'flex'; }
                 trendCtx.style.visibility = 'hidden';
             }
+
+            const showTrendLines = months.length > 1;
+            const trendPointStyle = {
+                radius: 6,
+                hoverRadius: 8,
+                borderWidth: 2,
+                borderColor: '#ffffff'
+            };
             
             new Chart(trendCtx, {
                 type: 'line',
@@ -1820,37 +1828,46 @@
                             label: 'Tajweed',
                             data: tajweedData,
                             borderColor: '#047857',
-                            backgroundColor: 'rgba(167, 139, 250, 0.05)',
+                            backgroundColor: 'rgba(4, 120, 87, 0.08)',
                             borderWidth: 2,
-                            tension: 0.4,
+                            tension: 0.3,
                             fill: false,
-                            pointRadius: 5,
+                            showLine: showTrendLines,
+                            pointRadius: trendPointStyle.radius,
+                            pointHoverRadius: trendPointStyle.hoverRadius,
                             pointBackgroundColor: '#047857',
-                            pointBorderWidth: 0
+                            pointBorderColor: trendPointStyle.borderColor,
+                            pointBorderWidth: trendPointStyle.borderWidth
                         },
                         {
                             label: 'Fluency',
                             data: fluencyData,
-                            borderColor: '#34D399',
-                            backgroundColor: 'rgba(52, 211, 153, 0.05)',
+                            borderColor: '#10B981',
+                            backgroundColor: 'rgba(16, 185, 129, 0.08)',
                             borderWidth: 2,
-                            tension: 0.4,
+                            tension: 0.3,
                             fill: false,
-                            pointRadius: 5,
-                            pointBackgroundColor: '#34D399',
-                            pointBorderWidth: 0
+                            showLine: showTrendLines,
+                            pointRadius: trendPointStyle.radius,
+                            pointHoverRadius: trendPointStyle.hoverRadius,
+                            pointBackgroundColor: '#10B981',
+                            pointBorderColor: trendPointStyle.borderColor,
+                            pointBorderWidth: trendPointStyle.borderWidth
                         },
                         {
                             label: 'Accuracy',
                             data: accuracyData,
                             borderColor: '#3B82F6',
-                            backgroundColor: 'rgba(59, 130, 246, 0.05)',
+                            backgroundColor: 'rgba(59, 130, 246, 0.08)',
                             borderWidth: 2,
-                            tension: 0.4,
+                            tension: 0.3,
                             fill: false,
-                            pointRadius: 5,
+                            showLine: showTrendLines,
+                            pointRadius: trendPointStyle.radius,
+                            pointHoverRadius: trendPointStyle.hoverRadius,
                             pointBackgroundColor: '#3B82F6',
-                            pointBorderWidth: 0
+                            pointBorderColor: trendPointStyle.borderColor,
+                            pointBorderWidth: trendPointStyle.borderWidth
                         }
                     ]
                 },
@@ -1912,13 +1929,11 @@
             let hasSkillsData = false;
             
             if (skillsDataRaw && Object.keys(skillsDataRaw).length > 0) {
-                const vals = Object.values(skillsDataRaw);
-                const hasRealValues = vals.some(v => v > 0);
-                if (hasRealValues) {
-                    labels = Object.keys(skillsDataRaw);
-                    data = vals;
-                    hasSkillsData = true;
-                }
+                labels = ['Tajweed', 'Fluency', 'Accuracy'];
+                data = labels.map(function(label) {
+                    return Number(skillsDataRaw[label]) || 0;
+                });
+                hasSkillsData = data.some(function(v) { return v > 0; });
             }
             
             if (!hasSkillsData) {

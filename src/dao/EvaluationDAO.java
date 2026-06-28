@@ -238,7 +238,7 @@ public class EvaluationDAO {
     }
 
     /**
-     * Returns monthly performance trend data for Chart.js.
+     * Returns per-session performance trend data for Chart.js (one point per evaluation).
      */
     public List<Map<String, Object>> getPerformanceTrend(String studentId) {
         List<Map<String, Object>> list = new ArrayList<>();
@@ -248,28 +248,40 @@ public class EvaluationDAO {
             }
             syncCompletedEvaluationStatus(conn, studentId);
             String createdCol = TalaqqiSchemaUtil.studentEvalCreatedColumn(conn, "se");
+            String dateCol = hasEvalColumn(conn, "session_date")
+                ? "COALESCE(se.session_date, " + createdCol + ")"
+                : createdCol;
+            String labelExpr = hasEvalColumn(conn, "start_time")
+                ? "CONCAT(DATE_FORMAT(" + dateCol + ", '%b %d, %Y'), "
+                    + "IF(se.start_time IS NULL, '', CONCAT(' ', DATE_FORMAT(se.start_time, '%H:%i'))))"
+                : "DATE_FORMAT(" + dateCol + ", '%b %d, %Y')";
             String sql =
-                "SELECT DATE_FORMAT(" + createdCol + ",'%b %Y') AS month, "
-                + "       AVG(se.tajweedScore)  AS tajweed, "
-                + "       AVG(se.fluencyScore)  AS fluency, "
-                + "       AVG(se.accuracyScore) AS accuracy, "
-                + "       AVG((COALESCE(se.tajweedScore,0)+COALESCE(se.fluencyScore,0)+COALESCE(se.accuracyScore,0))/3) AS overall "
+                "SELECT " + labelExpr + " AS month, "
+                + "       COALESCE(se.tajweedScore, 0)  AS tajweed, "
+                + "       COALESCE(se.fluencyScore, 0)  AS fluency, "
+                + "       COALESCE(se.accuracyScore, 0) AS accuracy "
                 + "FROM studentevaluation se "
                 + "WHERE " + studentIdMatchClause("se.studentId", studentIdVariants(studentId))
                 + " AND " + evalCompletedPredicate(conn, "se") + " "
-                + "GROUP BY DATE_FORMAT(" + createdCol + ",'%Y-%m') "
-                + "ORDER BY MIN(" + createdCol + ") ASC LIMIT 12";
+                + "ORDER BY " + dateCol + " ASC, se.studentEvaluationId ASC LIMIT 12";
 
+            java.util.Map<String, Integer> labelCounts = new java.util.LinkedHashMap<>();
             try (PreparedStatement ps = conn.prepareStatement(sql)) {
                 bindStudentIdVariants(ps, 1, studentId);
                 try (ResultSet rs = ps.executeQuery()) {
                     while (rs.next()) {
+                        String label = rs.getString("month");
+                        if (label != null && !label.trim().isEmpty()) {
+                            int count = labelCounts.merge(label.trim(), 1, Integer::sum);
+                            if (count > 1) {
+                                label = label.trim() + " (" + count + ")";
+                            }
+                        }
                         Map<String, Object> row = new LinkedHashMap<>();
-                        row.put("month",    rs.getString("month"));
-                        row.put("tajweed",  rs.getDouble("tajweed"));
-                        row.put("fluency",  rs.getDouble("fluency"));
-                        row.put("accuracy", rs.getDouble("accuracy"));
-                        row.put("overall",  rs.getDouble("overall"));
+                        row.put("month", label != null ? label.trim() : "");
+                        row.put("tajweed",  roundOrZero(rs.getDouble("tajweed")));
+                        row.put("fluency",  roundOrZero(rs.getDouble("fluency")));
+                        row.put("accuracy", roundOrZero(rs.getDouble("accuracy")));
                         list.add(row);
                     }
                 }
@@ -291,9 +303,9 @@ public class EvaluationDAO {
             }
             syncCompletedEvaluationStatus(conn, studentId);
             String sql =
-                "SELECT AVG(tajweedScore) AS Tajweed, "
-                + "       AVG(fluencyScore) AS Fluency, "
-                + "       AVG(accuracyScore) AS Accuracy "
+                "SELECT AVG(COALESCE(tajweedScore, 0)) AS Tajweed, "
+                + "       AVG(COALESCE(fluencyScore, 0)) AS Fluency, "
+                + "       AVG(COALESCE(accuracyScore, 0)) AS Accuracy "
                 + "FROM studentevaluation se "
                 + "WHERE " + studentIdMatchClause("se.studentId", studentIdVariants(studentId))
                 + " AND " + evalCompletedPredicate(conn, "se");

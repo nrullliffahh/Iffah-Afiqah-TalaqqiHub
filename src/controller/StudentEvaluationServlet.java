@@ -19,19 +19,27 @@ public class StudentEvaluationServlet extends HttpServlet {
      * Convert a List of Maps to JSON string for JavaScript
      */
     private String mapToJson(Object obj) {
+        if (obj == null) {
+            return "null";
+        }
+        if (obj instanceof Number) {
+            double n = ((Number) obj).doubleValue();
+            if (Double.isNaN(n) || Double.isInfinite(n)) {
+                return "0";
+            }
+            return String.valueOf(n);
+        }
+        if (obj instanceof Boolean) {
+            return obj.toString();
+        }
         if (obj instanceof Map) {
             Map<?, ?> map = (Map<?, ?>) obj;
             StringBuilder json = new StringBuilder("{");
             int i = 0;
             for (Map.Entry<?, ?> entry : map.entrySet()) {
                 if (i > 0) json.append(",");
-                json.append("\"").append(entry.getKey()).append("\":");
-                Object value = entry.getValue();
-                if (value instanceof String) {
-                    json.append("\"").append(value).append("\"");
-                } else {
-                    json.append(value);
-                }
+                json.append("\"").append(escapeJson(String.valueOf(entry.getKey()))).append("\":");
+                json.append(mapToJson(entry.getValue()));
                 i++;
             }
             json.append("}");
@@ -46,7 +54,7 @@ public class StudentEvaluationServlet extends HttpServlet {
             json.append("]");
             return json.toString();
         }
-        return "[]";
+        return "\"" + escapeJson(String.valueOf(obj)) + "\"";
     }
 
     private String escapeJson(String value) {
