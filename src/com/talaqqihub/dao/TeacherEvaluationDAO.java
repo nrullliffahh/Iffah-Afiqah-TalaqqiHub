@@ -154,23 +154,50 @@ public class TeacherEvaluationDAO {
 
     /** SQL predicate: row is a completed teacher evaluation. */
     private String evalCompletedPredicate(String alias) {
+        String scoreCheck = evalScorePresentPredicate(alias);
         if (hasEvalColumn("status")) {
-            return "UPPER(COALESCE(" + alias + ".status, '')) = 'COMPLETED'";
+            return "(UPPER(COALESCE(" + alias + ".status, '')) = 'COMPLETED' OR " + scoreCheck + ")";
         }
         if (hasEvalColumn("overall_score")) {
             return "COALESCE(" + alias + ".overall_score, 0) > 0";
         }
-        return "(COALESCE(" + alias + ".tajweedScore, 0) > 0 "
+        return scoreCheck;
+    }
+
+    private String evalScorePresentPredicate(String alias) {
+        String scoreCheck = "(COALESCE(" + alias + ".tajweedScore, 0) > 0 "
             + "OR COALESCE(" + alias + ".fluencyScore, 0) > 0 "
             + "OR COALESCE(" + alias + ".accuracyScore, 0) > 0)";
+        if (hasEvalColumn("overall_score")) {
+            scoreCheck = "(" + scoreCheck + " OR COALESCE(" + alias + ".overall_score, 0) > 0)";
+        }
+        return scoreCheck;
     }
 
     /** SQL predicate: row is pending teacher evaluation. */
     private String evalPendingPredicate(String alias) {
-        if (hasEvalColumn("status")) {
-            return "UPPER(COALESCE(" + alias + ".status, 'PENDING')) = 'PENDING'";
-        }
         return "NOT (" + evalCompletedPredicate(alias) + ")";
+    }
+
+    /** Backfill COMPLETED status when scores exist but status stayed PENDING. */
+    public void syncCompletedEvaluationStatus(String teacherId) {
+        if (!hasEvalColumn("status")) {
+            return;
+        }
+        String scoreCheck = evalScorePresentPredicate("studentevaluation");
+        String sql = "UPDATE studentevaluation SET status = 'COMPLETED' "
+            + "WHERE UPPER(COALESCE(status, 'PENDING')) = 'PENDING' AND " + scoreCheck;
+        if (teacherId != null && !teacherId.trim().isEmpty()) {
+            sql += " AND " + teacherIdMatchClause("teacherId", teacherIdVariants(teacherId));
+        }
+        try (PreparedStatement stmt = connection.prepareStatement(sql)) {
+            if (teacherId != null && !teacherId.trim().isEmpty()) {
+                bindTeacherIdVariants(stmt, 1, teacherId);
+            }
+            stmt.executeUpdate();
+        } catch (SQLException e) {
+            System.err.println("[TeacherEvaluationDAO] syncCompletedEvaluationStatus: " + e.getMessage());
+        }
     }
 
     private String evalSelectColumn(String column) {
@@ -385,14 +412,15 @@ public class TeacherEvaluationDAO {
 
         String query;
         if (sessionId != null && !sessionId.trim().isEmpty() && hasEvalColumn("sessionId")) {
-            query = "SELECT studentEvaluationId FROM studentevaluation WHERE sessionId = ? AND teacherId = ? LIMIT 1";
+            query = "SELECT studentEvaluationId FROM studentevaluation WHERE sessionId = ? AND "
+                + teacherIdMatchClause("teacherId", teacherIdVariants(teacherId)) + " LIMIT 1";
         } else {
             return null;
         }
 
         try (PreparedStatement stmt = connection.prepareStatement(query)) {
             stmt.setString(1, sessionId.trim());
-            stmt.setString(2, teacherId.trim());
+            bindTeacherIdVariants(stmt, 2, teacherId);
             try (ResultSet rs = stmt.executeQuery()) {
                 if (rs.next()) {
                     Evaluation evaluation = new Evaluation();
@@ -1152,28 +1180,63 @@ public class TeacherEvaluationDAO {
         }
 
         String evalIdStr = resolveEvaluationId(evaluation);
-        String teacherIdStr = resolveTeacherId(evaluation);
-        String query = "UPDATE studentevaluation SET " + setClause
-            + " WHERE studentEvaluationId = ? AND teacherId = ?";
-
-        try (PreparedStatement stmt = connection.prepareStatement(query)) {
-            int index = 1;
-            for (Object param : params) {
-                bindJdbcParam(stmt, index++, param);
+        List<String> teacherIds = teacherIdVariants(resolveTeacherId(evaluation));
+        List<String> evalIdVariants = evaluationIdVariants(evaluation, evalIdStr);
+        for (String evalIdVariant : evalIdVariants) {
+            String query = "UPDATE studentevaluation SET " + setClause
+                + " WHERE studentEvaluationId = ? AND "
+                + teacherIdMatchClause("teacherId", teacherIds);
+            try (PreparedStatement stmt = connection.prepareStatement(query)) {
+                int index = 1;
+                for (Object param : params) {
+                    bindJdbcParam(stmt, index++, param);
+                }
+                stmt.setString(index++, evalIdVariant);
+                bindTeacherIdVariants(stmt, index, resolveTeacherId(evaluation));
+                int rowsAffected = stmt.executeUpdate();
+                if (rowsAffected > 0) {
+                    return true;
+                }
+            } catch (SQLException e) {
+                setError("Database error while updating evaluation: " + e.getMessage(), e);
             }
-            stmt.setString(index++, evalIdStr);
-            stmt.setString(index, teacherIdStr);
-
-            int rowsAffected = stmt.executeUpdate();
-            if (rowsAffected <= 0) {
-                setError("Evaluation record not found for update. It may belong to another teacher.", null);
-            }
-            return rowsAffected > 0;
-        } catch (SQLException e) {
-            setError("Database error while updating evaluation: " + e.getMessage(), e);
         }
 
+        if (evaluation.getSessionId() != null && !evaluation.getSessionId().trim().isEmpty()
+                && hasEvalColumn("sessionId")) {
+            String query = "UPDATE studentevaluation SET " + setClause
+                + " WHERE sessionId = ? AND " + teacherIdMatchClause("teacherId", teacherIds);
+            try (PreparedStatement stmt = connection.prepareStatement(query)) {
+                int index = 1;
+                for (Object param : params) {
+                    bindJdbcParam(stmt, index++, param);
+                }
+                stmt.setString(index++, evaluation.getSessionId().trim());
+                bindTeacherIdVariants(stmt, index, resolveTeacherId(evaluation));
+                int rowsAffected = stmt.executeUpdate();
+                if (rowsAffected > 0) {
+                    return true;
+                }
+            } catch (SQLException e) {
+                setError("Database error while updating evaluation by session: " + e.getMessage(), e);
+            }
+        }
+
+        setError("Evaluation record not found for update. It may belong to another teacher.", null);
         return false;
+    }
+
+    private List<String> evaluationIdVariants(Evaluation evaluation, String resolvedEvalId) {
+        Set<String> ids = new LinkedHashSet<>();
+        if (resolvedEvalId != null && !resolvedEvalId.trim().isEmpty()) {
+            ids.add(resolvedEvalId.trim());
+        }
+        int numericId = evaluation.getEvaluationId();
+        if (numericId > 0) {
+            ids.add("SE" + String.format("%03d", numericId));
+            ids.add(String.valueOf(numericId));
+        }
+        return new ArrayList<>(ids);
     }
 
     private String nullToEmpty(String value) {
@@ -1253,6 +1316,51 @@ public class TeacherEvaluationDAO {
         if (evaluations.isEmpty()) {
             evaluations.addAll(getPendingSessionsFallback(teacherId));
             evaluations.addAll(getPendingSessionsFromEndedOnly(teacherId));
+            evaluations.addAll(getPendingSessionsFromAttendance(teacherId));
+        }
+        return evaluations;
+    }
+
+    /** Attended sessions (Present/Late) that still need a teacher evaluation row. */
+    private List<Evaluation> getPendingSessionsFromAttendance(String teacherId) {
+        List<Evaluation> evaluations = new ArrayList<>();
+        List<String> teacherIds = teacherIdVariants(teacherId);
+        String sessionTable = TalaqqiSchemaUtil.sessionTable(connection);
+        String ayahRange = TalaqqiSchemaUtil.ayahRangeExpr(connection);
+        String teacherClause = teacherIdMatchClause("cs.teacherId", teacherIds);
+        String sessionIdExpr = "(SELECT ts2.sessionId FROM " + sessionTable + " ts2 "
+            + "WHERE ts2.scheduleId = a.scheduleId "
+            + "AND (ts2.sessionDate = a.attendanceDate OR ts2.sessionDate IS NULL) "
+            + "ORDER BY ts2.sessionDate DESC LIMIT 1)";
+        String query =
+            "SELECT cb.bookingId, " + sessionIdExpr + " AS sessionId, a.studentId, "
+            + "s.studentName AS student_name, cs.className AS class_name, "
+            + pendingSessionSurahColumns(sessionIdExpr) + ayahRange + " AS ayah_range, "
+            + "DATE_FORMAT(a.attendanceDate,'%Y-%m-%d') AS session_date, "
+            + "DATE_FORMAT(cs.startTime,'%H:%i:%s') AS start_time, "
+            + "DATE_FORMAT(cs.endTime,'%H:%i:%s') AS end_time, cs.teacherId "
+            + "FROM attendance a "
+            + "JOIN classschedule cs ON a.scheduleId = cs.scheduleId "
+            + "JOIN classbooking cb ON cb.scheduleId = cs.scheduleId AND cb.studentId = a.studentId "
+            + "JOIN student s ON a.studentId = s.studentId "
+            + "WHERE " + teacherClause + " "
+            + "AND a.attendanceStatus IN ('Present', 'Late') "
+            + "AND NOT EXISTS ( "
+            + "  SELECT 1 FROM studentevaluation se "
+            + "  WHERE se.teacherId = cs.teacherId AND se.studentId = a.studentId "
+            + "  AND (se.sessionId = " + sessionIdExpr + " OR (" + sessionIdExpr + " IS NULL AND "
+            + evalCompletedPredicate("se") + ")) "
+            + ") "
+            + "ORDER BY a.attendanceDate DESC, cs.startTime DESC";
+        try (PreparedStatement stmt = connection.prepareStatement(query)) {
+            bindTeacherIdVariants(stmt, 1, teacherId);
+            try (ResultSet rs = stmt.executeQuery()) {
+                while (rs.next()) {
+                    evaluations.add(mapPendingSessionRow(rs));
+                }
+            }
+        } catch (SQLException e) {
+            System.err.println("[TeacherEvaluationDAO] getPendingSessionsFromAttendance: " + e.getMessage());
         }
         return evaluations;
     }
@@ -2012,7 +2120,7 @@ public class TeacherEvaluationDAO {
             return "S" + String.format("%03d", studentIdNum);
         }
 
-        return "S001";
+        return null;
     }
 
     private String resolveTeacherId(Evaluation evaluation) {

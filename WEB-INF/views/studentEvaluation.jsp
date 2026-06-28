@@ -560,9 +560,12 @@
                         <div class="score-label">Accuracy</div>
                     </div>
                 </div>
+                <c:if test="${awaitingTeacherEvaluation}">
+                    <p class="text-center text-amber-800 bg-amber-50 border border-amber-200 rounded-xl px-4 py-3 mb-6 text-sm">
+                        Your teacher has not submitted evaluation scores yet. Scores will appear here after your session is evaluated.
+                    </p>
+                </c:if>
             </c:if>
-            
-            <!-- SECTION 2: CHARTS -->
             <div class="charts-container">
                 <!-- PERFORMANCE TREND CHART -->
                 <div class="chart-card" style="position:relative;">

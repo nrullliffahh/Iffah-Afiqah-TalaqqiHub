@@ -52,6 +52,7 @@ public class TeacherEvaluationServlet extends HttpServlet {
         try (Connection connection = getConnection()) {
             TeacherEvaluationDAO dao = new TeacherEvaluationDAO(connection);
             dao.ensureStudentEvaluationSchema();
+            dao.syncCompletedEvaluationStatus(teacherId);
 
             // Get dashboard summary
             Map<String, Object> dashboardSummary = dao.getDashboardSummary(teacherId);
@@ -316,11 +317,17 @@ public class TeacherEvaluationServlet extends HttpServlet {
      */
     private void ensureOverallScore(Evaluation evaluation) {
         if (evaluation.getOverallScore() > 0) {
+            if (evaluation.getStatus() == null || evaluation.getStatus().trim().isEmpty()) {
+                evaluation.setStatus("COMPLETED");
+            }
             return;
         }
 
         float averageScore = (evaluation.getTajweedScore() + evaluation.getFluencyScore() + evaluation.getAccuracyScore()) / 3.0f;
         evaluation.setOverallScore(averageScore);
+        if (averageScore > 0) {
+            evaluation.setStatus("COMPLETED");
+        }
     }
 
     private void writeJsonResponse(HttpServletResponse response, boolean success,

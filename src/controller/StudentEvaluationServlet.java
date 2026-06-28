@@ -187,6 +187,12 @@ public class StudentEvaluationServlet extends HttpServlet {
         request.setAttribute("totalEvaluations", totalEvaluations);
         request.setAttribute("completedSessions", completedSessions);
         request.setAttribute("submittedList", submittedList);
+        try {
+            request.setAttribute("awaitingTeacherEvaluation",
+                evaluationDAO.hasAwaitingTeacherEvaluation(studentId));
+        } catch (Exception e) {
+            request.setAttribute("awaitingTeacherEvaluation", false);
+        }
         System.out.println("StudentEvaluationServlet: Loaded DATABASE data - Student: " + studentId + ", " + totalEvaluations + " evaluations, " + completedSessions.size() + " completed sessions, " + submittedList.size() + " submitted feedbacks");
         
         // Forward to JSP

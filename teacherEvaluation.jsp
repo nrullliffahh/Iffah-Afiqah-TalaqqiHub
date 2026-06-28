@@ -792,6 +792,8 @@
 
             const form = document.querySelector('#evaluateModal form');
             form.reset();
+            const statusField = form.querySelector('input[name="status"]');
+            if (statusField) statusField.value = 'COMPLETED';
             document.getElementById('evaluationAction').value = hasExistingEval ? 'update' : 'insert';
             document.getElementById('evalId').value = evaluationId || '';
             document.getElementById('evalSubmitBtn').textContent = hasExistingEval ? 'Save Evaluation' : 'Create Evaluation';
