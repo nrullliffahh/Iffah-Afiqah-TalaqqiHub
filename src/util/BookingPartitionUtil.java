@@ -37,6 +37,8 @@ public final class BookingPartitionUtil {
                 }
             } else if (b.isRescheduledReplacement()) {
                 p.rescheduled.add(b);
+            } else if (isActiveUpcomingBooking(b, status)) {
+                p.upcoming.add(b);
             } else if (b.isNeedsReschedule() || b.isCompletedDisplay()) {
                 p.completed.add(b);
             } else if ("Completed".equalsIgnoreCase(status)) {
@@ -97,5 +99,28 @@ public final class BookingPartitionUtil {
             return false;
         }
         return BookingStatus.isActive(b.getBookingStatus()) || b.isRescheduledReplacement();
+    }
+
+    /** Active future booking with no ended live session → always Upcoming (never Not Completed). */
+    private static boolean isActiveUpcomingBooking(StudentBooking b, String status) {
+        if (b == null) {
+            return false;
+        }
+        if (b.isRescheduledReplacement()) {
+            return false;
+        }
+        if (!BookingStatus.isActive(status)) {
+            return false;
+        }
+        if (b.isTalaqqiSessionEnded()) {
+            return false;
+        }
+        if (b.isNeedsReschedule()) {
+            return false;
+        }
+        if (b.isCompletedDisplay()) {
+            return false;
+        }
+        return b.isFutureSession() || !b.isSessionEnded();
     }
 }

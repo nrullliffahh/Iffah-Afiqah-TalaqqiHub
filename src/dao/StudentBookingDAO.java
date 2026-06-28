@@ -553,13 +553,21 @@ public class StudentBookingDAO {
         }
 
         String nextSessionId = generateNextSessionId(conn);
-        String insertSql =
+        String insertNullDate =
+            "INSERT INTO talaqqisession (sessionId, sessionType, sessionDate, bookingId) VALUES (?, 'Live Talaqqi', NULL, ?)";
+        String insertWithDate =
             "INSERT INTO talaqqisession (sessionId, sessionType, sessionDate, bookingId) VALUES (?, 'Live Talaqqi', ?, ?)";
-        try (PreparedStatement insertPs = conn.prepareStatement(TalaqqiSchemaUtil.sql(insertSql, conn))) {
+        try (PreparedStatement insertPs = conn.prepareStatement(TalaqqiSchemaUtil.sql(insertNullDate, conn))) {
             insertPs.setString(1, nextSessionId);
-            insertPs.setDate(2, java.sql.Date.valueOf(sessionDate));
-            insertPs.setString(3, bookingId);
+            insertPs.setString(2, bookingId);
             return insertPs.executeUpdate() > 0;
+        } catch (SQLException nullDateRejected) {
+            try (PreparedStatement insertPs = conn.prepareStatement(TalaqqiSchemaUtil.sql(insertWithDate, conn))) {
+                insertPs.setString(1, nextSessionId);
+                insertPs.setDate(2, java.sql.Date.valueOf(sessionDate));
+                insertPs.setString(3, bookingId);
+                return insertPs.executeUpdate() > 0;
+            }
         }
     }
 
