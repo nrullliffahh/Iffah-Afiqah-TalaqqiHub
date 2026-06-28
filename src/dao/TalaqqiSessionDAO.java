@@ -1372,6 +1372,102 @@ public class TalaqqiSessionDAO {
         return completeSession(sessionId.trim(), teacherId);
     }
 
+    /**
+     * Teacher ended live session but student never joined — record session end date only.
+     * Booking stays Pending/Confirmed so Class Booking shows Not Completed + Reschedule.
+     */
+    public boolean finalizeSessionNotCompleted(String sessionId, String teacherId) {
+        if (sessionId == null || sessionId.trim().isEmpty()) {
+            return false;
+        }
+        String sid = sessionId.trim();
+
+        java.sql.Timestamp sessionStartTime = null;
+        Connection conn = null;
+        PreparedStatement ps = null;
+        ResultSet rs = null;
+        try {
+            conn = DBConnection.getConnection();
+            if (conn == null) {
+                return false;
+            }
+            if (hasSessionTimingColumns(conn)) {
+                String fetchSql = "SELECT ts.sessionStartTime FROM talaqqisession ts WHERE ts.sessionId = ?";
+                ps = conn.prepareStatement(util.TalaqqiSchemaUtil.sql(fetchSql, conn));
+                ps.setString(1, sid);
+                rs = ps.executeQuery();
+                if (rs.next()) {
+                    sessionStartTime = rs.getTimestamp("sessionStartTime");
+                }
+            }
+        } catch (SQLException e) {
+            System.err.println("[TalaqqiSessionDAO] finalizeSessionNotCompleted (fetch startTime): " + e.getMessage());
+        } finally {
+            closeQuietly(rs, ps, conn);
+        }
+
+        double durationMinutes = 0.0;
+        if (sessionStartTime != null) {
+            String durationSql = "SELECT TIMESTAMPDIFF(SECOND, ?, NOW()) / 60.0 AS durationMins";
+            try {
+                conn = DBConnection.getConnection();
+                if (conn == null) {
+                    return false;
+                }
+                ps = conn.prepareStatement(util.TalaqqiSchemaUtil.sql(durationSql, conn));
+                ps.setTimestamp(1, sessionStartTime);
+                rs = ps.executeQuery();
+                if (rs.next()) {
+                    durationMinutes = rs.getDouble("durationMins");
+                    if (durationMinutes < 0) {
+                        durationMinutes = 0.0;
+                    }
+                }
+            } catch (SQLException e) {
+                System.err.println("[TalaqqiSessionDAO] finalizeSessionNotCompleted (duration): " + e.getMessage());
+            } finally {
+                closeQuietly(rs, ps, conn);
+            }
+        }
+
+        try {
+            conn = DBConnection.getConnection();
+            if (conn == null) {
+                return false;
+            }
+            String sessionTable = util.TalaqqiSchemaUtil.sessionTable(conn);
+            String updateSql;
+            if (hasSessionTimingColumns(conn)) {
+                updateSql =
+                    "UPDATE " + sessionTable + " SET sessionDate = CURDATE(), "
+                        + "sessionStartTime = IF(sessionStartTime IS NULL, NOW(), sessionStartTime), "
+                        + "sessionDuration = ? WHERE sessionId = ?";
+            } else {
+                updateSql = "UPDATE " + sessionTable + " SET sessionDate = CURDATE() WHERE sessionId = ?";
+            }
+
+            ps = conn.prepareStatement(util.TalaqqiSchemaUtil.sql(updateSql, conn));
+            if (hasSessionTimingColumns(conn)) {
+                ps.setDouble(1, durationMinutes);
+                ps.setString(2, sid);
+            } else {
+                ps.setString(1, sid);
+            }
+            int rows = ps.executeUpdate();
+            if (rows > 0) {
+                backfillSessionBookingIdResolved(conn, sid, teacherId);
+                System.out.println("[TalaqqiSessionDAO] finalizeSessionNotCompleted: sessionId=" + sid);
+                return true;
+            }
+            return false;
+        } catch (SQLException e) {
+            System.err.println("[TalaqqiSessionDAO] finalizeSessionNotCompleted: " + e.getMessage());
+            return false;
+        } finally {
+            closeQuietly(null, ps, conn);
+        }
+    }
+
     /** True when the student joined (Present/Late) and the teacher started the live session. */
     public boolean hasConductedSession(String sessionId) {
         if (sessionId == null || sessionId.trim().isEmpty()) {
@@ -1569,6 +1665,57 @@ public class TalaqqiSessionDAO {
             ps.executeUpdate();
         } catch (SQLException e) {
             System.err.println("[TalaqqiSessionDAO] backfillSessionBookingId: " + e.getMessage());
+        }
+    }
+
+    /** Backfill bookingId after session ended (including not-completed / no-show). */
+    private void backfillSessionBookingIdResolved(Connection conn, String sessionId, String teacherId) {
+        String sessionTable = util.TalaqqiSchemaUtil.sessionTable(conn);
+        if (!util.TalaqqiSchemaUtil.hasColumn(conn, sessionTable, "bookingId")) {
+            return;
+        }
+        TalaqqiSession session = getSessionBySessionId(sessionId, teacherId);
+        if (session == null) {
+            return;
+        }
+        if (session.getBookingId() != null && !session.getBookingId().trim().isEmpty()) {
+            return;
+        }
+        String scheduleId = session.getScheduleId();
+        String studentId = session.getStudentId();
+        if (scheduleId == null || studentId == null) {
+            return;
+        }
+        String findSql =
+            "SELECT cb.bookingId FROM classbooking cb "
+            + "WHERE cb.scheduleId = ? AND cb.studentId = ? "
+            + "  AND cb.bookingStatus NOT IN ('Cancelled', 'Rescheduled') "
+            + "ORDER BY cb.bookingDate DESC, cb.bookingTime DESC LIMIT 1";
+        String bookingId = null;
+        try (PreparedStatement findPs = conn.prepareStatement(findSql)) {
+            findPs.setString(1, scheduleId);
+            findPs.setString(2, studentId);
+            try (ResultSet findRs = findPs.executeQuery()) {
+                if (findRs.next()) {
+                    bookingId = findRs.getString("bookingId");
+                }
+            }
+        } catch (SQLException e) {
+            System.err.println("[TalaqqiSessionDAO] backfillSessionBookingIdResolved (find): " + e.getMessage());
+            return;
+        }
+        if (bookingId == null || bookingId.trim().isEmpty()) {
+            return;
+        }
+        String updateSql =
+            "UPDATE " + sessionTable + " SET bookingId = ? "
+            + "WHERE sessionId = ? AND (bookingId IS NULL OR bookingId = '')";
+        try (PreparedStatement ps = conn.prepareStatement(updateSql)) {
+            ps.setString(1, bookingId.trim());
+            ps.setString(2, sessionId);
+            ps.executeUpdate();
+        } catch (SQLException e) {
+            System.err.println("[TalaqqiSessionDAO] backfillSessionBookingIdResolved: " + e.getMessage());
         }
     }
 
@@ -2270,29 +2417,12 @@ public class TalaqqiSessionDAO {
             conn = DBConnection.getConnection();
             if (conn == null) return 0;
 
-            String findMissingStudentsSql = usesBookingIdLink(conn)
-                ? "SELECT DISTINCT cb.studentId, cb.scheduleId, cs.teacherId, cb.bookingDate "
-                    + "FROM talaqqisession ts "
-                    + "JOIN classbooking cb ON ts.bookingId = cb.bookingId "
-                    + "JOIN classschedule cs ON cb.scheduleId = cs.scheduleId "
+            String findMissingStudentsSql =
+                "SELECT DISTINCT cb.studentId, cb.scheduleId, cs.teacherId, cb.bookingDate "
+                    + util.TalaqqiSchemaUtil.innerSessionBookingSchedule(conn)
                     + "WHERE ts.sessionId = ? "
                     + "  AND cs.teacherId = ? "
                     + "  AND cb.bookingStatus NOT IN ('Cancelled', 'Completed', 'Rescheduled') "
-                    + "  AND NOT EXISTS ("
-                    + "      SELECT 1 FROM attendance a "
-                    + "      WHERE a.scheduleId = cb.scheduleId "
-                    + "        AND a.studentId = cb.studentId "
-                    + "        AND a.attendanceDate = cb.bookingDate "
-                    + "        AND a.attendanceStatus IN ('Present', 'Late')"
-                    + "  )"
-                : "SELECT DISTINCT cb.studentId, cb.scheduleId, cs.teacherId, cb.bookingDate "
-                    + "FROM talaqqisession ts "
-                    + "JOIN classschedule cs ON ts.scheduleId = cs.scheduleId "
-                    + "LEFT JOIN classbooking cb ON cb.scheduleId = cs.scheduleId "
-                    + "  AND cb.bookingStatus NOT IN ('Cancelled', 'Completed', 'Rescheduled') "
-                    + "WHERE ts.sessionId = ? "
-                    + "  AND cs.teacherId = ? "
-                    + "  AND cb.studentId IS NOT NULL "
                     + "  AND NOT EXISTS ("
                     + "      SELECT 1 FROM attendance a "
                     + "      WHERE a.scheduleId = cb.scheduleId "

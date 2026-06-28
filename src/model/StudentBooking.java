@@ -21,6 +21,8 @@ public class StudentBooking {
     private String cancellationReason;
     private boolean cancellationAllowed = true;
     private String attendanceStatus;
+    /** True when linked talaqqisession.sessionDate is set (teacher ended live session). */
+    private boolean talaqqiSessionEnded;
 
     public String getBookingId() {
         return bookingId;
@@ -150,13 +152,35 @@ public class StudentBooking {
         this.attendanceStatus = attendanceStatus;
     }
 
-    public boolean isAbsent() {
-        return attendanceStatus != null && "Absent".equalsIgnoreCase(attendanceStatus.trim());
+    public boolean isTalaqqiSessionEnded() {
+        return talaqqiSessionEnded;
     }
 
-    /** Student was marked absent, or past session ended without attendance. */
+    public void setTalaqqiSessionEnded(boolean talaqqiSessionEnded) {
+        this.talaqqiSessionEnded = talaqqiSessionEnded;
+    }
+
+    /** Student joined (Present/Late) and session ended but booking row not yet Completed. */
+    public boolean isConductedPendingCompletion() {
+        if (BookingStatus.isCompleted(bookingStatus)) {
+            return false;
+        }
+        if (!talaqqiSessionEnded) {
+            return false;
+        }
+        if (attendanceStatus == null) {
+            return false;
+        }
+        String att = attendanceStatus.trim();
+        return "Present".equalsIgnoreCase(att) || "Late".equalsIgnoreCase(att);
+    }
+
+    /** JSP EL: ${booking.needsReschedule} */
     public boolean isNeedsReschedule() {
         if (isAbsent()) {
+            return true;
+        }
+        if (talaqqiSessionEnded && !BookingStatus.isCompleted(bookingStatus) && !isConductedPendingCompletion()) {
             return true;
         }
         if (!isSessionEnded()) {
@@ -178,7 +202,14 @@ public class StudentBooking {
         return BookingStatus.isActive(status);
     }
 
-    /** Session start is still in the future (active upcoming slot). */
+    public boolean isAbsent() {
+        return attendanceStatus != null && "Absent".equalsIgnoreCase(attendanceStatus.trim());
+    }
+
+    /** True when booking should appear under Completed (not Upcoming/Rescheduled). */
+    public boolean isCompletedDisplay() {
+        return BookingStatus.isCompleted(bookingStatus) || isConductedPendingCompletion();
+    }
     public boolean isFutureSession() {
         if (bookingDate == null) {
             return false;

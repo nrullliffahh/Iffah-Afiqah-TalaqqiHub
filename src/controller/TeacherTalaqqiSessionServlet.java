@@ -199,8 +199,16 @@ public class TeacherTalaqqiSessionServlet extends HttpServlet {
                 // Mark all missing students (who didn't join) as ABSENT
                 int absentMarkedCount = talaqqiSessionDAO.markMissingStudentsAsAbsent(sessionId, teacherId);
 
-                // Mark class as Completed in DB
-                boolean completed = talaqqiSessionDAO.completeSession(sessionId, teacherId);
+                // Completed only when student joined; otherwise finalize as Not Completed (no booking Completed)
+                boolean conducted = talaqqiSessionDAO.hasConductedSession(sessionId);
+                boolean completed;
+                boolean notCompleted = false;
+                if (conducted) {
+                    completed = talaqqiSessionDAO.completeSession(sessionId, teacherId);
+                } else {
+                    notCompleted = talaqqiSessionDAO.finalizeSessionNotCompleted(sessionId, teacherId);
+                    completed = false;
+                }
 
                 boolean pendingCreated = false;
                 try (java.sql.Connection conn = util.DBConnection.getConnection()) {
@@ -221,8 +229,9 @@ public class TeacherTalaqqiSessionServlet extends HttpServlet {
                 httpSession.removeAttribute(SESSION_KEY);
 
                 sendJson(response, 200,
-                    "{\"success\":" + (completed || pendingCreated) + "," +
+                    "{\"success\":" + (completed || notCompleted || pendingCreated) + "," +
                     "\"completed\":" + completed + "," +
+                    "\"notCompleted\":" + notCompleted + "," +
                     "\"pendingEvaluation\":" + pendingCreated + "," +
                     "\"absentMarked\":" + absentMarkedCount + "," +
                     "\"evaluationUrl\":\"" + request.getContextPath() + "/teacher/evaluation\"," +
