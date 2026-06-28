@@ -975,29 +975,25 @@ public class StudentBookingDAO {
         String attendanceSubquery =
             "(SELECT a.attendanceStatus FROM attendance a "
                 + "WHERE a.studentId = b.studentId AND a.scheduleId = b.scheduleId "
+                + "AND a.attendanceDate = b.bookingDate "
                 + "ORDER BY "
-                + "CASE WHEN a.attendanceDate = b.bookingDate THEN 0 ELSE 1 END, "
                 + "CASE a.attendanceStatus WHEN 'Absent' THEN 0 WHEN 'Late' THEN 1 WHEN 'Present' THEN 2 ELSE 3 END, "
                 + "a.attendanceId DESC LIMIT 1) AS attendanceStatus";
-
-        String talaqqiEndedSubquery = buildTalaqqiSessionEndedSubquery(conn);
 
         String[] sqlVariants = {
             "SELECT b.bookingId, b.studentId, b.scheduleId, b.bookingDate, b.bookingTime, b.bookingStatus, b.createdAt, "
                 + "cs.className, t.teacherName AS teacherName, cs.teacherId, cs.duration, sc.cancellationReason AS cancellationReason, "
-                + talaqqiEndedSubquery + ", "
                 + attendanceSubquery + " "
                 + baseFrom + "LEFT JOIN studentcancellation sc ON b.bookingId = sc.bookingId "
                 + "WHERE b.studentId = ?" + monthFilter + orderBy,
             "SELECT b.bookingId, b.studentId, b.scheduleId, b.bookingDate, b.bookingTime, b.bookingStatus, NULL AS createdAt, "
                 + "cs.className, t.teacherName AS teacherName, cs.teacherId, cs.duration, sc.cancellationReason AS cancellationReason, "
-                + talaqqiEndedSubquery + ", "
                 + attendanceSubquery + " "
                 + baseFrom + "LEFT JOIN studentcancellation sc ON b.bookingId = sc.bookingId "
                 + "WHERE b.studentId = ?" + monthFilter + orderBy,
             "SELECT b.bookingId, b.studentId, b.scheduleId, b.bookingDate, b.bookingTime, b.bookingStatus, NULL AS createdAt, "
                 + "cs.className, t.teacherName AS teacherName, cs.teacherId, cs.duration, NULL AS cancellationReason, "
-                + "0 AS talaqqiSessionEnded, NULL AS attendanceStatus "
+                + "NULL AS attendanceStatus "
                 + baseFrom + "WHERE b.studentId = ?" + monthFilter + orderBy
         };
 
@@ -1049,27 +1045,25 @@ public class StudentBookingDAO {
         String attendanceSubquery =
             "(SELECT a.attendanceStatus FROM attendance a "
                 + "WHERE a.studentId = b.studentId AND a.scheduleId = b.scheduleId "
+                + "AND a.attendanceDate = b.bookingDate "
                 + "ORDER BY "
-                + "CASE WHEN a.attendanceDate = b.bookingDate THEN 0 ELSE 1 END, "
                 + "CASE a.attendanceStatus WHEN 'Absent' THEN 0 WHEN 'Late' THEN 1 WHEN 'Present' THEN 2 ELSE 3 END, "
                 + "a.attendanceId DESC LIMIT 1) AS attendanceStatus";
-
-        String talaqqiEndedSubquery = buildTalaqqiSessionEndedSubquery(conn);
 
         String[] sqlVariants = {
             "SELECT b.bookingId, b.studentId, b.scheduleId, b.bookingDate, b.bookingTime, b.bookingStatus, b.createdAt, "
                 + "cs.className, t.teacherName AS teacherName, cs.teacherId, cs.duration, s.studentName AS studentName, "
-                + "sc.cancellationReason AS cancellationReason, " + talaqqiEndedSubquery + ", " + attendanceSubquery + " "
+                + "sc.cancellationReason AS cancellationReason, " + attendanceSubquery + " "
                 + baseFrom + "LEFT JOIN studentcancellation sc ON b.bookingId = sc.bookingId "
                 + "WHERE cs.teacherId = ?" + orderBy,
             "SELECT b.bookingId, b.studentId, b.scheduleId, b.bookingDate, b.bookingTime, b.bookingStatus, NULL AS createdAt, "
                 + "cs.className, t.teacherName AS teacherName, cs.teacherId, cs.duration, s.studentName AS studentName, "
-                + "sc.cancellationReason AS cancellationReason, " + talaqqiEndedSubquery + ", " + attendanceSubquery + " "
+                + "sc.cancellationReason AS cancellationReason, " + attendanceSubquery + " "
                 + baseFrom + "LEFT JOIN studentcancellation sc ON b.bookingId = sc.bookingId "
                 + "WHERE cs.teacherId = ?" + orderBy,
             "SELECT b.bookingId, b.studentId, b.scheduleId, b.bookingDate, b.bookingTime, b.bookingStatus, NULL AS createdAt, "
                 + "cs.className, t.teacherName AS teacherName, cs.teacherId, cs.duration, s.studentName AS studentName, "
-                + "NULL AS cancellationReason, 0 AS talaqqiSessionEnded, NULL AS attendanceStatus "
+                + "NULL AS cancellationReason, NULL AS attendanceStatus "
                 + baseFrom + "WHERE cs.teacherId = ?" + orderBy
         };
 
@@ -1132,24 +1126,6 @@ public class StudentBookingDAO {
         } catch (SQLException ignored) {
             booking.setAttendanceStatus(null);
         }
-        try {
-            booking.setTalaqqiSessionEnded(rs.getBoolean("talaqqiSessionEnded"));
-        } catch (SQLException ignored) {
-            booking.setTalaqqiSessionEnded(false);
-        }
-    }
-
-    private static String buildTalaqqiSessionEndedSubquery(Connection conn) {
-        String sessionTable = util.TalaqqiSchemaUtil.sessionTable(conn);
-        String link;
-        if (util.TalaqqiSchemaUtil.usesBookingIdLink(conn)) {
-            link = "((ts.bookingId IS NOT NULL AND ts.bookingId <> '' AND ts.bookingId = b.bookingId) "
-                + "OR ((ts.bookingId IS NULL OR ts.bookingId = '') AND ts.scheduleId = b.scheduleId))";
-        } else {
-            link = "ts.scheduleId = b.scheduleId";
-        }
-        return "EXISTS (SELECT 1 FROM " + sessionTable + " ts "
-            + "WHERE ts.sessionDate IS NOT NULL AND " + link + ") AS talaqqiSessionEnded";
     }
 
     private static boolean isSchemaMismatch(SQLException e) {
