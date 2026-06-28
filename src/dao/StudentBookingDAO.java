@@ -438,8 +438,12 @@ public class StudentBookingDAO {
         }
     }
 
-    /** UI label: "Rescheduled from Monday, 29 June 2026" (resolves legacy booking IDs too). */
+    /** UI label: "Rescheduled from Monday, 29 June 2026 (01:30 PM – 01:45 PM)". */
     public String formatRescheduleDisplayReason(String reason) {
+        return formatRescheduleDisplayReason(reason, null);
+    }
+
+    public String formatRescheduleDisplayReason(String reason, String replacementBookingId) {
         if (reason == null || reason.trim().isEmpty()) {
             return reason;
         }
@@ -451,42 +455,80 @@ public class StudentBookingDAO {
             return reason;
         }
         String tail = matcher.group(1).trim();
-        if (looksLikeFormattedDate(tail)) {
+        if (looksLikeFormattedRescheduleLabel(tail)) {
             return trimmed;
         }
-        LocalDate absentDate = lookupBookingDate(tail);
-        if (absentDate != null) {
-            return "Rescheduled from " + formatRescheduleFromDate(absentDate);
+        BookingSlotSnapshot slot = lookupBookingSlot(tail);
+        if (slot == null && replacementBookingId != null) {
+            slot = lookupRescheduledSourceSlot(replacementBookingId);
+        }
+        if (slot != null) {
+            return "Rescheduled from " + formatRescheduleFromSlot(slot);
         }
         return reason;
     }
 
     private String buildRescheduleFromReason(String previousBookingId) {
-        LocalDate absentDate = lookupBookingDate(previousBookingId);
-        if (absentDate != null) {
-            return "Rescheduled from " + formatRescheduleFromDate(absentDate);
+        BookingSlotSnapshot slot = lookupBookingSlot(previousBookingId);
+        if (slot != null && slot.date != null) {
+            return "Rescheduled from " + formatRescheduleFromSlot(slot);
         }
         String fallback = previousBookingId != null ? previousBookingId.trim() : "previous class";
         return "Rescheduled from " + fallback;
     }
 
+    private static final DateTimeFormatter RESCHEDULE_TIME_FMT =
+        DateTimeFormatter.ofPattern("hh:mm a", Locale.ENGLISH);
+
     private static String formatRescheduleFromDate(LocalDate date) {
         return date.format(DateTimeFormatter.ofPattern("EEEE, d MMMM yyyy", Locale.ENGLISH));
     }
 
-    private static boolean looksLikeFormattedDate(String text) {
+    private static String formatRescheduleFromSlot(BookingSlotSnapshot slot) {
+        if (slot == null || slot.date == null) {
+            return "previous class";
+        }
+        String label = formatRescheduleFromDate(slot.date);
+        if (slot.time == null) {
+            return label;
+        }
+        String start = slot.time.format(RESCHEDULE_TIME_FMT);
+        int mins = slot.duration != null && slot.duration > 0 ? slot.duration : 15;
+        String end = slot.time.plusMinutes(mins).format(RESCHEDULE_TIME_FMT);
+        return label + " (" + start + " – " + end + ")";
+    }
+
+    /** Date+time label already stored (includes parentheses with time). */
+    private static boolean looksLikeFormattedRescheduleLabel(String text) {
         if (text == null || text.isEmpty()) {
             return false;
         }
         return text.matches(".*\\d{4}.*")
-            && (text.contains(",") || text.matches("(?i).*(january|february|march|april|may|june|july|august|september|october|november|december).*"));
+            && text.contains("(")
+            && text.contains(")");
     }
 
-    private LocalDate lookupBookingDate(String bookingId) {
+    private static final class BookingSlotSnapshot {
+        final LocalDate date;
+        final LocalTime time;
+        final Integer duration;
+
+        BookingSlotSnapshot(LocalDate date, LocalTime time, Integer duration) {
+            this.date = date;
+            this.time = time;
+            this.duration = duration;
+        }
+    }
+
+    private BookingSlotSnapshot lookupBookingSlot(String bookingId) {
         if (bookingId == null || bookingId.trim().isEmpty()) {
             return null;
         }
-        String sql = "SELECT bookingDate FROM classbooking WHERE bookingId = ? LIMIT 1";
+        String sql =
+            "SELECT b.bookingDate, b.bookingTime, cs.duration "
+            + "FROM classbooking b "
+            + "LEFT JOIN classschedule cs ON b.scheduleId = cs.scheduleId "
+            + "WHERE b.bookingId = ? LIMIT 1";
         try (Connection conn = DBConnection.getConnection()) {
             if (conn == null) {
                 return null;
@@ -494,13 +536,61 @@ public class StudentBookingDAO {
             try (PreparedStatement ps = conn.prepareStatement(sql)) {
                 ps.setString(1, bookingId.trim());
                 try (ResultSet rs = ps.executeQuery()) {
-                    if (rs.next() && rs.getDate("bookingDate") != null) {
-                        return rs.getDate("bookingDate").toLocalDate();
+                    if (rs.next()) {
+                        LocalDate date = rs.getDate("bookingDate") != null
+                            ? rs.getDate("bookingDate").toLocalDate() : null;
+                        LocalTime time = rs.getTime("bookingTime") != null
+                            ? rs.getTime("bookingTime").toLocalTime() : null;
+                        int duration = rs.getInt("duration");
+                        Integer durationBox = rs.wasNull() ? null : duration;
+                        return new BookingSlotSnapshot(date, time, durationBox);
                     }
                 }
             }
         } catch (SQLException e) {
-            System.err.println("[StudentBookingDAO] lookupBookingDate failed: " + e.getMessage());
+            System.err.println("[StudentBookingDAO] lookupBookingSlot failed: " + e.getMessage());
+        }
+        return null;
+    }
+
+    /** Original missed slot for a replacement booking (date-only legacy labels). */
+    private BookingSlotSnapshot lookupRescheduledSourceSlot(String replacementBookingId) {
+        if (replacementBookingId == null || replacementBookingId.trim().isEmpty()) {
+            return null;
+        }
+        String sql =
+            "SELECT old.bookingDate, old.bookingTime, cs.duration "
+            + "FROM classbooking nb "
+            + "JOIN classbooking old ON old.studentId = nb.studentId "
+            + "LEFT JOIN studentcancellation sc ON sc.bookingId = old.bookingId "
+            + "LEFT JOIN classschedule cs ON old.scheduleId = cs.scheduleId "
+            + "WHERE nb.bookingId = ? "
+            + "AND old.bookingId <> nb.bookingId "
+            + "AND (old.bookingStatus = 'Rescheduled' OR sc.cancellationReason LIKE 'Rescheduled to%') "
+            + "ORDER BY old.bookingDate DESC, old.bookingTime DESC "
+            + "LIMIT 1";
+        try (Connection conn = DBConnection.getConnection()) {
+            if (conn == null) {
+                return null;
+            }
+            try (PreparedStatement ps = conn.prepareStatement(sql)) {
+                ps.setString(1, replacementBookingId.trim());
+                try (ResultSet rs = ps.executeQuery()) {
+                    if (rs.next()) {
+                        LocalDate date = rs.getDate("bookingDate") != null
+                            ? rs.getDate("bookingDate").toLocalDate() : null;
+                        LocalTime time = rs.getTime("bookingTime") != null
+                            ? rs.getTime("bookingTime").toLocalTime() : null;
+                        int duration = rs.getInt("duration");
+                        Integer durationBox = rs.wasNull() ? null : duration;
+                        return new BookingSlotSnapshot(date, time, durationBox);
+                    }
+                }
+            }
+        } catch (SQLException e) {
+            if (!isSchemaMismatch(e)) {
+                System.err.println("[StudentBookingDAO] lookupRescheduledSourceSlot failed: " + e.getMessage());
+            }
         }
         return null;
     }
@@ -1096,7 +1186,8 @@ public class StudentBookingDAO {
                                 mapStudentBookingRow(rs, booking);
                                 if (booking.getCancellationReason() != null) {
                                     booking.setCancellationReason(
-                                        formatRescheduleDisplayReason(booking.getCancellationReason()));
+                                        formatRescheduleDisplayReason(
+                                            booking.getCancellationReason(), booking.getBookingId()));
                                 }
                                 bookings.add(booking);
                             }
@@ -1164,7 +1255,8 @@ public class StudentBookingDAO {
                                 mapStudentBookingRow(rs, booking);
                                 if (booking.getCancellationReason() != null) {
                                     booking.setCancellationReason(
-                                        formatRescheduleDisplayReason(booking.getCancellationReason()));
+                                        formatRescheduleDisplayReason(
+                                            booking.getCancellationReason(), booking.getBookingId()));
                                 }
                                 bookings.add(booking);
                             }
