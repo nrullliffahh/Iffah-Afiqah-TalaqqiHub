@@ -977,7 +977,7 @@ public class StudentBookingDAO {
                 + "WHERE a.studentId = b.studentId AND a.scheduleId = b.scheduleId "
                 + "ORDER BY "
                 + "CASE WHEN a.attendanceDate = b.bookingDate THEN 0 ELSE 1 END, "
-                + "CASE a.attendanceStatus WHEN 'Absent' THEN 0 WHEN 'Late' THEN 1 WHEN 'Present' THEN 2 ELSE 3 END, "
+                + "CASE a.attendanceStatus WHEN 'Present' THEN 0 WHEN 'Late' THEN 1 WHEN 'Absent' THEN 2 ELSE 3 END, "
                 + "a.attendanceId DESC LIMIT 1) AS attendanceStatus";
 
         String talaqqiEndedSubquery = buildTalaqqiSessionEndedSubquery(conn);
@@ -1051,7 +1051,7 @@ public class StudentBookingDAO {
                 + "WHERE a.studentId = b.studentId AND a.scheduleId = b.scheduleId "
                 + "ORDER BY "
                 + "CASE WHEN a.attendanceDate = b.bookingDate THEN 0 ELSE 1 END, "
-                + "CASE a.attendanceStatus WHEN 'Absent' THEN 0 WHEN 'Late' THEN 1 WHEN 'Present' THEN 2 ELSE 3 END, "
+                + "CASE a.attendanceStatus WHEN 'Present' THEN 0 WHEN 'Late' THEN 1 WHEN 'Absent' THEN 2 ELSE 3 END, "
                 + "a.attendanceId DESC LIMIT 1) AS attendanceStatus";
 
         String talaqqiEndedSubquery = buildTalaqqiSessionEndedSubquery(conn);

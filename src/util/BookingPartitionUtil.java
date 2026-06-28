@@ -61,12 +61,12 @@ public final class BookingPartitionUtil {
         Partition p = partition(bookings);
         List<StudentBooking> out = new ArrayList<>();
         for (StudentBooking b : p.upcoming) {
-            if (b != null && b.isFutureSession() && !b.isTalaqqiSessionEnded()) {
+            if (isSwitchableTalaqqiBooking(b)) {
                 out.add(b);
             }
         }
         for (StudentBooking b : p.rescheduled) {
-            if (b != null && b.isFutureSession() && !b.isTalaqqiSessionEnded()) {
+            if (isSwitchableTalaqqiBooking(b)) {
                 out.add(b);
             }
         }
@@ -74,5 +74,28 @@ public final class BookingPartitionUtil {
             .comparing(StudentBooking::getBookingDate, Comparator.nullsLast(Comparator.naturalOrder()))
             .thenComparing(b -> b.getBookingTime() != null ? b.getBookingTime() : java.time.LocalTime.MIN));
         return out;
+    }
+
+    /** Switch Session picker: Upcoming + Rescheduled only (not completed / not-completed / ended). */
+    private static boolean isSwitchableTalaqqiBooking(StudentBooking b) {
+        if (b == null) {
+            return false;
+        }
+        if (!b.isFutureSession()) {
+            return false;
+        }
+        if (b.isTalaqqiSessionEnded()) {
+            return false;
+        }
+        if (b.isNeedsReschedule()) {
+            return false;
+        }
+        if (b.isCompletedDisplay()) {
+            return false;
+        }
+        if (BookingStatus.isCompleted(b.getBookingStatus())) {
+            return false;
+        }
+        return BookingStatus.isActive(b.getBookingStatus()) || b.isRescheduledReplacement();
     }
 }

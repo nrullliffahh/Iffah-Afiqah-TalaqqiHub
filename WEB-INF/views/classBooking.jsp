@@ -1054,6 +1054,11 @@
                                                 </c:when>
                                                 <c:otherwise>
                                                     <span class="px-3 py-1 bg-green-100 text-green-700 text-sm font-semibold rounded-full">Completed</span>
+                                                    <c:if test="${not empty booking.attendanceStatus}">
+                                                        <span class="px-3 py-1 bg-white text-green-800 text-sm font-semibold rounded-full border border-green-200">
+                                                            <c:out value="${booking.attendanceStatus}" />
+                                                        </span>
+                                                    </c:if>
                                                 </c:otherwise>
                                             </c:choose>
                                         </div>

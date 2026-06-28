@@ -1764,7 +1764,10 @@ public class TalaqqiSessionDAO {
             return false;
         }
 
-        java.sql.Date sessionDate = getSessionDateBySessionId(sessionId);
+        java.sql.Date sessionDate = getBookingDateBySessionId(sessionId);
+        if (sessionDate == null) {
+            sessionDate = getSessionDateBySessionId(sessionId);
+        }
         if (sessionDate == null) {
             sessionDate = java.sql.Date.valueOf(LocalDate.now());
         }
@@ -2451,8 +2454,8 @@ public class TalaqqiSessionDAO {
                     + "      SELECT 1 FROM attendance a "
                     + "      WHERE a.scheduleId = cb.scheduleId "
                     + "        AND a.studentId = cb.studentId "
-                    + "        AND a.attendanceDate = cb.bookingDate "
-                    + "        AND a.attendanceStatus IN ('Present', 'Late')"
+                    + "        AND a.attendanceStatus IN ('Present', 'Late') "
+                    + "        AND a.joinTime IS NOT NULL"
                     + "  )";
 
             ps = conn.prepareStatement(util.TalaqqiSchemaUtil.sql(findMissingStudentsSql, conn));
@@ -2657,6 +2660,43 @@ public class TalaqqiSessionDAO {
             }
         } catch (SQLException e) {
             System.err.println("[TalaqqiSessionDAO] getSessionDateBySessionId: " + e.getMessage());
+        } finally {
+            closeQuietly(rs, ps, conn);
+        }
+        return null;
+    }
+
+    /** Class booking date for attendance rows (must match classbooking.bookingDate). */
+    private java.sql.Date getBookingDateBySessionId(String sessionId) {
+        Connection conn = null;
+        PreparedStatement ps = null;
+        ResultSet rs = null;
+        try {
+            conn = DBConnection.getConnection();
+            if (conn == null) {
+                return null;
+            }
+            String sql = usesBookingIdLink(conn)
+                ? "SELECT cb.bookingDate FROM talaqqisession ts "
+                    + "JOIN classbooking cb ON "
+                    + util.TalaqqiSchemaUtil.sessionToBookingOnClause("ts", conn)
+                    + " WHERE ts.sessionId = ? "
+                    + "AND cb.bookingStatus NOT IN ('Cancelled','Rescheduled') "
+                    + "ORDER BY cb.bookingDate DESC, cb.bookingTime DESC LIMIT 1"
+                : "SELECT cb.bookingDate FROM talaqqisession ts "
+                    + "JOIN classschedule cs ON ts.scheduleId = cs.scheduleId "
+                    + "JOIN classbooking cb ON cb.scheduleId = cs.scheduleId "
+                    + "WHERE ts.sessionId = ? "
+                    + "AND cb.bookingStatus NOT IN ('Cancelled','Rescheduled') "
+                    + "ORDER BY cb.bookingDate DESC, cb.bookingTime DESC LIMIT 1";
+            ps = conn.prepareStatement(util.TalaqqiSchemaUtil.sql(sql, conn));
+            ps.setString(1, sessionId);
+            rs = ps.executeQuery();
+            if (rs.next()) {
+                return rs.getDate("bookingDate");
+            }
+        } catch (SQLException e) {
+            System.err.println("[TalaqqiSessionDAO] getBookingDateBySessionId: " + e.getMessage());
         } finally {
             closeQuietly(rs, ps, conn);
         }
