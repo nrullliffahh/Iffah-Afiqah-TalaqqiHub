@@ -268,8 +268,22 @@ public class StudentTalaqqiSessionServlet extends HttpServlet {
                 java.sql.Time leaveTime = util.AppTimeUtil.currentSqlTime();
                 boolean updated = talaqqiSessionDAO.updateLeaveTime(sessionId, studentId, leaveTime);
 
-                if (updated) {
-                    response.getWriter().write("{\"success\": true, \"message\": \"Left session\"}");
+                // When both teacher and student joined, mark booking Completed (Class Booking / Schedule)
+                boolean completed = false;
+                TalaqqiSession session = talaqqiSessionDAO.getSessionBySessionId(sessionId.trim(), null);
+                if (session != null && session.getTeacherId() != null) {
+                    completed = talaqqiSessionDAO.completeSessionIfConducted(
+                        sessionId.trim(), session.getTeacherId());
+                }
+
+                if (updated || completed) {
+                    StringBuilder json = new StringBuilder();
+                    json.append("{\"success\": true, \"message\": \"Left session\"");
+                    if (completed) {
+                        json.append(", \"completed\": true");
+                    }
+                    json.append("}");
+                    response.getWriter().write(json.toString());
                 } else {
                     sendJsonError(response, "Failed to record leave time");
                 }
