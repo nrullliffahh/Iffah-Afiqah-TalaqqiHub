@@ -138,8 +138,14 @@ public final class TalaqqiSchemaUtil {
 
     public static String leftJoinSessionFromFeedback(Connection conn) {
         String t = sessionTable(conn);
+        String scheduleJoin;
+        if (hasColumn(conn, "studentfeedback", "scheduleId")) {
+            scheduleJoin = "LEFT JOIN classschedule cs ON cs.scheduleId = COALESCE(ts.scheduleId, sf.scheduleId) ";
+        } else {
+            scheduleJoin = "LEFT JOIN classschedule cs ON ts.scheduleId = cs.scheduleId ";
+        }
         return "LEFT JOIN " + t + " ts ON sf.sessionId = ts.sessionId "
-            + "LEFT JOIN classschedule cs ON ts.scheduleId = cs.scheduleId "
+            + scheduleJoin
             + "LEFT JOIN classbooking cb ON cb.scheduleId = cs.scheduleId AND cb.studentId = sf.studentId ";
     }
 

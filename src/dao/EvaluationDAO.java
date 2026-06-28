@@ -583,10 +583,8 @@ public class EvaluationDAO {
             + "WHERE " + studentIdMatchClause("se.studentId", studentIdVariants(studentId))
             + " AND " + evalCompletedPredicate(conn, "se") + " "
             + "AND " + sessionCol + " IS NOT NULL "
-            + "AND NOT EXISTS ( "
-            + "  SELECT 1 FROM studentfeedback sf "
-            + "  WHERE sf.studentId = se.studentId AND sf.sessionId = se.sessionId "
-            + ") "
+            + "AND " + feedbackNotExistsForSession("se.studentId", sessionCol, 
+                hasEvalColumn(conn, "scheduleId") ? "COALESCE(se.scheduleId, se.sessionId)" : sessionCol) + " "
             + "ORDER BY se.studentEvaluationId DESC";
         try (PreparedStatement ps = conn.prepareStatement(sql)) {
             bindStudentIdVariants(ps, 1, studentId);
@@ -612,6 +610,7 @@ public class EvaluationDAO {
         }
         String sessionCol = "NULLIF(TRIM(se.sessionId), '')";
         String scheduleCol = hasEvalColumn(conn, "scheduleId") ? "se.scheduleId" : "NULL AS scheduleId";
+        String scheduleMatch = hasEvalColumn(conn, "scheduleId") ? "COALESCE(se.scheduleId, se.sessionId)" : sessionCol;
         String surahExpr = hasEvalColumn(conn, "surah") ? "COALESCE(se.surah, '')" : "''";
         String ayahExpr = hasEvalColumn(conn, "ayah_range") ? "COALESCE(se.ayah_range, '')" : "''";
         String createdCol = TalaqqiSchemaUtil.studentEvalCreatedColumn(conn, "se");
@@ -634,10 +633,7 @@ public class EvaluationDAO {
             + "WHERE " + studentIdMatchClause("se.studentId", studentIdVariants(studentId))
             + " AND " + sessionCol + " IS NOT NULL "
             + " AND UPPER(COALESCE(se.status, 'PENDING')) = 'PENDING' "
-            + "AND NOT EXISTS ( "
-            + "  SELECT 1 FROM studentfeedback sf "
-            + "  WHERE sf.studentId = se.studentId AND sf.sessionId = se.sessionId "
-            + ") "
+            + "AND " + feedbackNotExistsForSession("se.studentId", sessionCol, scheduleMatch) + " "
             + "ORDER BY se.studentEvaluationId DESC";
         try (PreparedStatement ps = conn.prepareStatement(sql)) {
             bindStudentIdVariants(ps, 1, studentId);
@@ -677,7 +673,9 @@ public class EvaluationDAO {
             + " AND NOT EXISTS ( "
             + "   SELECT 1 FROM studentfeedback sf "
             + "   WHERE sf.studentId = a.studentId "
-            + "   AND (sf.sessionId = " + sessionIdExpr + " OR sf.sessionId = a.scheduleId) "
+            + "   AND (sf.sessionId = " + sessionIdExpr
+            + "        OR sf.sessionId = a.scheduleId "
+            + "        OR sf.scheduleId = a.scheduleId) "
             + " ) "
             + "ORDER BY a.attendanceDate DESC, cs.startTime DESC";
         try (PreparedStatement ps = conn.prepareStatement(sql)) {
@@ -691,6 +689,16 @@ public class EvaluationDAO {
             System.err.println("EvaluationDAO.queryCompletedSessionsFromAttendance: " + e.getMessage());
         }
         return list;
+    }
+
+    private String feedbackNotExistsForSession(String studentIdExpr, String sessionIdExpr, String scheduleIdExpr) {
+        return "NOT EXISTS ( "
+            + "SELECT 1 FROM studentfeedback sf "
+            + "WHERE sf.studentId = " + studentIdExpr + " "
+            + "AND (sf.sessionId = " + sessionIdExpr
+            + " OR sf.sessionId = " + scheduleIdExpr
+            + " OR sf.scheduleId = " + scheduleIdExpr
+            + ")) ";
     }
 
     private Evaluation mapCompletedSessionRow(ResultSet rs) throws SQLException {
@@ -771,32 +779,48 @@ public class EvaluationDAO {
                                            String sessionId, String scheduleId,
                                            int rating, String comments, String suggestions) {
         ensureFeedbackTableExists();
-        teacherId = normalizeTeacherId(teacherId);
-        String sql =
-            "INSERT INTO studentfeedback (feedbackId, studentId, teacherId, sessionId, scheduleId, rating, comments, suggestions) " +
-            "VALUES (?, ?, ?, ?, ?, ?, ?, ?)";
-
-        try (Connection conn = DBConnection.getConnection();
-             PreparedStatement ps = conn.prepareStatement(sql)) {
-            if (conn == null) return false;
-            String feedbackId = "FB-" + System.currentTimeMillis() + "-" + (int)(Math.random()*10000);
-            ps.setString(1, feedbackId);
-            ps.setString(2, studentId);
-            ps.setString(3, teacherId);
-            ps.setString(4, sessionId);
-            if (scheduleId != null && !scheduleId.isEmpty()) {
-                try { ps.setInt(5, Integer.parseInt(scheduleId)); }
-                catch (NumberFormatException e) { ps.setNull(5, Types.INTEGER); }
-            } else {
-                ps.setNull(5, Types.INTEGER);
+        Connection conn = null;
+        try {
+            conn = DBConnection.getConnection();
+            if (conn == null) {
+                return false;
             }
-            ps.setInt(6, rating);
-            ps.setString(7, comments);
-            ps.setString(8, suggestions);
-            return ps.executeUpdate() > 0;
+            studentId = resolveStudentIdForFeedback(conn, studentId);
+            teacherId = resolveTeacherIdForFeedback(conn, teacherId);
+            if (studentId == null || studentId.isEmpty() || teacherId == null || teacherId.isEmpty()) {
+                System.err.println("EvaluationDAO.insertTeacherEvaluation: missing studentId or teacherId");
+                return false;
+            }
+
+            String existingId = findExistingFeedbackId(conn, studentId, sessionId, scheduleId);
+            if (existingId != null) {
+                return updateTeacherEvaluation(existingId, rating, comments, suggestions);
+            }
+
+            String sql =
+                "INSERT INTO studentfeedback (feedbackId, studentId, teacherId, sessionId, scheduleId, rating, comments, suggestions) "
+                + "VALUES (?, ?, ?, ?, ?, ?, ?, ?)";
+            try (PreparedStatement ps = conn.prepareStatement(sql)) {
+                String feedbackId = "FB-" + System.currentTimeMillis() + "-" + (int) (Math.random() * 10000);
+                ps.setString(1, feedbackId);
+                ps.setString(2, studentId);
+                ps.setString(3, teacherId);
+                ps.setString(4, sessionId);
+                bindFeedbackScheduleId(ps, 5, conn, scheduleId);
+                ps.setInt(6, rating);
+                ps.setString(7, comments);
+                ps.setString(8, suggestions);
+                return ps.executeUpdate() > 0;
+            }
         } catch (SQLException e) {
             System.err.println("EvaluationDAO.insertTeacherEvaluation: " + e.getMessage());
             e.printStackTrace();
+        } finally {
+            if (conn != null) {
+                try {
+                    conn.close();
+                } catch (SQLException ignored) {}
+            }
         }
         return false;
     }
@@ -835,45 +859,9 @@ public class EvaluationDAO {
             if (conn == null) {
                 return list;
             }
-            String ayahRange = TalaqqiSchemaUtil.ayahRangeExpr(conn);
-            String sql =
-                "SELECT sf.feedbackId, sf.studentId, sf.teacherId, sf.sessionId, "
-                + "       sf.rating, sf.comments, sf.suggestions, "
-                + "       DATE_FORMAT(sf.createdAt,'%b %d, %Y') AS createdAt, "
-                + "       t.teacherName, "
-                + "       DATE_FORMAT(cs.scheduleDate,'%Y-%m-%d') AS sessionDate, "
-                + "       DATE_FORMAT(cs.startTime,'%H:%i:%s') AS startTime, "
-                + "       DATE_FORMAT(cs.endTime,'%H:%i:%s') AS endTime, "
-                + "       cs.classSurah AS surahName, "
-                + "       " + ayahRange + " AS ayahRange "
-                + "FROM studentfeedback sf "
-                + "LEFT JOIN teacher      t  ON sf.teacherId  = t.teacherId "
-                + TalaqqiSchemaUtil.leftJoinSessionFromFeedback(conn)
-                + "WHERE " + studentIdMatchClause("sf.studentId", studentIdVariants(studentId))
-                + " ORDER BY sf.createdAt DESC";
-
-            try (PreparedStatement ps = conn.prepareStatement(sql)) {
-                bindStudentIdVariants(ps, 1, studentId);
-                try (ResultSet rs = ps.executeQuery()) {
-                    while (rs.next()) {
-                        Evaluation e = new Evaluation();
-                        e.setFeedbackId(rs.getString("feedbackId"));
-                        e.setStudentId(rs.getString("studentId"));
-                        e.setTeacherId(rs.getString("teacherId"));
-                        e.setSessionId(rs.getString("sessionId"));
-                        e.setRating(rs.getInt("rating"));
-                        e.setComments(rs.getString("comments"));
-                        e.setSuggestions(rs.getString("suggestions"));
-                        e.setCreatedAt(rs.getString("createdAt"));
-                        e.setTeacherName(rs.getString("teacherName"));
-                        e.setSessionDate(rs.getString("sessionDate"));
-                        e.setStartTime(rs.getString("startTime"));
-                        e.setEndTime(rs.getString("endTime"));
-                        e.setSurahName(resolveSurahDisplay(rs.getString("surahName")));
-                        e.setAyahRange(rs.getString("ayahRange"));
-                        list.add(e);
-                    }
-                }
+            list = queryStudentSubmittedFeedback(conn, studentId, true);
+            if (list.isEmpty()) {
+                list = queryStudentSubmittedFeedback(conn, studentId, false);
             }
         } catch (SQLException ex) {
             System.err.println("EvaluationDAO.getStudentSubmittedFeedback: " + ex.getMessage());
@@ -886,6 +874,76 @@ public class EvaluationDAO {
             }
         }
         return list;
+    }
+
+    private List<Evaluation> queryStudentSubmittedFeedback(Connection conn, String studentId, boolean withSessionJoin)
+            throws SQLException {
+        List<Evaluation> list = new ArrayList<>();
+        String createdExpr = feedbackCreatedAtExpr(conn);
+        String ayahRange = TalaqqiSchemaUtil.ayahRangeExpr(conn);
+        StringBuilder sql = new StringBuilder();
+        sql.append("SELECT sf.feedbackId, sf.studentId, sf.teacherId, sf.sessionId, ")
+            .append("       sf.rating, sf.comments, sf.suggestions, ")
+            .append("       ").append(createdExpr).append(" AS createdAt, ")
+            .append("       COALESCE(t.teacherName, '') AS teacherName ");
+        if (withSessionJoin) {
+            sql.append(", DATE_FORMAT(cs.scheduleDate,'%Y-%m-%d') AS sessionDate ")
+                .append(", DATE_FORMAT(cs.startTime,'%H:%i:%s') AS startTime ")
+                .append(", DATE_FORMAT(cs.endTime,'%H:%i:%s') AS endTime ")
+                .append(", CAST(cs.classSurah AS CHAR) AS surahName ")
+                .append(", ").append(ayahRange).append(" AS ayahRange ");
+        } else {
+            sql.append(", '' AS sessionDate, '' AS startTime, '' AS endTime, '' AS surahName, '' AS ayahRange ");
+        }
+        sql.append("FROM studentfeedback sf ")
+            .append("LEFT JOIN teacher t ON t.teacherId = sf.teacherId ");
+        if (withSessionJoin) {
+            sql.append(TalaqqiSchemaUtil.leftJoinSessionFromFeedback(conn));
+        }
+        sql.append("WHERE ").append(studentIdMatchClause("sf.studentId", studentIdVariants(studentId)))
+            .append(" ORDER BY ").append(feedbackOrderColumn(conn)).append(" DESC");
+
+        try (PreparedStatement ps = conn.prepareStatement(sql.toString())) {
+            bindStudentIdVariants(ps, 1, studentId);
+            try (ResultSet rs = ps.executeQuery()) {
+                while (rs.next()) {
+                    list.add(mapSubmittedFeedbackRow(rs));
+                }
+            }
+        } catch (SQLException e) {
+            if (withSessionJoin) {
+                throw e;
+            }
+            System.err.println("EvaluationDAO.queryStudentSubmittedFeedback: " + e.getMessage());
+        }
+        return list;
+    }
+
+    private Evaluation mapSubmittedFeedbackRow(ResultSet rs) throws SQLException {
+        Evaluation e = new Evaluation();
+        e.setFeedbackId(rs.getString("feedbackId"));
+        e.setStudentId(rs.getString("studentId"));
+        e.setTeacherId(rs.getString("teacherId"));
+        e.setSessionId(rs.getString("sessionId"));
+        e.setRating(rs.getInt("rating"));
+        e.setComments(rs.getString("comments"));
+        e.setSuggestions(rs.getString("suggestions"));
+        e.setCreatedAt(rs.getString("createdAt"));
+        e.setTeacherName(rs.getString("teacherName"));
+        try {
+            e.setSessionDate(rs.getString("sessionDate"));
+            e.setStartTime(rs.getString("startTime"));
+            e.setEndTime(rs.getString("endTime"));
+            e.setSurahName(resolveSurahDisplay(rs.getString("surahName")));
+            e.setAyahRange(rs.getString("ayahRange"));
+        } catch (SQLException ignored) {
+            e.setSessionDate("");
+            e.setStartTime("");
+            e.setEndTime("");
+            e.setSurahName("");
+            e.setAyahRange("");
+        }
+        return e;
     }
 
     /**
@@ -1199,6 +1257,133 @@ public class EvaluationDAO {
         return trimmed;
     }
 
+    private String normalizeStudentId(String studentId) {
+        if (studentId == null || studentId.trim().isEmpty()) {
+            return studentId;
+        }
+        String trimmed = studentId.trim();
+        if (trimmed.matches("S\\d+")) {
+            return trimmed;
+        }
+        String digits = trimmed.replaceAll("[^0-9]", "");
+        if (!digits.isEmpty()) {
+            return "S" + String.format("%03d", Integer.parseInt(digits));
+        }
+        return trimmed;
+    }
+
+    /** Resolve studentId to a row that satisfies studentfeedback FK. */
+    private String resolveStudentIdForFeedback(Connection conn, String studentId) throws SQLException {
+        if (studentId == null || studentId.trim().isEmpty()) {
+            return null;
+        }
+        for (String candidate : studentIdVariants(studentId)) {
+            try (PreparedStatement ps = conn.prepareStatement(
+                    "SELECT studentId FROM student WHERE studentId = ? LIMIT 1")) {
+                ps.setString(1, candidate);
+                try (ResultSet rs = ps.executeQuery()) {
+                    if (rs.next()) {
+                        return rs.getString("studentId");
+                    }
+                }
+            }
+        }
+        return normalizeStudentId(studentId);
+    }
+
+    /** Resolve teacherId to a row that satisfies studentfeedback FK. */
+    private String resolveTeacherIdForFeedback(Connection conn, String teacherId) throws SQLException {
+        if (teacherId == null || teacherId.trim().isEmpty()) {
+            return null;
+        }
+        String normalized = normalizeTeacherId(teacherId);
+        List<String> candidates = new ArrayList<>();
+        candidates.add(normalized);
+        candidates.add(teacherId.trim());
+        String digits = teacherId.replaceAll("[^0-9]", "");
+        if (!digits.isEmpty()) {
+            candidates.add("T" + String.format("%03d", Integer.parseInt(digits)));
+        }
+        for (String candidate : candidates) {
+            if (candidate == null || candidate.isEmpty()) {
+                continue;
+            }
+            try (PreparedStatement ps = conn.prepareStatement(
+                    "SELECT teacherId FROM teacher WHERE teacherId = ? LIMIT 1")) {
+                ps.setString(1, candidate);
+                try (ResultSet rs = ps.executeQuery()) {
+                    if (rs.next()) {
+                        return rs.getString("teacherId");
+                    }
+                }
+            }
+        }
+        return normalized;
+    }
+
+    private String findExistingFeedbackId(Connection conn, String studentId, String sessionId, String scheduleId)
+            throws SQLException {
+        if (sessionId != null && !sessionId.trim().isEmpty()) {
+            String sql = "SELECT feedbackId FROM studentfeedback WHERE studentId = ? AND sessionId = ? LIMIT 1";
+            try (PreparedStatement ps = conn.prepareStatement(sql)) {
+                ps.setString(1, studentId);
+                ps.setString(2, sessionId.trim());
+                try (ResultSet rs = ps.executeQuery()) {
+                    if (rs.next()) {
+                        return rs.getString("feedbackId");
+                    }
+                }
+            }
+        }
+        if (scheduleId != null && !scheduleId.trim().isEmpty()) {
+            String sql = "SELECT feedbackId FROM studentfeedback WHERE studentId = ? AND scheduleId = ? LIMIT 1";
+            try (PreparedStatement ps = conn.prepareStatement(sql)) {
+                ps.setString(1, studentId);
+                bindFeedbackScheduleId(ps, 2, conn, scheduleId);
+                try (ResultSet rs = ps.executeQuery()) {
+                    if (rs.next()) {
+                        return rs.getString("feedbackId");
+                    }
+                }
+            }
+        }
+        return null;
+    }
+
+    private void bindFeedbackScheduleId(PreparedStatement ps, int index, Connection conn, String scheduleId)
+            throws SQLException {
+        if (scheduleId == null || scheduleId.trim().isEmpty()) {
+            ps.setNull(index, Types.VARCHAR);
+            return;
+        }
+        String trimmed = scheduleId.trim();
+        if (TalaqqiSchemaUtil.hasColumn(conn, "studentfeedback", "scheduleId")) {
+            ps.setString(index, trimmed);
+            return;
+        }
+        ps.setNull(index, Types.VARCHAR);
+    }
+
+    private String feedbackCreatedAtExpr(Connection conn) {
+        if (TalaqqiSchemaUtil.hasColumn(conn, "studentfeedback", "createdAt")) {
+            return "DATE_FORMAT(sf.createdAt,'%b %d, %Y')";
+        }
+        if (TalaqqiSchemaUtil.hasColumn(conn, "studentfeedback", "created_at")) {
+            return "DATE_FORMAT(sf.created_at,'%b %d, %Y')";
+        }
+        return "DATE_FORMAT(NOW(),'%b %d, %Y')";
+    }
+
+    private String feedbackOrderColumn(Connection conn) {
+        if (TalaqqiSchemaUtil.hasColumn(conn, "studentfeedback", "createdAt")) {
+            return "sf.createdAt";
+        }
+        if (TalaqqiSchemaUtil.hasColumn(conn, "studentfeedback", "created_at")) {
+            return "sf.created_at";
+        }
+        return "sf.feedbackId";
+    }
+
     /**
      * Creates the studentfeedback table if it does not exist.
      * Called before every write/read against that table so the first deploy
@@ -1211,7 +1396,7 @@ public class EvaluationDAO {
             "  studentId   VARCHAR(50)  NOT NULL, " +
             "  teacherId   VARCHAR(50)  NOT NULL, " +
             "  sessionId   VARCHAR(50)  DEFAULT NULL, " +
-            "  scheduleId  INT          DEFAULT NULL, " +
+            "  scheduleId  VARCHAR(10)  DEFAULT NULL, " +
             "  rating      INT          NOT NULL DEFAULT 0, " +
             "  comments    TEXT, " +
             "  suggestions TEXT, " +
@@ -1223,10 +1408,22 @@ public class EvaluationDAO {
 
         try (Connection conn = DBConnection.getConnection();
              Statement st = conn.createStatement()) {
-            if (conn == null) return;
+            if (conn == null) {
+                return;
+            }
             st.execute(ddl);
+            migrateFeedbackScheduleIdColumn(conn);
         } catch (SQLException e) {
             System.err.println("EvaluationDAO.ensureFeedbackTableExists: " + e.getMessage());
+        }
+    }
+
+    /** classschedule.scheduleId is VARCHAR; legacy studentfeedback used INT. */
+    private void migrateFeedbackScheduleIdColumn(Connection conn) {
+        try (Statement st = conn.createStatement()) {
+            st.execute("ALTER TABLE studentfeedback MODIFY scheduleId VARCHAR(10) DEFAULT NULL");
+        } catch (SQLException ignored) {
+            // Column may already be VARCHAR or ALTER unsupported on hosted DB
         }
     }
 }

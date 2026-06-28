@@ -1922,7 +1922,7 @@ public class TeacherEvaluationDAO {
             + "studentId VARCHAR(50) NOT NULL, "
             + "teacherId VARCHAR(50) NOT NULL, "
             + "sessionId VARCHAR(50) DEFAULT NULL, "
-            + "scheduleId INT DEFAULT NULL, "
+            + "scheduleId VARCHAR(10) DEFAULT NULL, "
             + "rating INT NOT NULL DEFAULT 0, "
             + "comments TEXT, "
             + "suggestions TEXT, "
@@ -1933,6 +1933,9 @@ public class TeacherEvaluationDAO {
             + ") ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci";
         try (Statement stmt = connection.createStatement()) {
             stmt.execute(ddl);
+            try {
+                stmt.execute("ALTER TABLE studentfeedback MODIFY scheduleId VARCHAR(10) DEFAULT NULL");
+            } catch (SQLException ignored) {}
         } catch (SQLException e) {
             System.err.println("[TeacherEvaluationDAO] ensureStudentFeedbackSchema: " + e.getMessage());
         }
@@ -1950,6 +1953,41 @@ public class TeacherEvaluationDAO {
             return evaluations;
         }
 
+        evaluations = queryStudentFeedbackForTeacher(teacherId, teacherIds, true);
+        if (evaluations.isEmpty()) {
+            evaluations = queryStudentFeedbackForTeacher(teacherId, teacherIds, false);
+        }
+        if (evaluations.isEmpty() && countStudentFeedbackForTeacher(teacherIds) > 0) {
+            loadStudentFeedbackFallback(teacherIds, evaluations);
+        }
+        return evaluations;
+    }
+
+    private int countStudentFeedbackForTeacher(List<String> teacherIds) {
+        StringBuilder inClause = new StringBuilder();
+        for (int i = 0; i < teacherIds.size(); i++) {
+            if (i > 0) {
+                inClause.append(", ");
+            }
+            inClause.append("?");
+        }
+        String query = "SELECT COUNT(*) AS cnt FROM studentfeedback WHERE teacherId IN (" + inClause + ")";
+        try (PreparedStatement stmt = connection.prepareStatement(query)) {
+            bindTeacherIdParams(stmt, teacherIds);
+            try (ResultSet rs = stmt.executeQuery()) {
+                if (rs.next()) {
+                    return rs.getInt("cnt");
+                }
+            }
+        } catch (SQLException e) {
+            System.err.println("[TeacherEvaluationDAO] countStudentFeedbackForTeacher: " + e.getMessage());
+        }
+        return 0;
+    }
+
+    private List<Evaluation> queryStudentFeedbackForTeacher(String teacherId, List<String> teacherIds,
+                                                             boolean withSessionJoin) {
+        List<Evaluation> evaluations = new ArrayList<>();
         StringBuilder inClause = new StringBuilder();
         for (int i = 0; i < teacherIds.size(); i++) {
             if (i > 0) {
@@ -1958,22 +1996,31 @@ public class TeacherEvaluationDAO {
             inClause.append("?");
         }
 
+        String createdCol = feedbackCreatedAtColumn();
         String ayahRange = TalaqqiSchemaUtil.ayahRangeExpr(connection);
-        String query =
-            "SELECT sf.feedbackId, sf.sessionId, sf.rating, sf.comments, sf.suggestions, "
-            + "DATE_FORMAT(sf.createdAt,'%Y-%m-%d') AS createdAt, "
-            + "s.studentName AS student_name, "
-            + "DATE_FORMAT(cs.scheduleDate,'%Y-%m-%d') AS session_date, "
-            + "DATE_FORMAT(cs.startTime,'%H:%i:%s') AS start_time, "
-            + "DATE_FORMAT(cs.endTime,'%H:%i:%s') AS end_time, "
-            + pendingSessionSurahColumns("sf.sessionId") + ayahRange + " AS ayah_range "
-            + "FROM studentfeedback sf "
-            + "JOIN student s ON sf.studentId = s.studentId "
-            + TalaqqiSchemaUtil.leftJoinSessionFromFeedback(connection)
-            + "WHERE sf.teacherId IN (" + inClause + ") "
-            + "ORDER BY sf.createdAt DESC";
+        StringBuilder query = new StringBuilder();
+        query.append("SELECT sf.feedbackId, sf.sessionId, sf.rating, sf.comments, sf.suggestions, ")
+            .append("DATE_FORMAT(").append(createdCol).append(",'%Y-%m-%d') AS createdAt, ")
+            .append("COALESCE(s.studentName, '') AS student_name ");
+        if (withSessionJoin) {
+            query.append(", DATE_FORMAT(cs.scheduleDate,'%Y-%m-%d') AS session_date ")
+                .append(", DATE_FORMAT(cs.startTime,'%H:%i:%s') AS start_time ")
+                .append(", DATE_FORMAT(cs.endTime,'%H:%i:%s') AS end_time ")
+                .append(", ").append(pendingSessionSurahColumns("sf.sessionId"))
+                .append(ayahRange).append(" AS ayah_range ");
+        } else {
+            query.append(", '' AS session_date, '' AS start_time, '' AS end_time, '' AS surah, ")
+                .append("0 AS quran_surah_number, 0 AS quran_ayah_number, '' AS ayah_range ");
+        }
+        query.append("FROM studentfeedback sf ")
+            .append("LEFT JOIN student s ON s.studentId = sf.studentId ");
+        if (withSessionJoin) {
+            query.append(TalaqqiSchemaUtil.leftJoinSessionFromFeedback(connection));
+        }
+        query.append("WHERE sf.teacherId IN (").append(inClause).append(") ")
+            .append("ORDER BY ").append(createdCol).append(" DESC");
 
-        try (PreparedStatement stmt = connection.prepareStatement(query)) {
+        try (PreparedStatement stmt = connection.prepareStatement(query.toString())) {
             bindTeacherIdParams(stmt, teacherIds);
             try (ResultSet rs = stmt.executeQuery()) {
                 while (rs.next()) {
@@ -1981,13 +2028,25 @@ public class TeacherEvaluationDAO {
                 }
             }
             System.out.println("[TeacherEvaluationDAO] getStudentFeedbackForTeacher teacherId="
-                + teacherId + " -> " + evaluations.size() + " rows");
+                + teacherId + " joined=" + withSessionJoin + " -> " + evaluations.size() + " rows");
         } catch (SQLException e) {
             System.err.println("[TeacherEvaluationDAO] getStudentFeedbackForTeacher join query failed: "
                 + e.getMessage());
-            loadStudentFeedbackFallback(teacherIds, evaluations);
+            if (!withSessionJoin) {
+                loadStudentFeedbackFallback(teacherIds, evaluations);
+            }
         }
         return evaluations;
+    }
+
+    private String feedbackCreatedAtColumn() {
+        if (TalaqqiSchemaUtil.hasColumn(connection, "studentfeedback", "createdAt")) {
+            return "sf.createdAt";
+        }
+        if (TalaqqiSchemaUtil.hasColumn(connection, "studentfeedback", "created_at")) {
+            return "sf.created_at";
+        }
+        return "sf.feedbackId";
     }
 
     private void loadStudentFeedbackFallback(List<String> teacherIds, List<Evaluation> evaluations) {
@@ -2001,12 +2060,12 @@ public class TeacherEvaluationDAO {
 
         String query =
             "SELECT sf.feedbackId, sf.sessionId, sf.rating, sf.comments, sf.suggestions, "
-            + "DATE_FORMAT(sf.createdAt,'%Y-%m-%d') AS createdAt, "
+            + "DATE_FORMAT(" + feedbackCreatedAtColumn() + ",'%Y-%m-%d') AS createdAt, "
             + "COALESCE(s.studentName, '') AS student_name "
             + "FROM studentfeedback sf "
             + "LEFT JOIN student s ON sf.studentId = s.studentId "
             + "WHERE sf.teacherId IN (" + inClause + ") "
-            + "ORDER BY sf.createdAt DESC";
+            + "ORDER BY " + feedbackCreatedAtColumn() + " DESC";
 
         try (PreparedStatement stmt = connection.prepareStatement(query)) {
             bindTeacherIdParams(stmt, teacherIds);
