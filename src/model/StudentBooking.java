@@ -183,7 +183,11 @@ public class StudentBooking {
         if (talaqqiSessionEnded && !BookingStatus.isCompleted(bookingStatus) && !isConductedPendingCompletion()) {
             return true;
         }
+        // Past slot with no attendance only — future/new bookings stay Upcoming
         if (!isSessionEnded()) {
+            return false;
+        }
+        if (isFutureSession()) {
             return false;
         }
         String status = bookingStatus != null ? bookingStatus.trim() : "";

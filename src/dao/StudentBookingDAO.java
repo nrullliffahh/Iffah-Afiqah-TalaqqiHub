@@ -972,13 +972,7 @@ public class StudentBookingDAO {
                 + "LEFT JOIN classschedule cs ON b.scheduleId = cs.scheduleId "
                 + "LEFT JOIN teacher t ON cs.teacherId = t.teacherId ";
 
-        String attendanceSubquery =
-            "(SELECT a.attendanceStatus FROM attendance a "
-                + "WHERE a.studentId = b.studentId AND a.scheduleId = b.scheduleId "
-                + "ORDER BY "
-                + "CASE WHEN a.attendanceDate = b.bookingDate THEN 0 ELSE 1 END, "
-                + "CASE a.attendanceStatus WHEN 'Present' THEN 0 WHEN 'Late' THEN 1 WHEN 'Absent' THEN 2 ELSE 3 END, "
-                + "a.attendanceId DESC LIMIT 1) AS attendanceStatus";
+        String attendanceSubquery = attendanceStatusSubquery();
 
         String talaqqiEndedSubquery = buildTalaqqiSessionEndedSubquery(conn);
 
@@ -1046,13 +1040,7 @@ public class StudentBookingDAO {
                 + "INNER JOIN student s ON b.studentId = s.studentId "
                 + "LEFT JOIN teacher t ON cs.teacherId = t.teacherId ";
 
-        String attendanceSubquery =
-            "(SELECT a.attendanceStatus FROM attendance a "
-                + "WHERE a.studentId = b.studentId AND a.scheduleId = b.scheduleId "
-                + "ORDER BY "
-                + "CASE WHEN a.attendanceDate = b.bookingDate THEN 0 ELSE 1 END, "
-                + "CASE a.attendanceStatus WHEN 'Present' THEN 0 WHEN 'Late' THEN 1 WHEN 'Absent' THEN 2 ELSE 3 END, "
-                + "a.attendanceId DESC LIMIT 1) AS attendanceStatus";
+        String attendanceSubquery = attendanceStatusSubquery();
 
         String talaqqiEndedSubquery = buildTalaqqiSessionEndedSubquery(conn);
 
@@ -1139,16 +1127,26 @@ public class StudentBookingDAO {
         }
     }
 
+    private static String attendanceStatusSubquery() {
+        // Scope to this booking's date only — never inherit Absent/Present from another class on same schedule.
+        return "(SELECT a.attendanceStatus FROM attendance a "
+            + "WHERE a.studentId = b.studentId AND a.scheduleId = b.scheduleId "
+            + "AND a.attendanceDate = b.bookingDate "
+            + "ORDER BY "
+            + "CASE a.attendanceStatus WHEN 'Present' THEN 0 WHEN 'Late' THEN 1 WHEN 'Absent' THEN 2 ELSE 3 END, "
+            + "a.attendanceId DESC LIMIT 1) AS attendanceStatus";
+    }
+
     private static String buildTalaqqiSessionEndedSubquery(Connection conn) {
-        // Ended only after teacher clicks End Session — not when session row is provisioned.
-        // Absent: markAutoAttendance=1 (unchanged absent flow).
-        // Conducted: booking Completed or Present/Late with leaveTime after teacher ends.
+        // Ended only for THIS booking date — new bookings must not inherit old absent/leave rows.
         return "(b.bookingStatus = 'Completed' "
             + "OR EXISTS (SELECT 1 FROM attendance a_abs "
             + "WHERE a_abs.studentId = b.studentId AND a_abs.scheduleId = b.scheduleId "
+            + "AND a_abs.attendanceDate = b.bookingDate "
             + "AND a_abs.attendanceStatus = 'Absent' AND a_abs.markAutoAttendance = 1) "
             + "OR EXISTS (SELECT 1 FROM attendance a_done "
             + "WHERE a_done.studentId = b.studentId AND a_done.scheduleId = b.scheduleId "
+            + "AND a_done.attendanceDate = b.bookingDate "
             + "AND a_done.attendanceStatus IN ('Present','Late') AND a_done.leaveTime IS NOT NULL)"
             + ") AS talaqqiSessionEnded";
     }
