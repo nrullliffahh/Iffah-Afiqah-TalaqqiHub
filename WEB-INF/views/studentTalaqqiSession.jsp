@@ -438,7 +438,7 @@
 
         const sessionId = jitsiContainer.getAttribute('data-session-id') || '';
         const body = new URLSearchParams();
-        body.append('action', 'joinSession');
+        body.append('action', 'prepareJoin');
         body.append('sessionId', sessionId);
 
         fetch('<c:out value="${contextPath}" />/student/sessions', {
@@ -451,10 +451,6 @@
         .then(data => {
             if (!data || !data.success) {
                 throw new Error((data && data.error) ? data.error : 'Could not join session');
-            }
-            attendanceRecorded = true;
-            if (data.status === 'Late') {
-                alert('You joined more than 5 minutes after the teacher started. Attendance marked as Late.');
             }
             startJitsiMeet(data.jwt || null);
         })
@@ -506,6 +502,7 @@
             jitsiApi.addEventListener('videoConferenceJoined', () => {
                 isSessionActive = true;
                 console.log('Student joined Jitsi session');
+                recordSessionEvent('joinSession');
             });
 
             jitsiApi.addEventListener('videoConferenceLeft', () => {
@@ -545,8 +542,11 @@
         .then(response => response.json())
         .then(data => {
             console.log('Event recorded:', data);
-            if (action === 'joinSession' && data && data.status === 'Late') {
-                alert('You joined more than 5 minutes after the teacher started. Attendance marked as Late.');
+            if (action === 'joinSession' && data && data.success) {
+                attendanceRecorded = true;
+                if (data.status === 'Late') {
+                    alert('You joined more than 5 minutes after the teacher started. Attendance marked as Late.');
+                }
             }
         })
         .catch(error => {

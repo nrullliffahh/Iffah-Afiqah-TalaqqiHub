@@ -205,13 +205,13 @@
                                                     </td>
                                                     <td class="px-6 py-4 text-sm text-gray-700">
                                                         <c:choose>
-                                                            <c:when test="${record.status == 'Absent'}">-</c:when>
+                                                            <c:when test="${record.status == 'Absent' or empty record.joinTime}">-</c:when>
                                                             <c:otherwise>${record.joinTime}</c:otherwise>
                                                         </c:choose>
                                                     </td>
                                                     <td class="px-6 py-4 text-sm text-gray-700">
                                                         <c:choose>
-                                                            <c:when test="${record.status == 'Absent'}">-</c:when>
+                                                            <c:when test="${record.status == 'Absent' or empty record.leaveTime}">-</c:when>
                                                             <c:otherwise>${record.leaveTime}</c:otherwise>
                                                         </c:choose>
                                                     </td>

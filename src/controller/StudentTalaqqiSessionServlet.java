@@ -29,7 +29,8 @@ import java.util.List;
  *   /student/talaqqi-session?sessionId=X  → Loads specific session
  *
  * ── POST Requests (action= parameter) ────────────────────────────────────
- *   action=joinSession    → Records student join time, returns JSON
+ *   action=prepareJoin    → Returns Jitsi JWT only (no attendance yet)
+ *   action=joinSession    → Records student join time when they enter the call
  *   action=leaveSession   → Records student leave time, returns JSON
  *   action=acknowledgeVerse → Confirms student received verse reference
  *
@@ -180,6 +181,36 @@ public class StudentTalaqqiSessionServlet extends HttpServlet {
 
         switch (action.trim()) {
 
+            case "prepareJoin": {
+                String sessionId = request.getParameter("sessionId");
+                if (sessionId == null || sessionId.trim().isEmpty()) {
+                    sendJsonError(response, "sessionId required");
+                    return;
+                }
+
+                TalaqqiSession session = talaqqiSessionDAO.getSessionBySessionId(sessionId.trim(), null);
+                if (session == null || !studentId.equals(session.getStudentId())) {
+                    sendJsonError(response, "Session not found or access denied");
+                    return;
+                }
+
+                String studentName = stringAttr(httpSession, "studentName");
+                String studentEmail = resolveStudentEmail(httpSession);
+                String roomSlug = JitsiConfig.buildRoomSlug(
+                        session.getTeacherId(), session.getSessionId());
+                String jwt = JaasJwtGenerator.createParticipantToken(
+                        studentId, studentName, studentEmail, roomSlug);
+
+                StringBuilder json = new StringBuilder();
+                json.append("{\"success\": true, \"message\": \"Ready to join\"");
+                if (jwt != null && !jwt.isEmpty()) {
+                    json.append(", \"jwt\": \"").append(escapeJson(jwt)).append("\"");
+                }
+                json.append("}");
+                response.getWriter().write(json.toString());
+                break;
+            }
+
             case "joinSession": {
                 String sessionId = request.getParameter("sessionId");
                 if (sessionId == null || sessionId.trim().isEmpty()) {
@@ -195,7 +226,7 @@ public class StudentTalaqqiSessionServlet extends HttpServlet {
                 }
 
                 // Determine if student is late (joined > 5 minutes after teacher started)
-                java.sql.Time joinTime = new java.sql.Time(System.currentTimeMillis());
+                java.sql.Time joinTime = util.AppTimeUtil.currentSqlTime();
                 String attendanceStatus = talaqqiSessionDAO.determineAttendanceStatus(
                     sessionId, studentId, joinTime);
                 
@@ -234,7 +265,7 @@ public class StudentTalaqqiSessionServlet extends HttpServlet {
                 }
 
                 // Update leave time in attendance table
-                java.sql.Time leaveTime = new java.sql.Time(System.currentTimeMillis());
+                java.sql.Time leaveTime = util.AppTimeUtil.currentSqlTime();
                 boolean updated = talaqqiSessionDAO.updateLeaveTime(sessionId, studentId, leaveTime);
 
                 if (updated) {

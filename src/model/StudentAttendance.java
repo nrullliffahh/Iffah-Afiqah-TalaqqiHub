@@ -2,7 +2,6 @@ package model;
 
 import java.io.Serializable;
 import java.sql.Date;
-import java.sql.Time;
 
 public class StudentAttendance implements Serializable {
     private static final long serialVersionUID = 1L;
@@ -14,8 +13,8 @@ public class StudentAttendance implements Serializable {
     private Date sessionDate;
     private String timeRange;
     private String status;
-    private Time joinTime;
-    private Time leaveTime;
+    private String joinTime;
+    private String leaveTime;
     
     // Default Constructor
     public StudentAttendance() {
@@ -24,7 +23,7 @@ public class StudentAttendance implements Serializable {
     // Full Constructor
     public StudentAttendance(String attendanceId, int studentId, String sessionName, String teacherName,
                             Date sessionDate, String timeRange, String status,
-                            Time joinTime, Time leaveTime) {
+                            String joinTime, String leaveTime) {
         this.attendanceId = attendanceId;
         this.studentId = studentId;
         this.sessionName = sessionName;
@@ -93,19 +92,19 @@ public class StudentAttendance implements Serializable {
         this.status = status;
     }
     
-    public Time getJoinTime() {
+    public String getJoinTime() {
         return joinTime;
     }
     
-    public void setJoinTime(Time joinTime) {
+    public void setJoinTime(String joinTime) {
         this.joinTime = joinTime;
     }
     
-    public Time getLeaveTime() {
+    public String getLeaveTime() {
         return leaveTime;
     }
     
-    public void setLeaveTime(Time leaveTime) {
+    public void setLeaveTime(String leaveTime) {
         this.leaveTime = leaveTime;
     }
 }

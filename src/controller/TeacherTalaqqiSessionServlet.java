@@ -16,7 +16,6 @@ import javax.servlet.http.HttpSession;
 import java.io.IOException;
 import java.io.PrintWriter;
 import java.sql.Time;
-import java.time.LocalTime;
 import java.util.List;
 
 /**
@@ -361,8 +360,7 @@ public class TeacherTalaqqiSessionServlet extends HttpServlet {
     }
 
     private Time currentSqlTime() {
-        LocalTime now = LocalTime.now();
-        return Time.valueOf(now);
+        return util.AppTimeUtil.currentSqlTime();
     }
 
     private String resolveInitials(String name) {

@@ -17,7 +17,9 @@ public class StudentAttendanceDAO {
         String query = "SELECT MIN(a.attendanceId) AS attendanceId, a.studentId, " +
                       "cs.className AS session_name, t.teacherName AS teacher_name, a.attendanceDate AS session_date, " +
                       "CONCAT(TIME_FORMAT(cs.startTime, '%h:%i %p'), ' - ', TIME_FORMAT(cs.endTime, '%h:%i %p')) AS time_range, " +
-                      "MAX(a.attendanceStatus) AS status, MIN(a.joinTime) AS joinTime, MAX(a.leaveTime) AS leaveTime " +
+                      "MAX(a.attendanceStatus) AS status, "
+                      + "TIME_FORMAT(MIN(a.joinTime), '%h:%i %p') AS joinTime, "
+                      + "TIME_FORMAT(MAX(a.leaveTime), '%h:%i %p') AS leaveTime " +
                       "FROM attendance a " +
                       "LEFT JOIN classschedule cs ON a.scheduleId = cs.scheduleId " +
                       "LEFT JOIN teacher t ON a.teacherId = t.teacherId " +
@@ -56,8 +58,8 @@ public class StudentAttendanceDAO {
                 attendance.setTimeRange(rs.getString("time_range"));
                 attendance.setStatus(rs.getString("status"));
                 
-                attendance.setJoinTime(rs.getTime("joinTime"));
-                attendance.setLeaveTime(rs.getTime("leaveTime"));
+                attendance.setJoinTime(rs.getString("joinTime"));
+                attendance.setLeaveTime(rs.getString("leaveTime"));
                 
                 records.add(attendance);
             }
@@ -340,7 +342,9 @@ public class StudentAttendanceDAO {
         String query = "SELECT MIN(a.attendanceId) AS attendanceId, a.studentId, " +
                       "cs.className AS session_name, t.teacherName AS teacher_name, a.attendanceDate AS session_date, " +
                       "CONCAT(TIME_FORMAT(cs.startTime, '%h:%i %p'), ' - ', TIME_FORMAT(cs.endTime, '%h:%i %p')) AS time_range, " +
-                      "MAX(a.attendanceStatus) AS status, MIN(a.joinTime) AS joinTime, MAX(a.leaveTime) AS leaveTime " +
+                      "MAX(a.attendanceStatus) AS status, "
+                      + "TIME_FORMAT(MIN(a.joinTime), '%h:%i %p') AS joinTime, "
+                      + "TIME_FORMAT(MAX(a.leaveTime), '%h:%i %p') AS leaveTime " +
                       "FROM attendance a " +
                       "LEFT JOIN classschedule cs ON a.scheduleId = cs.scheduleId " +
                       "LEFT JOIN teacher t ON a.teacherId = t.teacherId " +
@@ -377,8 +381,8 @@ public class StudentAttendanceDAO {
                 attendance.setTimeRange(rs.getString("time_range"));
                 attendance.setStatus(rs.getString("status"));
                 
-                attendance.setJoinTime(rs.getTime("joinTime"));
-                attendance.setLeaveTime(rs.getTime("leaveTime"));
+                attendance.setJoinTime(rs.getString("joinTime"));
+                attendance.setLeaveTime(rs.getString("leaveTime"));
                 
                 records.add(attendance);
             }

@@ -1429,7 +1429,10 @@ public class TalaqqiSessionDAO {
             "    WHEN attendanceStatus = 'Late' OR VALUES(attendanceStatus) = 'Late' THEN 'Late' " +
             "    WHEN attendanceStatus = 'Present' OR VALUES(attendanceStatus) = 'Present' THEN 'Present' " +
             "    ELSE VALUES(attendanceStatus) END, " +
-            "  joinTime           = COALESCE(VALUES(joinTime), joinTime), " +
+            "  joinTime           = CASE " +
+            "    WHEN joinTime IS NULL THEN VALUES(joinTime) " +
+            "    WHEN VALUES(joinTime) IS NULL THEN joinTime " +
+            "    ELSE LEAST(joinTime, VALUES(joinTime)) END, " +
             "  markAutoAttendance = VALUES(markAutoAttendance)";
 
         Connection conn = null;
@@ -1516,10 +1519,12 @@ public class TalaqqiSessionDAO {
                 "UPDATE attendance a "
                 + "JOIN classbooking cb ON cb.scheduleId = a.scheduleId AND cb.studentId = a.studentId "
                 + joinSessionToBooking(conn)
-                + "SET a.leaveTime = ? "
+                + "SET a.leaveTime = CASE "
+                + "  WHEN a.leaveTime IS NULL THEN ? "
+                + "  WHEN ? > a.leaveTime THEN ? "
+                + "  ELSE a.leaveTime END "
                 + "WHERE ts.sessionId = ? "
-                + "  AND a.joinTime IS NOT NULL "
-                + "  AND (a.leaveTime IS NULL)";
+                + "  AND a.joinTime IS NOT NULL ";
 
             if (studentId != null && !studentId.isEmpty()) {
                 sql += " AND a.studentId = ?";
@@ -1527,9 +1532,11 @@ public class TalaqqiSessionDAO {
 
             ps = conn.prepareStatement(util.TalaqqiSchemaUtil.sql(sql, conn));
             ps.setTime(1, leaveTime);
-            ps.setString(2, sessionId);
+            ps.setTime(2, leaveTime);
+            ps.setTime(3, leaveTime);
+            ps.setString(4, sessionId);
             if (studentId != null && !studentId.isEmpty()) {
-                ps.setString(3, studentId);
+                ps.setString(5, studentId);
             }
             return ps.executeUpdate() > 0;
         } catch (SQLException e) {
@@ -2183,7 +2190,7 @@ public class TalaqqiSessionDAO {
      */
     public String determineAttendanceStatus(String sessionId, String studentId, Time joinTime) {
         if (joinTime == null) {
-            joinTime = new Time(System.currentTimeMillis());
+            joinTime = util.AppTimeUtil.currentSqlTime();
         }
         LocalDateTime sessionStart = resolveLiveSessionStart(sessionId);
         if (sessionStart == null) {

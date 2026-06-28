@@ -71,8 +71,12 @@
             pstmt.close();
             
             // Get recent attendance records with proper column names
-            String recordsQuery = "SELECT a.attendanceId, s.studentName, t.teacherName, a.attendanceDate, cs.startTime, cs.endTime, " +
-                "a.joinTime, a.leaveTime, a.attendanceStatus, cs.className " +
+            String recordsQuery = "SELECT a.attendanceId, s.studentName, t.teacherName, a.attendanceDate, "
+                + "TIME_FORMAT(cs.startTime, '%h:%i %p') AS startTime, "
+                + "TIME_FORMAT(cs.endTime, '%h:%i %p') AS endTime, "
+                + "TIME_FORMAT(a.joinTime, '%h:%i %p') AS joinTime, "
+                + "TIME_FORMAT(a.leaveTime, '%h:%i %p') AS leaveTime, "
+                + "a.attendanceStatus, cs.className " +
                 "FROM attendance a " +
                 "LEFT JOIN student s ON a.studentId = s.studentId " +
                 "LEFT JOIN teacher t ON a.teacherId = t.teacherId " +
@@ -85,10 +89,10 @@
                 record.put("studentName", rs.getString("studentName") != null ? rs.getString("studentName") : "Unknown");
                 record.put("teacherName", rs.getString("teacherName") != null ? rs.getString("teacherName") : "Unknown");
                 record.put("sessionDate", rs.getDate("attendanceDate"));
-                record.put("startTime", rs.getTime("startTime"));
-                record.put("endTime", rs.getTime("endTime"));
-                record.put("joinTime", rs.getTime("joinTime"));
-                record.put("leaveTime", rs.getTime("leaveTime"));
+                record.put("startTime", rs.getString("startTime"));
+                record.put("endTime", rs.getString("endTime"));
+                record.put("joinTime", rs.getString("joinTime"));
+                record.put("leaveTime", rs.getString("leaveTime"));
                 record.put("status", rs.getString("attendanceStatus"));
                 record.put("classType", rs.getString("className") != null ? rs.getString("className") : "General Class");
                 attendanceRecords.add(record);
