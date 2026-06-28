@@ -1177,6 +1177,8 @@ public class TalaqqiSessionDAO {
      * Ensures both sessionStartTime and sessionDuration are saved.
      * Duration is calculated in seconds and divided by 60.0 for decimal precision.
      * Example: 1 min 20 sec = 80 seconds ÷ 60 = 1.33 minutes
+     * Booking status becomes Completed only when the student attended (Present/Late).
+     * Absent / no-show bookings stay active so Class Booking shows Not Completed + Reschedule.
      * 
      * @param sessionId The session ID
      * @param teacherId The teacher ID (for permission check)
@@ -1246,13 +1248,15 @@ public class TalaqqiSessionDAO {
             conn = DBConnection.getConnection();
             if (conn == null) return false;
 
+            String attendedExpr = sqlBookingStudentAttended();
+            String bookingStatusExpr = "cb.bookingStatus = IF(" + attendedExpr + ", 'Completed', cb.bookingStatus)";
             String updateSql;
             if (usesBookingIdLink(conn) && hasSessionTimingColumns(conn)) {
                 updateSql =
                     "UPDATE classbooking cb "
                     + joinSessionToBooking(conn)
                     + "JOIN classschedule cs ON cb.scheduleId = cs.scheduleId "
-                    + "SET cb.bookingStatus = 'Completed', "
+                    + "SET " + bookingStatusExpr + ", "
                     + "    ts.sessionDate = CURDATE(), "
                     + "    ts.sessionStartTime = IF(ts.sessionStartTime IS NULL, NOW(), ts.sessionStartTime), "
                     + "    ts.sessionDuration = ?, "
@@ -1263,14 +1267,14 @@ public class TalaqqiSessionDAO {
                     "UPDATE classbooking cb "
                     + joinSessionToBooking(conn)
                     + "JOIN classschedule cs ON cb.scheduleId = cs.scheduleId "
-                    + "SET cb.bookingStatus = 'Completed', ts.sessionDate = CURDATE(), cs.classStatus = 'Completed' "
+                    + "SET " + bookingStatusExpr + ", ts.sessionDate = CURDATE(), cs.classStatus = 'Completed' "
                     + "WHERE ts.sessionId = ? AND cs.teacherId = ?";
             } else {
                 updateSql =
                     "UPDATE classbooking cb "
                     + "JOIN classschedule cs ON cb.scheduleId = cs.scheduleId "
                     + "JOIN talaqqisession ts ON ts.scheduleId = cs.scheduleId "
-                    + "SET cb.bookingStatus = 'Completed', ts.sessionDate = CURDATE(), cs.classStatus = 'Completed' "
+                    + "SET " + bookingStatusExpr + ", ts.sessionDate = CURDATE(), cs.classStatus = 'Completed' "
                     + "WHERE ts.sessionId = ? AND cs.teacherId = ?";
             }
 
@@ -1318,13 +1322,15 @@ public class TalaqqiSessionDAO {
             "((ts.bookingId IS NOT NULL AND ts.bookingId <> '' AND ts.bookingId = cb.bookingId) "
             + "OR ((ts.bookingId IS NULL OR ts.bookingId = '') AND ts.scheduleId = cb.scheduleId))";
 
+        String attendedExpr = sqlBookingStudentAttended();
+        String bookingStatusExpr = "cb.bookingStatus = IF(" + attendedExpr + ", 'Completed', cb.bookingStatus)";
         String updateSql;
         if (hasSessionTimingColumns(conn)) {
             updateSql =
                 "UPDATE classbooking cb "
                 + "JOIN classschedule cs ON cb.scheduleId = cs.scheduleId "
                 + "JOIN " + sessionTable + " ts ON ts.sessionId = ? "
-                + "SET cb.bookingStatus = 'Completed', "
+                + "SET " + bookingStatusExpr + ", "
                 + "    ts.sessionDate = CURDATE(), "
                 + "    ts.sessionStartTime = IF(ts.sessionStartTime IS NULL, NOW(), ts.sessionStartTime), "
                 + "    ts.sessionDuration = ?, "
@@ -1335,7 +1341,7 @@ public class TalaqqiSessionDAO {
                 "UPDATE classbooking cb "
                 + "JOIN classschedule cs ON cb.scheduleId = cs.scheduleId "
                 + "JOIN " + sessionTable + " ts ON ts.sessionId = ? "
-                + "SET cb.bookingStatus = 'Completed', ts.sessionDate = CURDATE(), cs.classStatus = 'Completed' "
+                + "SET " + bookingStatusExpr + ", ts.sessionDate = CURDATE(), cs.classStatus = 'Completed' "
                 + "WHERE cs.teacherId = ? AND " + linkClause;
         }
 
@@ -1489,14 +1495,17 @@ public class TalaqqiSessionDAO {
 
             int bookingRows = 0;
             if (bookingId != null && !bookingId.trim().isEmpty()) {
-                try (PreparedStatement ps = conn.prepareStatement(
-                        "UPDATE classbooking SET bookingStatus = 'Completed' "
-                            + "WHERE bookingId = ? AND bookingStatus NOT IN ('Cancelled','Rescheduled')")) {
-                    ps.setString(1, bookingId.trim());
-                    bookingRows = ps.executeUpdate();
+                if (bookingStudentAttended(conn, bookingId.trim())) {
+                    try (PreparedStatement ps = conn.prepareStatement(
+                            "UPDATE classbooking SET bookingStatus = 'Completed' "
+                                + "WHERE bookingId = ? AND bookingStatus NOT IN ('Cancelled','Rescheduled')")) {
+                        ps.setString(1, bookingId.trim());
+                        bookingRows = ps.executeUpdate();
+                    }
                 }
             }
-            if (bookingRows == 0 && scheduleId != null && studentId != null) {
+            if (bookingRows == 0 && scheduleId != null && studentId != null
+                    && bookingStudentAttended(conn, scheduleId, studentId)) {
                 try (PreparedStatement ps = conn.prepareStatement(
                         "UPDATE classbooking SET bookingStatus = 'Completed' "
                             + "WHERE scheduleId = ? AND studentId = ? "
@@ -1537,7 +1546,7 @@ public class TalaqqiSessionDAO {
                 System.out.println("[TalaqqiSessionDAO] completeSessionByResolvedBooking: sessionId="
                     + sessionId + ", bookingId=" + bookingId + ", scheduleId=" + scheduleId);
             }
-            return bookingRows > 0;
+            return true;
         } catch (SQLException e) {
             System.err.println("[TalaqqiSessionDAO] completeSessionByResolvedBooking: " + e.getMessage());
             return false;
@@ -2507,5 +2516,40 @@ public class TalaqqiSessionDAO {
             closeQuietly(rs, ps, conn);
         }
         return null;
+    }
+
+    /** EXISTS subquery: student joined this booking (Present/Late on booking date). */
+    private static String sqlBookingStudentAttended() {
+        return "EXISTS ("
+            + "SELECT 1 FROM attendance a "
+            + "WHERE a.studentId = cb.studentId "
+            + "  AND a.scheduleId = cb.scheduleId "
+            + "  AND a.attendanceDate = cb.bookingDate "
+            + "  AND a.attendanceStatus IN ('Present', 'Late')"
+            + ")";
+    }
+
+    private boolean bookingStudentAttended(Connection conn, String bookingId) throws SQLException {
+        String sql = "SELECT 1 FROM classbooking cb WHERE cb.bookingId = ? AND " + sqlBookingStudentAttended();
+        try (PreparedStatement ps = conn.prepareStatement(sql)) {
+            ps.setString(1, bookingId);
+            try (ResultSet rs = ps.executeQuery()) {
+                return rs.next();
+            }
+        }
+    }
+
+    private boolean bookingStudentAttended(Connection conn, String scheduleId, String studentId) throws SQLException {
+        String sql =
+            "SELECT 1 FROM classbooking cb "
+            + "WHERE cb.scheduleId = ? AND cb.studentId = ? AND " + sqlBookingStudentAttended()
+            + " LIMIT 1";
+        try (PreparedStatement ps = conn.prepareStatement(sql)) {
+            ps.setString(1, scheduleId);
+            ps.setString(2, studentId);
+            try (ResultSet rs = ps.executeQuery()) {
+                return rs.next();
+            }
+        }
     }
 }

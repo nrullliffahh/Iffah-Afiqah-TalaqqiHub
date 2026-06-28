@@ -1084,7 +1084,7 @@
                                     <c:set var="borderClass" value="border-green-200 bg-green-50" />
                                 </c:otherwise>
                             </c:choose>
-                            <div class="border-2 rounded-xl p-5 ${borderClass} booking-entry" data-booking-id="${booking.bookingId}" data-booking-date="${booking.bookingDate}" data-booking-time="${booking.bookingTime}" data-teacher-name="${booking.teacherName}" data-class-type="${booking.className}" data-booking-status="${booking.bookingStatus}" data-attendance-status="${booking.attendanceStatus}">
+                            <div class="border-2 rounded-xl p-5 ${borderClass} booking-entry" data-booking-id="${booking.bookingId}" data-booking-date="${booking.bookingDate}" data-booking-time="${booking.bookingTime}" data-teacher-name="${booking.teacherName}" data-class-type="${booking.className}" data-booking-status="${booking.bookingStatus}" data-attendance-status="${booking.attendanceStatus}" data-needs-reschedule="${booking.needsReschedule}">
                                 <div class="flex items-start justify-between">
                                     <div class="flex-1">
                                         <div class="flex items-center gap-3 mb-3">
@@ -1499,9 +1499,10 @@
             const statusEl = document.getElementById('detailsStatus'); if (statusEl) {
                 const sts = (el.dataset.bookingStatus || 'Upcoming');
                 const att = (el.dataset.attendanceStatus || '');
+                const needsReschedule = el.dataset.needsReschedule === 'true';
                 let displaySts = sts;
                 const card = el.closest('.booking-entry');
-                if (att === 'Absent') {
+                if (needsReschedule || att === 'Absent') {
                     displaySts = 'Not Completed';
                 } else if (card && card.classList.contains('bg-teal-50')) {
                     displaySts = 'Rescheduled';
@@ -1526,9 +1527,9 @@
             }
             const rescheduleBtn = document.getElementById('detailsRescheduleBtn');
             if (rescheduleBtn) {
-                const att = (el.dataset.attendanceStatus || '');
+                const needsReschedule = el.dataset.needsReschedule === 'true';
                 const card = el.closest('.booking-entry');
-                const showReschedule = card && card.classList.contains('bg-amber-50');
+                const showReschedule = needsReschedule || (card && card.classList.contains('bg-amber-50'));
                 if (showReschedule) {
                     rescheduleBtn.classList.remove('hidden');
                     rescheduleBtn.dataset.bookingId = bookingId;

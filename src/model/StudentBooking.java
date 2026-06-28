@@ -156,8 +156,14 @@ public class StudentBooking {
 
     /** Student was marked absent, or past session ended without attendance. */
     public boolean isNeedsReschedule() {
-        // Future bookings belong in Upcoming, not under Completed / Not Completed.
         if (isFutureSession()) {
+            return false;
+        }
+        String status = bookingStatus != null ? bookingStatus.trim() : "";
+        if ("Cancelled".equalsIgnoreCase(status) || "Rescheduled".equalsIgnoreCase(status)) {
+            return false;
+        }
+        if (isRescheduledReplacement()) {
             return false;
         }
         if (isAbsent()) {
@@ -166,18 +172,17 @@ public class StudentBooking {
         if (!isSessionEnded()) {
             return false;
         }
-        String status = bookingStatus != null ? bookingStatus.trim() : "";
-        if ("Cancelled".equalsIgnoreCase(status) || "Rescheduled".equalsIgnoreCase(status)) {
-            return false;
-        }
-        if ("Completed".equalsIgnoreCase(status)) {
-            return false;
-        }
         if (attendanceStatus != null && !attendanceStatus.trim().isEmpty()) {
             String att = attendanceStatus.trim();
             if ("Present".equalsIgnoreCase(att) || "Late".equalsIgnoreCase(att)) {
                 return false;
             }
+            if ("Absent".equalsIgnoreCase(att)) {
+                return true;
+            }
+        }
+        if ("Completed".equalsIgnoreCase(status)) {
+            return false;
         }
         return BookingStatus.isActive(status);
     }
