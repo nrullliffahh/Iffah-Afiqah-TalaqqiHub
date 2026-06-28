@@ -892,10 +892,12 @@ public class StudentBookingDAO {
      * This resets booked classes at the beginning of each new month
      */
     public List<StudentBooking> getMyBookingsByMonth(String studentId) {
+        syncBookingCompletedFromAttendance(studentId, null);
         return loadStudentBookings(studentId, true);
     }
 
     public List<StudentBooking> getTeacherBookings(String teacherId) {
+        syncBookingCompletedFromAttendance(null, teacherId);
         return loadTeacherBookings(teacherId);
     }
 
@@ -1134,6 +1136,69 @@ public class StudentBookingDAO {
                     System.err.println("[StudentBookingDAO] recordRescheduleReason: " + e.getMessage());
                     return;
                 }
+            }
+        }
+    }
+
+    /**
+     * Promote bookings to Completed when attendance is Present/Late (repairs stale rows).
+     */
+    private void syncBookingCompletedFromAttendance(String studentId, String teacherId) {
+        Connection conn = null;
+        try {
+            conn = DBConnection.getConnection();
+            if (conn == null) {
+                return;
+            }
+            String attendedExists =
+                "EXISTS ("
+                + "SELECT 1 FROM attendance a "
+                + "LEFT JOIN classschedule cs_a ON cs_a.scheduleId = a.scheduleId "
+                + "WHERE a.studentId = cb.studentId "
+                + "AND a.attendanceDate = cb.bookingDate "
+                + "AND (a.scheduleId = cb.scheduleId "
+                + "     OR (cs_a.startTime = cb.bookingTime AND cs_a.teacherId = cs.teacherId)) "
+                + "AND a.attendanceStatus IN ('Present', 'Late')"
+                + ")";
+            String bookingSql =
+                "UPDATE classbooking cb "
+                + "INNER JOIN classschedule cs ON cs.scheduleId = cb.scheduleId "
+                + "SET cb.bookingStatus = 'Completed' "
+                + "WHERE cb.bookingStatus NOT IN ('Cancelled', 'Rescheduled', 'Completed') "
+                + "AND " + attendedExists;
+            if (studentId != null && !studentId.isEmpty()) {
+                bookingSql += " AND cb.studentId = ?";
+            } else if (teacherId != null && !teacherId.isEmpty()) {
+                bookingSql += " AND cs.teacherId = ?";
+            } else {
+                return;
+            }
+            try (PreparedStatement ps = conn.prepareStatement(bookingSql)) {
+                ps.setString(1, studentId != null && !studentId.isEmpty() ? studentId : teacherId);
+                ps.executeUpdate();
+            }
+            String scheduleSql =
+                "UPDATE classschedule cs "
+                + "INNER JOIN classbooking cb ON cb.scheduleId = cs.scheduleId "
+                + "SET cs.classStatus = 'Completed' "
+                + "WHERE cb.bookingStatus = 'Completed' "
+                + "AND " + attendedExists;
+            if (studentId != null && !studentId.isEmpty()) {
+                scheduleSql += " AND cb.studentId = ?";
+            } else {
+                scheduleSql += " AND cs.teacherId = ?";
+            }
+            try (PreparedStatement ps = conn.prepareStatement(scheduleSql)) {
+                ps.setString(1, studentId != null && !studentId.isEmpty() ? studentId : teacherId);
+                ps.executeUpdate();
+            }
+        } catch (SQLException e) {
+            System.err.println("[StudentBookingDAO] syncBookingCompletedFromAttendance: " + e.getMessage());
+        } finally {
+            if (conn != null) {
+                try {
+                    conn.close();
+                } catch (SQLException ignored) {}
             }
         }
     }

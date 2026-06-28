@@ -1504,6 +1504,9 @@
                 const card = el.closest('.booking-entry');
                 if (needsReschedule || att === 'Absent') {
                     displaySts = 'Not Completed';
+                } else if (att === 'Present' || att === 'Late' || sts === 'Completed'
+                        || (card && card.classList.contains('bg-green-50'))) {
+                    displaySts = 'Completed';
                 } else if (card && card.classList.contains('bg-teal-50')) {
                     displaySts = 'Rescheduled';
                 } else if (sts === 'Rescheduled') {
@@ -1515,6 +1518,8 @@
                     statusEl.classList.add('bg-teal-100','text-teal-800');
                 } else if (displaySts === 'Not Completed') {
                     statusEl.classList.add('bg-amber-100','text-amber-800');
+                } else if (displaySts === 'Completed') {
+                    statusEl.classList.add('bg-green-100','text-green-700');
                 } else if (sts === 'Upcoming' || sts === 'Confirmed') {
                     statusEl.classList.add('bg-blue-100','text-blue-700');
                 } else if (sts === 'Completed') {

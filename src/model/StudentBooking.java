@@ -154,6 +154,15 @@ public class StudentBooking {
         return attendanceStatus != null && "Absent".equalsIgnoreCase(attendanceStatus.trim());
     }
 
+    /** Student joined the live session (Present or Late). */
+    public boolean isAttended() {
+        if (attendanceStatus == null || attendanceStatus.trim().isEmpty()) {
+            return false;
+        }
+        String att = attendanceStatus.trim();
+        return "Present".equalsIgnoreCase(att) || "Late".equalsIgnoreCase(att);
+    }
+
     /** Student was marked absent, or past session ended without attendance. */
     public boolean isNeedsReschedule() {
         String status = bookingStatus != null ? bookingStatus.trim() : "";

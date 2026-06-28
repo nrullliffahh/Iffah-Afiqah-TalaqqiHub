@@ -35,6 +35,8 @@ public final class BookingPartitionUtil {
                 } else {
                     p.cancelled.add(b);
                 }
+            } else if (b.isAttended()) {
+                p.completed.add(b);
             } else if (b.isRescheduledReplacement()) {
                 p.rescheduled.add(b);
             } else if (b.isNeedsReschedule()) {
@@ -61,12 +63,12 @@ public final class BookingPartitionUtil {
         Partition p = partition(bookings);
         List<StudentBooking> out = new ArrayList<>();
         for (StudentBooking b : p.upcoming) {
-            if (b != null && b.isFutureSession() && !b.isNeedsReschedule()) {
+            if (b != null && b.isFutureSession() && !b.isNeedsReschedule() && !b.isAttended()) {
                 out.add(b);
             }
         }
         for (StudentBooking b : p.rescheduled) {
-            if (b != null && b.isFutureSession()) {
+            if (b != null && b.isFutureSession() && !b.isAttended()) {
                 out.add(b);
             }
         }

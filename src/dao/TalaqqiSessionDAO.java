@@ -1420,22 +1420,21 @@ public class TalaqqiSessionDAO {
     }
 
     private boolean hasStudentJoinedSession(Connection conn, String sessionId) throws SQLException {
-        PreparedStatement ps = null;
-        ResultSet rs = null;
-        try {
-            String sql =
-                "SELECT 1 FROM attendance a "
-                + joinSessionToBooking(conn)
-                + "WHERE ts.sessionId = ? "
-                + "  AND a.attendanceStatus IN ('Present','Late') "
-                + "  AND a.joinTime IS NOT NULL "
-                + "LIMIT 1";
-            ps = conn.prepareStatement(util.TalaqqiSchemaUtil.sql(sql, conn));
+        String sessionTable = util.TalaqqiSchemaUtil.sessionTable(conn);
+        String bookingOn = util.TalaqqiSchemaUtil.sessionToBookingOnClause("ts", conn);
+        String sql =
+            "SELECT 1 FROM attendance a "
+            + "INNER JOIN " + sessionTable + " ts ON ts.sessionId = ? "
+            + "LEFT JOIN classbooking cb ON " + bookingOn + " "
+            + "WHERE a.attendanceStatus IN ('Present','Late') "
+            + "  AND a.joinTime IS NOT NULL "
+            + "  AND a.attendanceDate = COALESCE(cb.bookingDate, ts.sessionDate) "
+            + "LIMIT 1";
+        try (PreparedStatement ps = conn.prepareStatement(util.TalaqqiSchemaUtil.sql(sql, conn))) {
             ps.setString(1, sessionId);
-            rs = ps.executeQuery();
-            return rs.next();
-        } finally {
-            closeQuietly(rs, ps, null);
+            try (ResultSet rs = ps.executeQuery()) {
+                return rs.next();
+            }
         }
     }
 
@@ -1640,6 +1639,9 @@ public class TalaqqiSessionDAO {
             ps.setString(7, teacherId);
             ps.setString(8, scheduleId);
             ps.executeUpdate();
+            if ("Present".equalsIgnoreCase(status) || "Late".equalsIgnoreCase(status)) {
+                markBookingCompletedFromAttendance(conn, studentId, scheduleId, sessionDate);
+            }
             return true;
         } catch (SQLException e) {
             System.err.println("[TalaqqiSessionDAO] recordAttendance failed: " + e.getMessage());
@@ -2529,6 +2531,36 @@ public class TalaqqiSessionDAO {
             closeQuietly(rs, ps, conn);
         }
         return null;
+    }
+
+    /** Mark class booking and schedule completed when student attended (Present/Late). */
+    private void markBookingCompletedFromAttendance(
+            Connection conn, String studentId, String scheduleId, java.sql.Date attendanceDate)
+            throws SQLException {
+        if (studentId == null || studentId.isEmpty() || scheduleId == null || scheduleId.isEmpty()) {
+            return;
+        }
+        String bookingSql =
+            "UPDATE classbooking cb "
+            + "INNER JOIN classschedule cs ON cs.scheduleId = cb.scheduleId "
+            + "SET cb.bookingStatus = 'Completed' "
+            + "WHERE cb.studentId = ? "
+            + "AND cb.bookingStatus NOT IN ('Cancelled', 'Rescheduled') "
+            + "AND cb.bookingDate = ? "
+            + "AND (cb.scheduleId = ? "
+            + "     OR (cb.bookingTime = cs.startTime AND cs.scheduleId = ?))";
+        try (PreparedStatement ps = conn.prepareStatement(bookingSql)) {
+            ps.setString(1, studentId);
+            ps.setDate(2, attendanceDate);
+            ps.setString(3, scheduleId);
+            ps.setString(4, scheduleId);
+            ps.executeUpdate();
+        }
+        try (PreparedStatement ps = conn.prepareStatement(
+                "UPDATE classschedule SET classStatus = 'Completed' WHERE scheduleId = ?")) {
+            ps.setString(1, scheduleId);
+            ps.executeUpdate();
+        }
     }
 
     /** EXISTS subquery: student joined this booking (Present/Late on booking date). */
