@@ -1140,24 +1140,17 @@ public class StudentBookingDAO {
     }
 
     private static String buildTalaqqiSessionEndedSubquery(Connection conn) {
-        String sessionTable = util.TalaqqiSchemaUtil.sessionTable(conn);
-        String link;
-        if (util.TalaqqiSchemaUtil.usesBookingIdLink(conn)) {
-            link = "((ts.bookingId IS NOT NULL AND ts.bookingId <> '' AND ts.bookingId = b.bookingId) "
-                + "OR ((ts.bookingId IS NULL OR ts.bookingId = '') AND ts.scheduleId = b.scheduleId))";
-        } else {
-            link = "ts.scheduleId = b.scheduleId";
-        }
-        // sessionDate is often the scheduled class date at insert — use end-of-live signals instead.
-        if (util.TalaqqiSchemaUtil.hasSessionTimingColumns(conn)) {
-            return "EXISTS (SELECT 1 FROM " + sessionTable + " ts "
-                + "WHERE " + link + " AND ts.sessionDuration IS NOT NULL) AS talaqqiSessionEnded";
-        }
-        return "(b.bookingStatus = 'Completed' OR EXISTS (SELECT 1 FROM " + sessionTable + " ts "
-            + "WHERE " + link + " AND ts.sessionDate IS NOT NULL "
-            + "AND EXISTS (SELECT 1 FROM attendance a_end "
-            + "WHERE a_end.studentId = b.studentId AND a_end.scheduleId = b.scheduleId "
-            + "AND (a_end.leaveTime IS NOT NULL OR a_end.attendanceStatus = 'Absent')))) AS talaqqiSessionEnded";
+        // Ended only after teacher clicks End Session — not when session row is provisioned.
+        // Absent: markAutoAttendance=1 (unchanged absent flow).
+        // Conducted: booking Completed or Present/Late with leaveTime after teacher ends.
+        return "(b.bookingStatus = 'Completed' "
+            + "OR EXISTS (SELECT 1 FROM attendance a_abs "
+            + "WHERE a_abs.studentId = b.studentId AND a_abs.scheduleId = b.scheduleId "
+            + "AND a_abs.attendanceStatus = 'Absent' AND a_abs.markAutoAttendance = 1) "
+            + "OR EXISTS (SELECT 1 FROM attendance a_done "
+            + "WHERE a_done.studentId = b.studentId AND a_done.scheduleId = b.scheduleId "
+            + "AND a_done.attendanceStatus IN ('Present','Late') AND a_done.leaveTime IS NOT NULL)"
+            + ") AS talaqqiSessionEnded";
     }
 
     private static boolean isSchemaMismatch(SQLException e) {

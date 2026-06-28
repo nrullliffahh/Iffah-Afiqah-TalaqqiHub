@@ -1583,6 +1583,16 @@ public class TalaqqiSessionDAO {
             if (conn == null) {
                 return false;
             }
+            backfillSessionBookingIdResolved(conn, sessionId, teacherId);
+            session = getSessionBySessionId(sessionId, teacherId);
+            if (session == null) {
+                session = querySingleSession(" WHERE ts.sessionId = ? LIMIT 1", sessionId);
+            }
+            if (session != null) {
+                bookingId = session.getBookingId();
+                scheduleId = session.getScheduleId();
+                studentId = session.getStudentId();
+            }
             String sessionTable = util.TalaqqiSchemaUtil.sessionTable(conn);
 
             int bookingRows = 0;
@@ -1680,7 +1690,9 @@ public class TalaqqiSessionDAO {
         if (session == null) {
             return;
         }
-        if (session.getBookingId() != null && !session.getBookingId().trim().isEmpty()) {
+        String currentBookingId = session.getBookingId();
+        if (currentBookingId != null && !currentBookingId.trim().isEmpty()
+                && isActiveBookingId(conn, currentBookingId.trim())) {
             return;
         }
         String scheduleId = session.getScheduleId();
@@ -1710,14 +1722,24 @@ public class TalaqqiSessionDAO {
             return;
         }
         String updateSql =
-            "UPDATE " + sessionTable + " SET bookingId = ? "
-            + "WHERE sessionId = ? AND (bookingId IS NULL OR bookingId = '')";
+            "UPDATE " + sessionTable + " SET bookingId = ? WHERE sessionId = ?";
         try (PreparedStatement ps = conn.prepareStatement(updateSql)) {
             ps.setString(1, bookingId.trim());
             ps.setString(2, sessionId);
             ps.executeUpdate();
         } catch (SQLException e) {
             System.err.println("[TalaqqiSessionDAO] backfillSessionBookingIdResolved: " + e.getMessage());
+        }
+    }
+
+    private static boolean isActiveBookingId(Connection conn, String bookingId) throws SQLException {
+        try (PreparedStatement ps = conn.prepareStatement(
+                "SELECT 1 FROM classbooking WHERE bookingId = ? "
+                    + "AND bookingStatus NOT IN ('Cancelled', 'Rescheduled') LIMIT 1")) {
+            ps.setString(1, bookingId);
+            try (ResultSet rs = ps.executeQuery()) {
+                return rs.next();
+            }
         }
     }
 
