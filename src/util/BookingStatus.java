@@ -11,9 +11,9 @@ public final class BookingStatus {
     public static final String SQL_ACTIVE =
         "('Pending','Confirmed','Approved','Upcoming')";
 
-    /** Status values to try on INSERT, in order (prefer Upcoming for Class Booking UI). */
+    /** Status values to try on INSERT, in order (Pending works on Aiven; Upcoming on dev schemas). */
     private static final String[] NEW_BOOKING_CANDIDATES = {
-        "Upcoming", "Pending", "Confirmed"
+        "Pending", "Upcoming", "Confirmed", "Approved"
     };
 
     private BookingStatus() {

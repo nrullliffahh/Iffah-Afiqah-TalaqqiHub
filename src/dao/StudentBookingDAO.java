@@ -450,32 +450,25 @@ public class StudentBookingDAO {
         SQLException lastError = null;
         for (String status : BookingStatus.newBookingCandidates()) {
             try {
-                try (PreparedStatement ps = conn.prepareStatement(sqlWithCreatedAt)) {
-                    ps.setString(1, bookingId);
-                    ps.setString(2, studentId);
-                    ps.setString(3, scheduleId);
-                    ps.setDate(4, java.sql.Date.valueOf(bookingDate));
-                    ps.setTime(5, java.sql.Time.valueOf(bookingTime));
-                    ps.setString(6, status);
-                    ps.setDate(7, java.sql.Date.valueOf(LocalDate.now()));
-                    if (ps.executeUpdate() > 0) {
-                        System.out.println("bookSession: inserted bookingId=" + bookingId + " status=" + status);
-                        return true;
-                    }
+                if (executeClassBookingInsert(conn, sqlWithCreatedAt, bookingId, studentId, scheduleId,
+                        bookingDate, bookingTime, status, true)) {
+                    System.out.println("bookSession: inserted bookingId=" + bookingId + " status=" + status);
+                    return true;
                 }
             } catch (SQLException e) {
                 if (isUnknownColumn(e, "createdAt")) {
-                    try (PreparedStatement ps = conn.prepareStatement(sqlWithoutCreatedAt)) {
-                        ps.setString(1, bookingId);
-                        ps.setString(2, studentId);
-                        ps.setString(3, scheduleId);
-                        ps.setDate(4, java.sql.Date.valueOf(bookingDate));
-                        ps.setTime(5, java.sql.Time.valueOf(bookingTime));
-                        ps.setString(6, status);
-                        if (ps.executeUpdate() > 0) {
+                    try {
+                        if (executeClassBookingInsert(conn, sqlWithoutCreatedAt, bookingId, studentId, scheduleId,
+                                bookingDate, bookingTime, status, false)) {
                             System.out.println("bookSession: inserted bookingId=" + bookingId + " status=" + status);
                             return true;
                         }
+                    } catch (SQLException e2) {
+                        if (isInvalidEnumValue(e2)) {
+                            lastError = e2;
+                            continue;
+                        }
+                        throw e2;
                     }
                 } else if (isInvalidEnumValue(e)) {
                     lastError = e;
@@ -489,6 +482,24 @@ public class StudentBookingDAO {
             throw lastError;
         }
         return false;
+    }
+
+    private boolean executeClassBookingInsert(
+            Connection conn, String sql, String bookingId, String studentId, String scheduleId,
+            LocalDate bookingDate, LocalTime bookingTime, String status, boolean withCreatedAt)
+            throws SQLException {
+        try (PreparedStatement ps = conn.prepareStatement(sql)) {
+            ps.setString(1, bookingId);
+            ps.setString(2, studentId);
+            ps.setString(3, scheduleId);
+            ps.setDate(4, java.sql.Date.valueOf(bookingDate));
+            ps.setTime(5, java.sql.Time.valueOf(bookingTime));
+            ps.setString(6, status);
+            if (withCreatedAt) {
+                ps.setDate(7, java.sql.Date.valueOf(LocalDate.now()));
+            }
+            return ps.executeUpdate() > 0;
+        }
     }
 
     private static boolean isUnknownColumn(SQLException e, String column) {
