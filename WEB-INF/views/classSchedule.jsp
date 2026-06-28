@@ -940,6 +940,24 @@
             const d = new Date(dateStr);
             return isNaN(d.getTime()) ? null : { year: d.getFullYear(), month: d.getMonth() };
         }
+
+        /** Convert HH:mm or HH:mm:ss to 12-hour display (e.g. 02:15 PM). */
+        function formatTime12FromString(timeStr) {
+            if (!timeStr) return '';
+            const match = String(timeStr).trim().match(/^(\d{1,2}):(\d{2})/);
+            if (!match) return timeStr;
+            let hour = parseInt(match[1], 10);
+            const minute = match[2];
+            const period = hour >= 12 ? 'PM' : 'AM';
+            if (hour === 0) hour = 12;
+            else if (hour > 12) hour -= 12;
+            const hourStr = hour < 10 ? '0' + hour : String(hour);
+            return hourStr + ':' + minute + ' ' + period;
+        }
+
+        function formatClassTimeRange(startTime, endTime) {
+            return formatTime12FromString(startTime) + ' - ' + formatTime12FromString(endTime);
+        }
         
         // Filter classes by the currently displayed month
         function getCompletedClassesForMonth(year, month) {
@@ -1007,7 +1025,7 @@
                                 '<p class="text-gray-600 text-sm">' + classItem.className + '</p>' +
                                 '<div class="flex items-center space-x-4 mt-2 text-sm text-gray-500">' +
                                     '<div class="flex items-center space-x-1"><i class="far fa-calendar text-gray-400"></i><span>' + dateStr + '</span></div>' +
-                                    '<div class="flex items-center space-x-1"><i class="far fa-clock text-gray-400"></i><span>' + classItem.startTime + ' - ' + classItem.endTime + '</span></div>' +
+                                    '<div class="flex items-center space-x-1"><i class="far fa-clock text-gray-400"></i><span>' + formatClassTimeRange(classItem.startTime, classItem.endTime) + '</span></div>' +
                                     '<span class="px-2 py-1 ' + badgeClass + ' rounded text-xs font-semibold">' + badgeLabel + '</span>' +
                                 '</div>' +
                             '</div>' +
@@ -1048,7 +1066,7 @@
                                 '<p class="text-gray-600 text-sm">' + classItem.className + '</p>' +
                                 '<div class="flex items-center space-x-4 mt-2 text-sm text-gray-500">' +
                                     '<div class="flex items-center space-x-1"><i class="far fa-calendar text-gray-400"></i><span>' + dateStr + '</span></div>' +
-                                    '<div class="flex items-center space-x-1"><i class="far fa-clock text-gray-400"></i><span>' + classItem.startTime + ' - ' + classItem.endTime + '</span></div>' +
+                                    '<div class="flex items-center space-x-1"><i class="far fa-clock text-gray-400"></i><span>' + formatClassTimeRange(classItem.startTime, classItem.endTime) + '</span></div>' +
                                     '<span class="px-2 py-1 bg-teal-100 text-teal-800 rounded text-xs font-semibold">Rescheduled</span>' +
                                 '</div>' +
                                 reasonHtml +
@@ -1090,7 +1108,7 @@
                                 '<p class="text-gray-600 text-sm">' + classItem.className + '</p>' +
                                 '<div class="flex items-center space-x-4 mt-2 text-sm text-gray-500">' +
                                     '<div class="flex items-center space-x-1"><i class="far fa-calendar text-gray-400"></i><span>' + dateStr + '</span></div>' +
-                                    '<div class="flex items-center space-x-1"><i class="far fa-clock text-gray-400"></i><span>' + classItem.startTime + ' - ' + classItem.endTime + '</span></div>' +
+                                    '<div class="flex items-center space-x-1"><i class="far fa-clock text-gray-400"></i><span>' + formatClassTimeRange(classItem.startTime, classItem.endTime) + '</span></div>' +
                                     '<span class="px-2 py-1 bg-red-100 text-red-700 rounded text-xs font-semibold">Cancelled</span>' +
                                 '</div>' +
                                 reasonHtml +
