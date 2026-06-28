@@ -255,7 +255,7 @@
                     </div>
 
                     <!-- Performance Metrics -->
-                    <div class="grid grid-cols-3 gap-6">
+                    <div class="grid grid-cols-3 gap-6 mb-8">
                         <!-- Avg Tajweed -->
                         <div class="bg-white rounded-xl p-6 shadow-md">
                             <div class="flex items-center justify-between mb-2">
