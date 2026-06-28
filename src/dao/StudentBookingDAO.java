@@ -11,6 +11,8 @@ import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.time.LocalDate;
 import java.time.LocalTime;
+import java.time.format.DateTimeFormatter;
+import java.util.Locale;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.HashMap;
@@ -425,8 +427,7 @@ public class StudentBookingDAO {
         if (newBookingId == null || newBookingId.trim().isEmpty()) {
             return;
         }
-        String reason = "Rescheduled from "
-            + (previousBookingId != null ? previousBookingId.trim() : "previous booking");
+        String reason = buildRescheduleFromReason(previousBookingId);
         try (Connection conn = DBConnection.getConnection()) {
             if (conn == null) {
                 return;
@@ -435,6 +436,73 @@ public class StudentBookingDAO {
         } catch (SQLException e) {
             System.err.println("[StudentBookingDAO] recordNewRescheduleSlot failed: " + e.getMessage());
         }
+    }
+
+    /** UI label: "Rescheduled from Monday, 29 June 2026" (resolves legacy booking IDs too). */
+    public String formatRescheduleDisplayReason(String reason) {
+        if (reason == null || reason.trim().isEmpty()) {
+            return reason;
+        }
+        String trimmed = reason.trim();
+        java.util.regex.Matcher matcher = java.util.regex.Pattern
+            .compile("(?i)^Rescheduled from\\s+(.+)$")
+            .matcher(trimmed);
+        if (!matcher.matches()) {
+            return reason;
+        }
+        String tail = matcher.group(1).trim();
+        if (looksLikeFormattedDate(tail)) {
+            return trimmed;
+        }
+        LocalDate absentDate = lookupBookingDate(tail);
+        if (absentDate != null) {
+            return "Rescheduled from " + formatRescheduleFromDate(absentDate);
+        }
+        return reason;
+    }
+
+    private String buildRescheduleFromReason(String previousBookingId) {
+        LocalDate absentDate = lookupBookingDate(previousBookingId);
+        if (absentDate != null) {
+            return "Rescheduled from " + formatRescheduleFromDate(absentDate);
+        }
+        String fallback = previousBookingId != null ? previousBookingId.trim() : "previous class";
+        return "Rescheduled from " + fallback;
+    }
+
+    private static String formatRescheduleFromDate(LocalDate date) {
+        return date.format(DateTimeFormatter.ofPattern("EEEE, d MMMM yyyy", Locale.ENGLISH));
+    }
+
+    private static boolean looksLikeFormattedDate(String text) {
+        if (text == null || text.isEmpty()) {
+            return false;
+        }
+        return text.matches(".*\\d{4}.*")
+            && (text.contains(",") || text.matches("(?i).*(january|february|march|april|may|june|july|august|september|october|november|december).*"));
+    }
+
+    private LocalDate lookupBookingDate(String bookingId) {
+        if (bookingId == null || bookingId.trim().isEmpty()) {
+            return null;
+        }
+        String sql = "SELECT bookingDate FROM classbooking WHERE bookingId = ? LIMIT 1";
+        try (Connection conn = DBConnection.getConnection()) {
+            if (conn == null) {
+                return null;
+            }
+            try (PreparedStatement ps = conn.prepareStatement(sql)) {
+                ps.setString(1, bookingId.trim());
+                try (ResultSet rs = ps.executeQuery()) {
+                    if (rs.next() && rs.getDate("bookingDate") != null) {
+                        return rs.getDate("bookingDate").toLocalDate();
+                    }
+                }
+            }
+        } catch (SQLException e) {
+            System.err.println("[StudentBookingDAO] lookupBookingDate failed: " + e.getMessage());
+        }
+        return null;
     }
 
     /** Insert booking row; tries Pending/Upcoming/Confirmed for schema compatibility. */
@@ -1026,6 +1094,10 @@ public class StudentBookingDAO {
                             while (rs.next()) {
                                 StudentBooking booking = new StudentBooking();
                                 mapStudentBookingRow(rs, booking);
+                                if (booking.getCancellationReason() != null) {
+                                    booking.setCancellationReason(
+                                        formatRescheduleDisplayReason(booking.getCancellationReason()));
+                                }
                                 bookings.add(booking);
                             }
                         }
@@ -1090,6 +1162,10 @@ public class StudentBookingDAO {
                             while (rs.next()) {
                                 StudentBooking booking = new StudentBooking();
                                 mapStudentBookingRow(rs, booking);
+                                if (booking.getCancellationReason() != null) {
+                                    booking.setCancellationReason(
+                                        formatRescheduleDisplayReason(booking.getCancellationReason()));
+                                }
                                 bookings.add(booking);
                             }
                         }
