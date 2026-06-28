@@ -330,19 +330,12 @@ public class TalaqqiSessionDAO {
         StudentBookingDAO bookingDAO = new StudentBookingDAO();
         List<StudentBooking> bookings = forTeacher
             ? bookingDAO.getTeacherBookings(userId)
-            : bookingDAO.getMyBookingsByMonth(userId);
-        BookingPartitionUtil.Partition partitioned = BookingPartitionUtil.partition(bookings);
-
-        List<StudentBooking> switchable = new ArrayList<>();
-        switchable.addAll(partitioned.upcoming);
-        switchable.addAll(partitioned.rescheduled);
-
-        switchable.sort(Comparator
-            .comparing(StudentBooking::getBookingDate, Comparator.nullsLast(Comparator.naturalOrder()))
-            .thenComparing(b -> b.getBookingTime() != null ? b.getBookingTime() : LocalTime.MIN));
+            : bookingDAO.getMyBookings(userId);
+        List<StudentBooking> switchable = BookingPartitionUtil.switchableOnly(bookings);
 
         for (StudentBooking booking : switchable) {
-            if (!booking.isFutureSession()) {
+            if (util.BookingStatus.isCompleted(booking.getBookingStatus())
+                    && booking.isSessionEnded()) {
                 continue;
             }
             ensureSessionForBooking(booking);

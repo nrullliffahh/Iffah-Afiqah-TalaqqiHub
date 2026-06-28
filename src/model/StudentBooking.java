@@ -183,14 +183,16 @@ public class StudentBooking {
         if (bookingDate == null) {
             return false;
         }
-        java.time.LocalDate today = java.time.LocalDate.now();
+        java.time.ZoneId zone = util.AppTimeUtil.APP_ZONE;
+        LocalDate today = LocalDate.now(zone);
+        LocalTime now = LocalTime.now(zone);
         if (bookingDate.isAfter(today)) {
             return true;
         }
         if (bookingDate.isBefore(today) || bookingTime == null) {
             return false;
         }
-        return bookingTime.isAfter(java.time.LocalTime.now());
+        return bookingTime.isAfter(now);
     }
 
     /** True when scheduled start + duration has passed. */
@@ -198,7 +200,9 @@ public class StudentBooking {
         if (bookingDate == null || bookingTime == null) {
             return false;
         }
-        LocalDate today = LocalDate.now();
+        java.time.ZoneId zone = util.AppTimeUtil.APP_ZONE;
+        LocalDate today = LocalDate.now(zone);
+        LocalTime now = LocalTime.now(zone);
         if (bookingDate.isBefore(today)) {
             return true;
         }
@@ -207,7 +211,7 @@ public class StudentBooking {
         }
         int mins = duration != null && duration > 0 ? duration : 15;
         LocalTime endTime = bookingTime.plusMinutes(mins);
-        return !LocalTime.now().isBefore(endTime);
+        return !now.isBefore(endTime);
     }
 
     /** New slot booked to replace a missed class. */
