@@ -1231,11 +1231,11 @@
     </div>
 
     <!-- Details Modal -->
-    <div id="detailsModal" class="hidden fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-        <div class="bg-white rounded-2xl booking-panel booking-modal-panel max-w-lg w-full mx-4 shadow-2xl">
-            <div class="flex items-start justify-between mb-4">
-                <h3 class="text-2xl font-bold text-gray-800">Class Details</h3>
-                <button onclick="closeDetailsModal()" class="text-gray-500 hover:text-gray-700">✕</button>
+    <div id="detailsModal" class="hidden booking-modal-overlay">
+        <div class="booking-details-modal-panel" role="dialog" aria-modal="true" aria-labelledby="detailsModalTitle">
+            <div class="booking-details-modal-header">
+                <h3 id="detailsModalTitle" class="booking-details-modal-title">Class Details</h3>
+                <button type="button" onclick="closeDetailsModal()" class="booking-details-modal-close" aria-label="Close">✕</button>
             </div>
             <!-- More page scripts: export/print helpers and global booking data -->
             <script>
@@ -1298,33 +1298,33 @@
                     window.print();
                 }
             </script>
-            <div class="space-y-3 text-sm text-gray-700 mb-6">
-                <div>
-                    <p class="text-xs text-gray-500">Class Type:</p>
-                    <p id="detailsClassType" class="font-semibold text-gray-800">Quran Recitation &amp; Tajweed</p>
+            <div class="booking-details-modal-body">
+                <div class="booking-details-modal-field">
+                    <p class="booking-details-modal-label">Class Type:</p>
+                    <p id="detailsClassType" class="booking-details-modal-value">Quran Recitation &amp; Tajweed</p>
                 </div>
-                <div>
-                    <p class="text-xs text-gray-500">Teacher:</p>
-                    <p id="detailsTeacher" class="font-semibold text-gray-800">Ustadh Ibrahim Khan</p>
+                <div class="booking-details-modal-field">
+                    <p class="booking-details-modal-label">Teacher:</p>
+                    <p id="detailsTeacher" class="booking-details-modal-value">Ustadh Ibrahim Khan</p>
                 </div>
-                <div>
-                    <p class="text-xs text-gray-500">Date:</p>
-                    <p id="detailsDate" class="font-semibold text-gray-800">Thursday, January 2, 2025</p>
+                <div class="booking-details-modal-field">
+                    <p class="booking-details-modal-label">Date:</p>
+                    <p id="detailsDate" class="booking-details-modal-value">Thursday, January 2, 2025</p>
                 </div>
-                <div>
-                    <p class="text-xs text-gray-500">Time:</p>
-                    <p id="detailsTime" class="font-semibold text-gray-800">10:00 AM - 10:15 AM</p>
+                <div class="booking-details-modal-field">
+                    <p class="booking-details-modal-label">Time:</p>
+                    <p id="detailsTime" class="booking-details-modal-value">10:00 AM - 10:15 AM</p>
                 </div>
-                <div>
-                    <p class="text-xs text-gray-500">Status:</p>
+                <div class="booking-details-modal-field booking-details-modal-field-status">
+                    <p class="booking-details-modal-label">Status:</p>
                     <p id="detailsStatus" class="inline-block px-3 py-1 bg-blue-100 text-blue-700 rounded-full text-xs font-semibold">Upcoming</p>
                 </div>
             </div>
-            <div class="text-center space-y-3">
-                <button type="button" id="detailsRescheduleBtn" onclick="rescheduleFromDetailsModal()" class="hidden w-full px-6 py-3 bg-teal-500 text-white rounded-xl font-semibold hover:bg-teal-600 transition-colors">
+            <div class="booking-details-modal-footer">
+                <button type="button" id="detailsRescheduleBtn" onclick="rescheduleFromDetailsModal()" class="hidden booking-details-modal-btn booking-details-modal-btn-secondary">
                     Reschedule
                 </button>
-                <button onclick="closeDetailsModal()" class="w-full px-6 py-3 bg-gradient-to-r from-teal-400 to-teal-600 text-white rounded-xl font-semibold">Close</button>
+                <button type="button" onclick="closeDetailsModal()" class="booking-details-modal-btn booking-details-modal-btn-primary">Close</button>
             </div>
         </div>
     </div>
