@@ -1,0 +1,242 @@
+/* Student Talaqqi Session – iPad & mobile */
+
+.student-talaqqi-session {
+    max-width: 100%;
+    overflow-x: hidden;
+    padding-top: 0 !important;
+    padding-bottom: 0 !important;
+}
+
+.student-talaqqi-session .session-switcher-bar {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 8px 12px;
+    padding: 12px clamp(16px, 4vw, 32px);
+}
+
+.student-talaqqi-session .session-switcher-label {
+    font-size: 0.875rem;
+    font-weight: 600;
+    color: #374151;
+    min-width: 0;
+}
+
+.student-talaqqi-session .session-switcher-select {
+    width: 100%;
+    min-width: 0;
+    min-height: 44px;
+    font-size: 0.875rem;
+}
+
+.student-talaqqi-session .session-body {
+    padding: clamp(16px, 3vw, 24px) clamp(16px, 4vw, 30px) clamp(20px, 4vw, 30px);
+}
+
+.student-talaqqi-session .session-info-card {
+    padding: clamp(16px, 3vw, 32px);
+}
+
+.student-talaqqi-session .session-info-header {
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+    margin-bottom: 16px;
+}
+
+.student-talaqqi-session .session-info-main {
+    min-width: 0;
+    flex: 1;
+}
+
+.student-talaqqi-session .session-info-title {
+    font-size: clamp(1.25rem, 4vw, 1.875rem);
+    word-break: break-word;
+}
+
+.student-talaqqi-session .session-info-meta {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.student-talaqqi-session .session-teacher-block {
+    text-align: left;
+    width: 100%;
+}
+
+.student-talaqqi-session .session-teacher-row {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    justify-content: flex-start;
+}
+
+.student-talaqqi-session .session-join-btn {
+    min-height: 48px;
+    font-size: clamp(0.9375rem, 2.5vw, 1.125rem);
+}
+
+.student-talaqqi-session .session-main-grid {
+    align-items: start;
+}
+
+.student-talaqqi-session .video-shell {
+    border: 2px solid #99f6e4;
+    border-radius: 16px;
+    background: #000;
+    overflow: hidden;
+    position: relative;
+    width: 100%;
+    min-height: 220px;
+    height: clamp(220px, 52vw, 400px);
+}
+
+.student-talaqqi-session .quran-panel-card {
+    background: #fff;
+    border: 1px solid #e5e7eb;
+    border-radius: 16px;
+    display: flex;
+    flex-direction: column;
+    min-height: 280px;
+    max-height: min(520px, calc(100vh - 220px));
+    overflow: hidden;
+    width: 100%;
+}
+
+.student-talaqqi-session .quran-panel-header {
+    flex-shrink: 0;
+    padding: 1rem 1rem 0;
+}
+
+.student-talaqqi-session .quran-panel-head-row {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+    margin-bottom: 1rem;
+    padding-bottom: 1rem;
+    border-bottom: 1px solid #e5e7eb;
+}
+
+.student-talaqqi-session .quran-stats-grid {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 8px;
+}
+
+.student-talaqqi-session .quran-panel-scroll {
+    padding: 0 1rem 1rem;
+}
+
+.student-talaqqi-session .quran-panel-scroll,
+.student-talaqqi-session .verse-scroll {
+    flex: 1;
+    min-height: 0;
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
+}
+
+.student-talaqqi-session .arabic-verse {
+    font-size: clamp(1.125rem, 4vw, 1.5rem);
+    line-height: 2.25rem;
+}
+
+.student-talaqqi-session .session-empty-state {
+    padding: clamp(24px, 6vw, 48px) clamp(16px, 4vw, 24px);
+    min-height: min(60vh, 24rem);
+}
+
+.student-talaqqi-session .session-empty-title {
+    font-size: clamp(1.5rem, 5vw, 1.875rem);
+}
+
+@media (min-width: 640px) {
+    .student-talaqqi-session .session-info-meta {
+        flex-direction: row;
+        flex-wrap: wrap;
+        gap: 12px 24px;
+    }
+
+    .student-talaqqi-session .session-switcher-select {
+        width: auto;
+        flex: 1 1 220px;
+        max-width: min(100%, 420px);
+        margin-left: auto;
+    }
+}
+
+@media (min-width: 768px) {
+    .student-talaqqi-session .session-info-header {
+        flex-direction: row;
+        align-items: flex-start;
+        justify-content: space-between;
+    }
+
+    .student-talaqqi-session .session-teacher-block {
+        text-align: right;
+        width: auto;
+        flex-shrink: 0;
+    }
+
+    .student-talaqqi-session .session-teacher-row {
+        justify-content: flex-end;
+    }
+
+    .student-talaqqi-session .video-shell {
+        height: clamp(320px, 42vw, 420px);
+    }
+
+    .student-talaqqi-session .quran-panel-card {
+        min-height: 360px;
+        max-height: min(560px, calc(100vh - 260px));
+    }
+
+    .student-talaqqi-session .quran-panel-header,
+    .student-talaqqi-session .quran-panel-scroll {
+        padding-left: 1.25rem;
+        padding-right: 1.25rem;
+    }
+}
+
+@media (min-width: 1024px) {
+    .student-talaqqi-session .video-shell {
+        height: 440px;
+        min-height: 440px;
+    }
+
+    .student-talaqqi-session .quran-panel-card {
+        height: 440px;
+        max-height: 440px;
+        min-height: 440px;
+    }
+}
+
+@media (min-width: 1280px) {
+    .student-talaqqi-session .video-shell {
+        height: 480px;
+        min-height: 480px;
+    }
+
+    .student-talaqqi-session .quran-panel-card {
+        height: 480px;
+        max-height: 480px;
+        min-height: 480px;
+    }
+}
+
+@supports (padding: max(0px)) {
+    @media (max-width: 768px) {
+        .student-talaqqi-session .session-switcher-bar {
+            padding-left: max(16px, env(safe-area-inset-left));
+            padding-right: max(16px, env(safe-area-inset-right));
+        }
+
+        .student-talaqqi-session .session-body {
+            padding-left: max(16px, env(safe-area-inset-left));
+            padding-right: max(16px, env(safe-area-inset-right));
+            padding-bottom: max(20px, env(safe-area-inset-bottom));
+        }
+    }
+}

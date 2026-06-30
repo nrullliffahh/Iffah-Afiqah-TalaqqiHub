@@ -10,6 +10,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Talaqqi Session – TalaqqiHub Student Portal</title>
     <%@ include file="/WEB-INF/views/includes/studentLayoutStyles.jsp" %>
+    <link rel="stylesheet" href="<%= request.getContextPath() %>/css/talaqqi-session-responsive.css">
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="<%= JitsiConfig.getScriptUrl() %>" async></script>
     <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -23,69 +24,15 @@
         }
         .btn-green-gradient:hover { filter: brightness(1.1); transform: translateY(-1px); }
 
-        /* ── Arabic verse text ──────────────────────────────────────────── */
-        .arabic-verse {
-            font-family: 'Amiri', serif;
-            font-size: 1.5rem;
-            line-height: 3rem;
-            direction: rtl;
-            text-align: center;
-        }
-
         /* ── Thin scrollbar for Quran panel ───────────────────────────── */
         .verse-scroll {
-            flex: 1;
-            min-height: 0;
-            overflow-y: auto;
             scrollbar-width: thin;
             scrollbar-color: #d1d5db transparent;
         }
         .verse-scroll::-webkit-scrollbar { width: 6px; }
         .verse-scroll::-webkit-scrollbar-thumb { background: #cfd5e3; border-radius: 9999px; }
 
-        .session-body { padding: 24px 30px 30px; }
-        .session-main-grid { align-items: start; }
-
-        .video-shell {
-            border: 2px solid #99f6e4;
-            border-radius: 20px;
-            background: #000;
-            overflow: hidden;
-            min-height: 400px;
-            height: 400px;
-            position: relative;
-        }
-        @media (min-width: 1280px) {
-            .video-shell { height: 480px; }
-        }
-
-        .quran-panel-card {
-            background: #fff;
-            border: 1px solid #e5e7eb;
-            border-radius: 18px;
-            display: flex;
-            flex-direction: column;
-            min-height: 400px;
-            max-height: min(600px, calc(100vh - 280px));
-            overflow: hidden;
-        }
-        @media (min-width: 1280px) {
-            .quran-panel-card {
-                height: 480px;
-                max-height: 480px;
-            }
-        }
-
-        .quran-panel-header {
-            flex-shrink: 0;
-            padding: 1.25rem 1.25rem 0;
-        }
-
         .quran-panel-scroll {
-            flex: 1;
-            min-height: 0;
-            overflow-y: auto;
-            padding: 0 1.25rem 1.25rem;
             scrollbar-width: thin;
             scrollbar-color: #d1d5db transparent;
         }
@@ -124,6 +71,12 @@
         .badge-upcoming { background: #dcfce7; color: #166534; }
         .badge-active { background: #ccfbf1; color: #134e4a; }
         .badge-ended { background: #fee2e2; color: #991b1b; }
+
+        .student-talaqqi-session .arabic-verse {
+            font-family: 'Amiri', serif;
+            direction: rtl;
+            text-align: center;
+        }
     </style>
 </head>
 <body class="antialiased">
@@ -137,13 +90,13 @@
             <jsp:param name="notifPrefix" value="sessionNotif"/>
         </jsp:include>
 
-        <div class="page-content" style="padding-top:0;padding-bottom:0;">
+        <div class="page-content student-talaqqi-session">
     <!-- Session Switcher -->
     <c:if test="${not empty upcomingSessions}">
-    <div class="bg-white border-b border-gray-200 px-8 py-3 flex items-center gap-3 shadow-sm">
-        <i class="fas fa-calendar-check text-teal-600"></i>
-        <span class="text-sm font-semibold text-gray-700">Switch Session</span>
-        <select class="ml-auto border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-teal-400"
+    <div class="bg-white border-b border-gray-200 shadow-sm session-switcher-bar">
+        <i class="fas fa-calendar-check text-teal-600 shrink-0"></i>
+        <span class="session-switcher-label">Switch Session</span>
+        <select class="session-switcher-select border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-teal-400"
                 onchange="if(this.value){location.href='${contextPath}/student/sessions?sessionId='+this.value;}">
             <c:forEach var="s" items="${upcomingSessions}">
                 <option value="${s.sessionId}" ${s.sessionId == talaqqiSession.sessionId ? 'selected' : ''}>
@@ -160,11 +113,11 @@
         <c:choose>
             <c:when test="${not empty talaqqiSession}">
                 <!-- Session Card -->
-                <div class="bg-white rounded-lg p-6 md:p-8 shadow-md border border-gray-100 mb-6">
-                    <div class="flex items-start justify-between mb-4">
-                        <div class="flex-1">
-                            <h3 class="text-2xl md:text-3xl font-bold text-gray-900 mb-2">${talaqqiSession.className}</h3>
-                            <div class="flex flex-wrap items-center gap-4 md:gap-6 text-gray-600 text-sm">
+                <div class="bg-white rounded-lg shadow-md border border-gray-100 mb-6 session-info-card">
+                    <div class="session-info-header">
+                        <div class="session-info-main">
+                            <h3 class="session-info-title font-bold text-gray-900 mb-2">${talaqqiSession.className}</h3>
+                            <div class="session-info-meta text-gray-600 text-sm">
                                 <span class="inline-flex items-center gap-2">
                                     <i class="far fa-calendar text-teal-600"></i>
                                     ${talaqqiSession.sessionDate}
@@ -179,11 +132,11 @@
                                 </span>
                             </div>
                         </div>
-                        <div class="text-right">
+                        <div class="session-teacher-block">
                             <p class="text-xs text-gray-500 uppercase tracking-wide mb-1">Teacher</p>
-                            <div class="flex items-center gap-3 justify-end">
+                            <div class="session-teacher-row">
                                 <p class="text-sm font-bold text-gray-900">${talaqqiSession.teacherName}</p>
-                                <div class="w-12 h-12 rounded-full bg-gradient-to-br from-teal-400 to-green-500 text-white grid place-items-center font-bold text-sm">
+                                <div class="w-12 h-12 shrink-0 rounded-full bg-gradient-to-br from-teal-400 to-green-500 text-white grid place-items-center font-bold text-sm">
                                     ${talaqqiSession.teacherInitials}
                                 </div>
                             </div>
@@ -191,15 +144,15 @@
                     </div>
 
                     <button id="joinButton"
-                            class="w-full btn-green-gradient text-white font-bold py-4 rounded-lg text-lg transition flex items-center justify-center gap-3">
+                            class="w-full btn-green-gradient session-join-btn text-white font-bold py-3 sm:py-4 rounded-lg transition flex items-center justify-center gap-3">
                         <i class="fas fa-video"></i>
                         <span>Join Live Session</span>
                     </button>
                 </div>
 
                 <!-- Video + Quran side by side (like teacher session) -->
-                <section class="grid grid-cols-1 xl:grid-cols-3 gap-6 session-main-grid">
-                    <div class="xl:col-span-2 space-y-3">
+                <section class="grid grid-cols-1 lg:grid-cols-3 gap-4 sm:gap-6 session-main-grid">
+                    <div class="lg:col-span-2 space-y-3">
                         <div class="video-shell relative">
                             <div id="jitsiContainer" class="hidden absolute inset-0 w-full h-full"
                                  data-room-name="${talaqqiSession.roomName}"
@@ -221,15 +174,15 @@
                     <!-- Quran Display Panel -->
                     <div class="quran-panel-card">
                         <div class="quran-panel-header">
-                            <div class="flex items-center justify-between mb-4 pb-4 border-b border-gray-200">
+                            <div class="quran-panel-head-row">
                                 <h4 class="text-base md:text-lg font-bold text-gray-900">Quran Display</h4>
-                                <span class="bg-gradient-to-r from-teal-400 to-green-400 text-white px-3 py-1 rounded-full text-xs md:text-sm font-bold">
+                                <span class="bg-gradient-to-r from-teal-400 to-green-400 text-white px-3 py-1 rounded-full text-xs md:text-sm font-bold shrink-0">
                                     Read-Only
                                 </span>
                             </div>
 
                             <div class="mb-4 text-center">
-                                <div class="grid grid-cols-3 gap-3">
+                                <div class="quran-stats-grid">
                                     <div>
                                         <p class="text-xs text-gray-600 font-medium mb-1">Juz</p>
                                         <p id="currentJuzDisplay" class="text-lg font-bold text-teal-600"><c:out value="${not empty talaqqiSession && talaqqiSession.currentJuzukNumber > 0 ? talaqqiSession.currentJuzukNumber : 1}" /></p>
@@ -338,11 +291,11 @@
             </c:when>
             <c:otherwise>
                 <!-- No session scheduled -->
-                <div class="bg-gradient-to-br from-blue-50 to-teal-50 rounded-lg border-2 border-teal-200 p-12 text-center min-h-96 flex flex-col items-center justify-center">
+                <div class="bg-gradient-to-br from-blue-50 to-teal-50 rounded-lg border-2 border-teal-200 text-center flex flex-col items-center justify-center session-empty-state">
                     <div class="w-20 h-20 mx-auto rounded-3xl bg-gradient-to-br from-teal-400 to-green-500 text-white grid place-items-center text-4xl mb-4">
                         <i class="fas fa-calendar-times"></i>
                     </div>
-                    <h3 class="text-3xl font-bold text-gray-900 mb-3">No Sessions Scheduled</h3>
+                    <h3 class="session-empty-title font-bold text-gray-900 mb-3">No Sessions Scheduled</h3>
                     <p class="text-gray-600 mb-6 max-w-sm mx-auto">
                         You don't have any upcoming Talaqqi sessions scheduled.
                     </p>
