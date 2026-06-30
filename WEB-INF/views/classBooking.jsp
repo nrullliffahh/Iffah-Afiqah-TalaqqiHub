@@ -1231,10 +1231,10 @@
     </div>
 
     <!-- Details Modal -->
-    <div id="detailsModal" class="hidden fixed inset-0 z-[1050] flex items-center justify-center booking-modal-overlay" aria-hidden="true">
-        <div class="booking-details-modal-panel" role="dialog" aria-modal="true" aria-labelledby="detailsModalTitle">
+    <div id="detailsModal" class="hidden fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-[1050] booking-modal-overlay" aria-hidden="true">
+        <div class="bg-white rounded-2xl shadow-2xl w-full max-w-lg mx-4 p-6 sm:p-8 booking-details-modal-panel" role="dialog" aria-modal="true" aria-labelledby="detailsModalTitle">
             <div class="booking-details-modal-header">
-                <h3 id="detailsModalTitle" class="booking-details-modal-title">Class Details</h3>
+                <h3 id="detailsModalTitle" class="booking-details-modal-title text-2xl font-bold text-gray-800">Class Details</h3>
                 <button type="button" onclick="closeDetailsModal()" class="booking-details-modal-close" aria-label="Close">✕</button>
             </div>
             <div class="booking-details-modal-body">
@@ -1260,10 +1260,10 @@
                 </div>
             </div>
             <div class="booking-details-modal-footer">
-                <button type="button" id="detailsRescheduleBtn" onclick="rescheduleFromDetailsModal()" class="hidden booking-details-modal-btn booking-details-modal-btn-secondary">
+                <button type="button" id="detailsRescheduleBtn" onclick="rescheduleFromDetailsModal()" class="hidden w-full px-6 py-3 bg-teal-500 text-white rounded-xl font-semibold hover:bg-teal-600 transition-colors booking-details-modal-btn booking-details-modal-btn-secondary">
                     Reschedule
                 </button>
-                <button type="button" onclick="closeDetailsModal()" class="booking-details-modal-btn booking-details-modal-btn-primary">Close</button>
+                <button type="button" onclick="closeDetailsModal()" class="w-full px-6 py-3 bg-gradient-to-r from-teal-400 to-teal-600 text-white rounded-xl font-semibold booking-details-modal-btn booking-details-modal-btn-primary">Close</button>
             </div>
         </div>
     </div>
@@ -1548,6 +1548,9 @@
             }
             const modal = document.getElementById('detailsModal');
             if (!modal) return;
+            if (modal.parentNode !== document.body) {
+                document.body.appendChild(modal);
+            }
             modal.classList.remove('hidden');
             modal.setAttribute('aria-hidden', 'false');
             document.body.classList.add('booking-details-open');

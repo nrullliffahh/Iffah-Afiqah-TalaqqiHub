@@ -292,9 +292,9 @@
 
 /* Class Details modal (outside .student-class-booking wrapper) */
 #detailsModal.booking-modal-overlay {
-    position: fixed;
-    inset: 0;
-    z-index: 1050;
+    position: fixed !important;
+    inset: 0 !important;
+    z-index: 1050 !important;
     display: none;
     align-items: center;
     justify-content: center;
@@ -305,7 +305,10 @@
     padding-right: max(16px, env(safe-area-inset-right));
     overflow-y: auto;
     -webkit-overflow-scrolling: touch;
-    background: rgba(15, 23, 42, 0.55);
+}
+
+#detailsModal.booking-modal-overlay.hidden {
+    display: none !important;
 }
 
 #detailsModal.booking-modal-overlay:not(.hidden) {
@@ -316,17 +319,20 @@ body.booking-details-open {
     overflow: hidden;
 }
 
-.booking-details-modal-panel {
+#detailsModal .booking-details-modal-panel {
     width: 100%;
     max-width: 32rem;
     margin: auto;
-    background: #fff;
+    background-color: #ffffff !important;
     border-radius: 20px;
     box-shadow: 0 24px 48px rgba(15, 23, 42, 0.18);
     padding: clamp(20px, 4vw, 32px);
     max-height: min(92vh, 720px);
     overflow-y: auto;
     -webkit-overflow-scrolling: touch;
+    position: relative;
+    z-index: 1;
+    box-sizing: border-box;
 }
 
 .booking-details-modal-header {
@@ -453,7 +459,7 @@ body.booking-details-open {
         padding: 0;
     }
 
-    .booking-details-modal-panel {
+    #detailsModal .booking-details-modal-panel {
         max-width: 100%;
         border-radius: 20px 20px 0 0;
         max-height: min(88vh, 100%);
@@ -466,7 +472,7 @@ body.booking-details-open {
 }
 
 @media (min-width: 769px) and (max-width: 1024px) {
-    .booking-details-modal-panel {
+    #detailsModal .booking-details-modal-panel {
         max-width: min(32rem, calc(100vw - 48px));
     }
 }
