@@ -1231,73 +1231,12 @@
     </div>
 
     <!-- Details Modal -->
-    <div id="detailsModal" class="hidden booking-modal-overlay">
+    <div id="detailsModal" class="hidden fixed inset-0 z-[1050] flex items-center justify-center booking-modal-overlay" aria-hidden="true">
         <div class="booking-details-modal-panel" role="dialog" aria-modal="true" aria-labelledby="detailsModalTitle">
             <div class="booking-details-modal-header">
                 <h3 id="detailsModalTitle" class="booking-details-modal-title">Class Details</h3>
                 <button type="button" onclick="closeDetailsModal()" class="booking-details-modal-close" aria-label="Close">✕</button>
             </div>
-            <!-- More page scripts: export/print helpers and global booking data -->
-            <script>
-                // Expose booking data for export utilities (server-side rendered)
-                window.bookingExportList = [
-                    <c:forEach var="b" items="${myBookings}">
-                        { bookingId: '${b.bookingId}', bookingDate: '${b.bookingDate}', bookingTime: '${b.bookingTime}', bookingStatus: '${b.bookingStatus}', teacherName: '${b.teacherName}', className: '${b.className}' },
-                    </c:forEach>
-                ];
-
-                function sanitizeCell(v) {
-                    if (v === null || v === undefined) return '';
-                    return String(v).replace(/\"/g, '""');
-                }
-
-                function exportAsCSV() {
-                    const rows = [['Booking ID','Date','Time','Status','Teacher','Class']];
-                    (window.bookingExportList || []).forEach(b => rows.push([b.bookingId, b.bookingDate, b.bookingTime, b.bookingStatus, b.teacherName, b.className]));
-                    const csv = rows.map(r => r.map(c => '"' + sanitizeCell(c) + '"').join(',')).join('\r\n');
-                    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
-                    const url = URL.createObjectURL(blob);
-                    const a = document.createElement('a'); a.href = url; a.download = 'bookings.csv'; document.body.appendChild(a); a.click(); setTimeout(()=>{ URL.revokeObjectURL(url); a.remove(); }, 150);
-                }
-
-                function exportAsExcel() {
-                    // Simple Excel export using CSV format but .xls extension for compatibility
-                    const rows = [['Booking ID','Date','Time','Status','Teacher','Class']];
-                    (window.bookingExportList || []).forEach(b => rows.push([b.bookingId, b.bookingDate, b.bookingTime, b.bookingStatus, b.teacherName, b.className]));
-                    const csv = rows.map(r => r.map(c => '"' + sanitizeCell(c) + '"').join(',')).join('\r\n');
-                    const blob = new Blob([csv], { type: 'application/vnd.ms-excel' });
-                    const url = URL.createObjectURL(blob);
-                    const a = document.createElement('a'); a.href = url; a.download = 'bookings.xls'; document.body.appendChild(a); a.click(); setTimeout(()=>{ URL.revokeObjectURL(url); a.remove(); }, 150);
-                }
-
-                function exportAsPDF() {
-                    // Open a printable window containing a simple table of bookings and trigger print
-                    const list = window.bookingExportList || [];
-                    const win = window.open('', '_blank');
-                    const css = '<style>body{font-family:Arial,Helvetica,sans-serif;padding:20px}table{width:100%;border-collapse:collapse}th,td{border:1px solid #ddd;padding:8px;text-align:left}th{background:#f4f4f4}</style>';
-                    let html = '<html><head><title>Bookings Export</title>' + css + '</head><body>';
-                    html += '<h2>My Bookings</h2>';
-                    html += '<table><thead><tr><th>Booking ID</th><th>Date</th><th>Time</th><th>Status</th><th>Teacher</th><th>Class</th></tr></thead><tbody>';
-                    list.forEach(b => {
-                        html += '<tr>' +
-                            '<td>' + (b.bookingId||'') + '</td>' +
-                            '<td>' + (b.bookingDate||'') + '</td>' +
-                            '<td>' + (b.bookingTime||'') + '</td>' +
-                            '<td>' + (b.bookingStatus||'') + '</td>' +
-                            '<td>' + (b.teacherName||'') + '</td>' +
-                            '<td>' + (b.className||'') + '</td>' +
-                            '</tr>';
-                    });
-                    html += '</tbody></table>';
-                    html += '<script>setTimeout(function(){ window.print(); }, 250);</' + 'script>';
-                    html += '</body></html>';
-                    win.document.open(); win.document.write(html); win.document.close();
-                }
-
-                function printPage() {
-                    window.print();
-                }
-            </script>
             <div class="booking-details-modal-body">
                 <div class="booking-details-modal-field">
                     <p class="booking-details-modal-label">Class Type:</p>
@@ -1364,6 +1303,65 @@
             </form>
         </div>
     </div>
+
+    <!-- Export/print helpers and global booking data -->
+    <script>
+        window.bookingExportList = [
+            <c:forEach var="b" items="${myBookings}">
+                { bookingId: '${b.bookingId}', bookingDate: '${b.bookingDate}', bookingTime: '${b.bookingTime}', bookingStatus: '${b.bookingStatus}', teacherName: '${b.teacherName}', className: '${b.className}' },
+            </c:forEach>
+        ];
+
+        function sanitizeCell(v) {
+            if (v === null || v === undefined) return '';
+            return String(v).replace(/\"/g, '""');
+        }
+
+        function exportAsCSV() {
+            const rows = [['Booking ID','Date','Time','Status','Teacher','Class']];
+            (window.bookingExportList || []).forEach(b => rows.push([b.bookingId, b.bookingDate, b.bookingTime, b.bookingStatus, b.teacherName, b.className]));
+            const csv = rows.map(r => r.map(c => '"' + sanitizeCell(c) + '"').join(',')).join('\r\n');
+            const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a'); a.href = url; a.download = 'bookings.csv'; document.body.appendChild(a); a.click(); setTimeout(()=>{ URL.revokeObjectURL(url); a.remove(); }, 150);
+        }
+
+        function exportAsExcel() {
+            const rows = [['Booking ID','Date','Time','Status','Teacher','Class']];
+            (window.bookingExportList || []).forEach(b => rows.push([b.bookingId, b.bookingDate, b.bookingTime, b.bookingStatus, b.teacherName, b.className]));
+            const csv = rows.map(r => r.map(c => '"' + sanitizeCell(c) + '"').join(',')).join('\r\n');
+            const blob = new Blob([csv], { type: 'application/vnd.ms-excel' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a'); a.href = url; a.download = 'bookings.xls'; document.body.appendChild(a); a.click(); setTimeout(()=>{ URL.revokeObjectURL(url); a.remove(); }, 150);
+        }
+
+        function exportAsPDF() {
+            const list = window.bookingExportList || [];
+            const win = window.open('', '_blank');
+            const css = '<style>body{font-family:Arial,Helvetica,sans-serif;padding:20px}table{width:100%;border-collapse:collapse}th,td{border:1px solid #ddd;padding:8px;text-align:left}th{background:#f4f4f4}</style>';
+            let html = '<html><head><title>Bookings Export</title>' + css + '</head><body>';
+            html += '<h2>My Bookings</h2>';
+            html += '<table><thead><tr><th>Booking ID</th><th>Date</th><th>Time</th><th>Status</th><th>Teacher</th><th>Class</th></tr></thead><tbody>';
+            list.forEach(b => {
+                html += '<tr>' +
+                    '<td>' + (b.bookingId||'') + '</td>' +
+                    '<td>' + (b.bookingDate||'') + '</td>' +
+                    '<td>' + (b.bookingTime||'') + '</td>' +
+                    '<td>' + (b.bookingStatus||'') + '</td>' +
+                    '<td>' + (b.teacherName||'') + '</td>' +
+                    '<td>' + (b.className||'') + '</td>' +
+                    '</tr>';
+            });
+            html += '</tbody></table>';
+            html += '<script>setTimeout(function(){ window.print(); }, 250);</' + 'script>';
+            html += '</body></html>';
+            win.document.open(); win.document.write(html); win.document.close();
+        }
+
+        function printPage() {
+            window.print();
+        }
+    </script>
     
     <script>
         const CANCEL_MIN_HOURS = 12;
@@ -1475,7 +1473,8 @@
         })();
 
         function openDetailsModal(bookingId) {
-            const el = document.querySelector('.booking-entry[data-booking-id="' + bookingId + '"]');
+            const safeId = String(bookingId || '');
+            const el = document.querySelector('.booking-entry[data-booking-id="' + (window.CSS && CSS.escape ? CSS.escape(safeId) : safeId.replace(/"/g, '\\"')) + '"]');
             if (!el) return;
             const classType = el.dataset.classType || 'Quran Recitation & Tajweed';
             const teacher = el.dataset.teacherName || '';
@@ -1547,7 +1546,11 @@
                     rescheduleBtn.dataset.bookingDate = '';
                 }
             }
-            document.getElementById('detailsModal').classList.remove('hidden');
+            const modal = document.getElementById('detailsModal');
+            if (!modal) return;
+            modal.classList.remove('hidden');
+            modal.setAttribute('aria-hidden', 'false');
+            document.body.classList.add('booking-details-open');
         }
 
         function rescheduleFromDetailsModal() {
@@ -1576,7 +1579,11 @@
         }
 
         function closeDetailsModal() {
-            document.getElementById('detailsModal').classList.add('hidden');
+            const modal = document.getElementById('detailsModal');
+            if (!modal) return;
+            modal.classList.add('hidden');
+            modal.setAttribute('aria-hidden', 'true');
+            document.body.classList.remove('booking-details-open');
         }
     </script>
     <script>
