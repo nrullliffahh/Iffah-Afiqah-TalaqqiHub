@@ -396,6 +396,7 @@ public class TalaqqiSessionDAO {
 
             if (sessionExistsForBooking(conn, modern, bookingId, scheduleId)) {
                 syncSessionDateForBooking(conn, modern, bookingId, scheduleId, sessionDate);
+                relinkSessionBookingId(conn, modern, bookingId, scheduleId, sessionDate);
                 return;
             }
 
@@ -485,6 +486,26 @@ public class TalaqqiSessionDAO {
             }
         } catch (SQLException e) {
             System.err.println("[TalaqqiSessionDAO] syncSessionDateForBooking: " + e.getMessage());
+        }
+    }
+
+    /** Point an existing session row at the current booking after a slot is rebooked. */
+    private static void relinkSessionBookingId(Connection conn, boolean modern,
+            String bookingId, String scheduleId, java.sql.Date sessionDate) {
+        if (conn == null || !modern || bookingId == null || bookingId.trim().isEmpty()
+                || scheduleId == null || scheduleId.trim().isEmpty()) {
+            return;
+        }
+        try {
+            String sql = "UPDATE talaqqisession SET bookingId = ?, sessionDate = ? WHERE scheduleId = ?";
+            try (PreparedStatement ps = conn.prepareStatement(util.TalaqqiSchemaUtil.sql(sql, conn))) {
+                ps.setString(1, bookingId.trim());
+                ps.setDate(2, sessionDate);
+                ps.setString(3, scheduleId.trim());
+                ps.executeUpdate();
+            }
+        } catch (SQLException e) {
+            System.err.println("[TalaqqiSessionDAO] relinkSessionBookingId: " + e.getMessage());
         }
     }
 

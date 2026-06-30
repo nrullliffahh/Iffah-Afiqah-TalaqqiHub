@@ -187,15 +187,15 @@ public final class TalaqqiSchemaUtil {
     }
 
     /**
-     * Match session rows to bookings when production has {@code bookingId} column but legacy rows
-     * still link via {@code scheduleId} only.
+     * Match session rows to bookings. Prefer bookingId; always allow scheduleId match so a
+     * rebooked slot still resolves when talaqqisession.bookingId points at an old booking.
      */
     private static String sessionToBookingOnClause(String sessionTableAlias) {
         return "(" + sessionTableAlias + ".bookingId IS NOT NULL AND "
             + sessionTableAlias + ".bookingId <> '' AND "
-            + sessionTableAlias + ".bookingId = cb.bookingId) OR (("
-            + sessionTableAlias + ".bookingId IS NULL OR "
-            + sessionTableAlias + ".bookingId = '') AND "
+            + sessionTableAlias + ".bookingId = cb.bookingId) OR ("
+            + sessionTableAlias + ".scheduleId IS NOT NULL AND "
+            + sessionTableAlias + ".scheduleId <> '' AND "
             + sessionTableAlias + ".scheduleId = cb.scheduleId)";
     }
 
@@ -278,7 +278,8 @@ public final class TalaqqiSchemaUtil {
                 + "FROM talaqqisession ts "
                 + "JOIN classschedule cs ON ts.scheduleId = cs.scheduleId "
                 + "LEFT JOIN classbooking cb ON cb.scheduleId = cs.scheduleId "
-                + "  AND cb.bookingStatus NOT IN ('Cancelled','Rejected') "
+                + "  AND cb.bookingDate = cs.scheduleDate "
+                + "  AND cb.bookingStatus NOT IN ('Cancelled','Rejected','Completed','Rescheduled') "
                 + quranDisplayJoin
                 + "LEFT JOIN student s ON cb.studentId = s.studentId "
                 + "LEFT JOIN teacher t ON cs.teacherId = t.teacherId ";

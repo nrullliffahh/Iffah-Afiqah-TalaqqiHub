@@ -55,18 +55,18 @@ public final class BookingPartitionUtil {
 
     /**
      * Bookings eligible for the Talaqqi Switch Session picker on student and teacher portals:
-     * same Upcoming + Rescheduled partitions as Class Booking, future slots only.
+     * same Upcoming + Rescheduled partitions as Class Booking.
      */
     public static List<StudentBooking> switchableOnly(List<StudentBooking> bookings) {
         Partition p = partition(bookings);
         List<StudentBooking> out = new ArrayList<>();
         for (StudentBooking b : p.upcoming) {
-            if (b != null && b.isFutureSession() && !b.isNeedsReschedule() && !b.isAttended()) {
+            if (b != null && !b.isAttended()) {
                 out.add(b);
             }
         }
         for (StudentBooking b : p.rescheduled) {
-            if (b != null && b.isFutureSession() && !b.isAttended()) {
+            if (b != null && !b.isAttended()) {
                 out.add(b);
             }
         }
