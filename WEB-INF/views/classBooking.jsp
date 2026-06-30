@@ -1232,38 +1232,44 @@
 
     <!-- Details Modal -->
     <div id="detailsModal" class="hidden fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-[1050] booking-modal-overlay" aria-hidden="true">
-        <div class="bg-white rounded-2xl shadow-2xl w-full max-w-lg mx-4 p-6 sm:p-8 booking-details-modal-panel" role="dialog" aria-modal="true" aria-labelledby="detailsModalTitle">
-            <div class="booking-details-modal-header">
-                <h3 id="detailsModalTitle" class="booking-details-modal-title text-2xl font-bold text-gray-800">Class Details</h3>
-                <button type="button" onclick="closeDetailsModal()" class="booking-details-modal-close" aria-label="Close">✕</button>
+        <div class="bg-white rounded-2xl shadow-2xl w-full max-w-md mx-4 overflow-hidden booking-details-modal-panel" role="dialog" aria-modal="true" aria-labelledby="detailsModalTitle">
+            <div class="flex items-center justify-between gap-3 px-5 py-4 border-b border-gray-100 bg-gray-50 booking-details-modal-header">
+                <h3 id="detailsModalTitle" class="text-lg font-bold text-gray-900 leading-tight">Class Details</h3>
+                <button type="button" onclick="closeDetailsModal()" class="shrink-0 w-9 h-9 inline-flex items-center justify-center rounded-lg text-gray-500 hover:bg-gray-200 hover:text-gray-800 transition-colors booking-details-modal-close" aria-label="Close">
+                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
+                </button>
             </div>
-            <div class="booking-details-modal-body">
-                <div class="booking-details-modal-field">
-                    <p class="booking-details-modal-label">Class Type:</p>
+            <div class="px-5 py-5 booking-details-modal-body">
+                <div class="booking-details-modal-field booking-details-modal-card">
+                    <p class="booking-details-modal-label">Class Type</p>
                     <p id="detailsClassType" class="booking-details-modal-value">Quran Recitation &amp; Tajweed</p>
                 </div>
-                <div class="booking-details-modal-field">
-                    <p class="booking-details-modal-label">Teacher:</p>
+                <div class="booking-details-modal-field booking-details-modal-card">
+                    <p class="booking-details-modal-label">Teacher</p>
                     <p id="detailsTeacher" class="booking-details-modal-value">Ustadh Ibrahim Khan</p>
                 </div>
-                <div class="booking-details-modal-field">
-                    <p class="booking-details-modal-label">Date:</p>
-                    <p id="detailsDate" class="booking-details-modal-value">Thursday, January 2, 2025</p>
+                <div class="booking-details-modal-grid">
+                    <div class="booking-details-modal-field booking-details-modal-card">
+                        <p class="booking-details-modal-label">Date</p>
+                        <p id="detailsDate" class="booking-details-modal-value">Thursday, January 2, 2025</p>
+                    </div>
+                    <div class="booking-details-modal-field booking-details-modal-card">
+                        <p class="booking-details-modal-label">Time</p>
+                        <p id="detailsTime" class="booking-details-modal-value">10:00 AM - 10:15 AM</p>
+                    </div>
                 </div>
-                <div class="booking-details-modal-field">
-                    <p class="booking-details-modal-label">Time:</p>
-                    <p id="detailsTime" class="booking-details-modal-value">10:00 AM - 10:15 AM</p>
-                </div>
-                <div class="booking-details-modal-field booking-details-modal-field-status">
-                    <p class="booking-details-modal-label">Status:</p>
-                    <p id="detailsStatus" class="inline-block px-3 py-1 bg-blue-100 text-blue-700 rounded-full text-xs font-semibold">Upcoming</p>
+                <div class="booking-details-modal-field booking-details-modal-card booking-details-modal-field-status">
+                    <p class="booking-details-modal-label">Status</p>
+                    <div class="booking-details-modal-status-wrap">
+                        <p id="detailsStatus" class="inline-block px-3 py-1 bg-blue-100 text-blue-700 rounded-full text-xs font-semibold">Upcoming</p>
+                    </div>
                 </div>
             </div>
-            <div class="booking-details-modal-footer">
-                <button type="button" id="detailsRescheduleBtn" onclick="rescheduleFromDetailsModal()" class="hidden w-full px-6 py-3 bg-teal-500 text-white rounded-xl font-semibold hover:bg-teal-600 transition-colors booking-details-modal-btn booking-details-modal-btn-secondary">
+            <div class="px-5 py-4 border-t border-gray-100 bg-gray-50 booking-details-modal-footer">
+                <button type="button" id="detailsRescheduleBtn" onclick="rescheduleFromDetailsModal()" class="hidden w-full py-2.5 px-4 bg-teal-500 text-white rounded-xl text-sm font-semibold hover:bg-teal-600 transition-colors booking-details-modal-btn booking-details-modal-btn-secondary">
                     Reschedule
                 </button>
-                <button type="button" onclick="closeDetailsModal()" class="w-full px-6 py-3 bg-gradient-to-r from-teal-400 to-teal-600 text-white rounded-xl font-semibold booking-details-modal-btn booking-details-modal-btn-primary">Close</button>
+                <button type="button" onclick="closeDetailsModal()" class="w-full py-2.5 px-4 bg-gradient-to-r from-teal-400 to-teal-600 text-white rounded-xl text-sm font-semibold hover:opacity-95 transition-opacity booking-details-modal-btn booking-details-modal-btn-primary">Close</button>
             </div>
         </div>
     </div>
