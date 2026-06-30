@@ -35,10 +35,12 @@ public final class BookingPartitionUtil {
                 } else {
                     p.cancelled.add(b);
                 }
-            } else if (b.isAttended()) {
-                p.completed.add(b);
             } else if (b.isRescheduledReplacement()) {
                 p.rescheduled.add(b);
+            } else if (BookingStatus.isActive(status) && b.isFutureSession() && !b.isAttended()) {
+                p.upcoming.add(b);
+            } else if (b.isAttended()) {
+                p.completed.add(b);
             } else if (b.isNeedsReschedule()) {
                 p.completed.add(b);
             } else if ("Completed".equalsIgnoreCase(status)) {

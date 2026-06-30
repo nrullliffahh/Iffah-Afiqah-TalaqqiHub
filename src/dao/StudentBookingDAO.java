@@ -1153,11 +1153,9 @@ public class StudentBookingDAO {
             String attendedExists =
                 "EXISTS ("
                 + "SELECT 1 FROM attendance a "
-                + "LEFT JOIN classschedule cs_a ON cs_a.scheduleId = a.scheduleId "
                 + "WHERE a.studentId = cb.studentId "
+                + "AND a.scheduleId = cb.scheduleId "
                 + "AND a.attendanceDate = cb.bookingDate "
-                + "AND (a.scheduleId = cb.scheduleId "
-                + "     OR (cs_a.startTime = cb.bookingTime AND cs_a.teacherId = cs.teacherId)) "
                 + "AND a.attendanceStatus IN ('Present', 'Late')"
                 + ")";
             String bookingSql =
@@ -1349,11 +1347,9 @@ public class StudentBookingDAO {
      */
     private static String bookingAttendanceSubquery() {
         return "(SELECT a.attendanceStatus FROM attendance a "
-            + "LEFT JOIN classschedule cs_a ON cs_a.scheduleId = a.scheduleId "
             + "WHERE a.studentId = b.studentId "
+            + "AND a.scheduleId = b.scheduleId "
             + "AND a.attendanceDate = b.bookingDate "
-            + "AND (a.scheduleId = b.scheduleId "
-            + "     OR (cs_a.startTime = b.bookingTime AND cs_a.teacherId = cs.teacherId)) "
             + "ORDER BY "
             + "CASE a.attendanceStatus WHEN 'Absent' THEN 0 WHEN 'Late' THEN 1 WHEN 'Present' THEN 2 ELSE 3 END, "
             + "a.attendanceId DESC LIMIT 1) AS attendanceStatus";

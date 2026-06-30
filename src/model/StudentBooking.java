@@ -172,7 +172,10 @@ public class StudentBooking {
         if (isRescheduledReplacement()) {
             return false;
         }
-        // Absent overrides future slot — show Not Completed + Reschedule immediately
+        // Future active bookings are always upcoming — never "Not Completed" on book.
+        if (isFutureSession() && BookingStatus.isActive(status)) {
+            return false;
+        }
         if (isAbsent()) {
             return true;
         }
