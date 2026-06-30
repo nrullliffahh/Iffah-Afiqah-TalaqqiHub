@@ -1,0 +1,291 @@
+/* Student Class Booking – iPad & mobile */
+
+.student-class-booking {
+    max-width: 100%;
+    overflow-x: hidden;
+}
+
+.student-class-booking .booking-page-header h1 {
+    font-size: clamp(1.5rem, 4vw, 1.875rem);
+    word-break: break-word;
+}
+
+.student-class-booking .booking-toolbar {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: flex-end;
+    gap: 12px;
+}
+
+.student-class-booking .booking-toolbar > * {
+    flex: 0 1 auto;
+}
+
+.student-class-booking .booking-summary-grid {
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: 16px;
+}
+
+.student-class-booking .booking-panel {
+    padding: clamp(16px, 3vw, 24px);
+}
+
+.student-class-booking .booking-calendar-toolbar {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+}
+
+.student-class-booking .booking-view-toggle {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+}
+
+.student-class-booking .booking-month-nav {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+    width: 100%;
+}
+
+.student-class-booking #currentMonth {
+    text-align: center;
+    flex: 1;
+    min-width: 0;
+    font-size: clamp(0.875rem, 2.5vw, 1rem);
+}
+
+.student-class-booking #calendarGrid {
+    gap: 4px;
+}
+
+.student-class-booking #calendarGrid button.cal-day {
+    min-height: 36px;
+    font-size: 0.75rem;
+    padding: 2px;
+}
+
+.student-class-booking .booking-day-headers {
+    gap: 4px;
+}
+
+.student-class-booking .booking-day-headers > div {
+    font-size: 0.65rem;
+    padding: 4px 0;
+}
+
+.student-class-booking #timeSlotsContainer {
+    max-height: min(420px, 50vh);
+    padding-right: 4px;
+}
+
+.student-class-booking #timeSlotsContainer > div {
+    display: flex;
+    flex-direction: column;
+    align-items: stretch;
+    gap: 12px;
+}
+
+.student-class-booking #timeSlotsContainer > div > div:last-child {
+    align-self: stretch;
+}
+
+.student-class-booking #timeSlotsContainer .book-now,
+.student-class-booking #timeSlotsContainer span.px-4 {
+    width: 100%;
+    text-align: center;
+    min-height: 44px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.student-class-booking .booking-card-row {
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+}
+
+.student-class-booking .booking-card-row .flex-1 {
+    min-width: 0;
+}
+
+.student-class-booking .booking-card-header {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 8px 12px;
+    margin-bottom: 12px;
+}
+
+.student-class-booking .booking-card-header h4 {
+    font-size: clamp(1rem, 3vw, 1.125rem);
+    word-break: break-word;
+}
+
+.student-class-booking .booking-meta-grid {
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: 12px;
+}
+
+.student-class-booking .booking-meta-grid > div {
+    min-width: 0;
+}
+
+.student-class-booking .booking-meta-grid p {
+    word-break: break-word;
+}
+
+.student-class-booking .booking-card-actions {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    width: 100%;
+}
+
+.student-class-booking .booking-card-actions button {
+    width: 100%;
+    min-height: 44px;
+}
+
+.student-class-booking .booking-card-actions-inline {
+    flex-direction: row;
+    flex-wrap: wrap;
+}
+
+.student-class-booking .booking-card-actions-inline button {
+    width: auto;
+    flex: 1 1 auto;
+}
+
+.student-class-booking #rescheduleModeBanner {
+    flex-direction: column;
+    align-items: flex-start !important;
+}
+
+.student-class-booking .booking-modal-panel {
+    padding: clamp(20px, 4vw, 32px);
+    max-height: min(92vh, 720px);
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
+}
+
+.student-class-booking .booking-modal-actions {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+}
+
+.student-class-booking .booking-modal-actions button {
+    min-height: 44px;
+}
+
+@media (min-width: 640px) {
+    .student-class-booking .booking-summary-grid {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+
+    .student-class-booking .booking-meta-grid {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+
+    .student-class-booking #timeSlotsContainer > div {
+        flex-direction: row;
+        align-items: center;
+        justify-content: space-between;
+    }
+
+    .student-class-booking #timeSlotsContainer .book-now,
+    .student-class-booking #timeSlotsContainer span.px-4 {
+        width: auto;
+    }
+
+    .student-class-booking #rescheduleModeBanner {
+        flex-direction: row;
+        align-items: center !important;
+    }
+
+    .student-class-booking .booking-modal-actions {
+        flex-direction: row;
+    }
+
+    .student-class-booking .booking-modal-actions button {
+        flex: 1;
+    }
+}
+
+@media (min-width: 768px) {
+    .student-class-booking #calendarGrid {
+        gap: 8px;
+    }
+
+    .student-class-booking #calendarGrid button.cal-day {
+        min-height: 40px;
+        font-size: 0.875rem;
+    }
+
+    .student-class-booking .booking-day-headers > div {
+        font-size: 0.75rem;
+    }
+}
+
+@media (min-width: 1024px) {
+    .student-class-booking .booking-summary-grid {
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+    }
+
+    .student-class-booking .booking-card-row {
+        flex-direction: row;
+        align-items: flex-start;
+        justify-content: space-between;
+    }
+
+    .student-class-booking .booking-card-actions {
+        width: auto;
+        margin-left: 16px;
+        flex-shrink: 0;
+    }
+
+    .student-class-booking .booking-card-actions button {
+        width: auto;
+        min-width: 140px;
+    }
+}
+
+@media (min-width: 1280px) {
+    .student-class-booking .booking-meta-grid {
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+    }
+}
+
+@supports (padding: max(0px)) {
+    @media (max-width: 768px) {
+        .student-class-booking.page-content {
+            padding-left: max(16px, env(safe-area-inset-left));
+            padding-right: max(16px, env(safe-area-inset-right));
+            padding-bottom: max(20px, env(safe-area-inset-bottom));
+        }
+
+        .student-class-booking .booking-toolbar {
+            justify-content: stretch;
+        }
+
+        .student-class-booking .booking-toolbar > .relative,
+        .student-class-booking .booking-toolbar > #printBtn {
+            flex: 1 1 calc(50% - 6px);
+        }
+
+        .student-class-booking .booking-toolbar #exportBtn,
+        .student-class-booking .booking-toolbar #printBtn {
+            width: 100%;
+            justify-content: center;
+        }
+    }
+}

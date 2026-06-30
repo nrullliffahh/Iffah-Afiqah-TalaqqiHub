@@ -14,6 +14,7 @@
     <link rel="stylesheet" href="<%= request.getContextPath() %>/css/animations.css">
     <link rel="stylesheet" href="<%= request.getContextPath() %>/css/styles.css">
     <link rel="stylesheet" href="<%= request.getContextPath() %>/css/index.css">
+    <link rel="stylesheet" href="<%= request.getContextPath() %>/css/class-booking-responsive.css">
 </head>
 <body>
     <c:if test="${param.debug == '1'}">
@@ -30,8 +31,8 @@
             <jsp:param name="notifPrefix" value="bookingNotif"/>
         </jsp:include>
 
-        <div class="page-content">
-            <div class="flex items-center justify-end gap-3 mb-6">
+        <div class="page-content student-class-booking">
+            <div class="booking-toolbar">
                 <div class="relative">
                     <button id="exportBtn" onclick="document.getElementById('exportMenu').classList.toggle('hidden')" class="px-4 py-2 text-white rounded-lg flex items-center space-x-2 hover:opacity-95" style="background:var(--student-green);">
                         <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -64,12 +65,12 @@
                     <c:remove var="errorMessage" scope="session" />
                 </c:if>
                 
-                <div class="mb-8">
+                <div class="mb-8 booking-page-header">
                     <h1 class="text-3xl font-bold text-gray-800 mb-2">Class Booking</h1>
                     <p class="text-gray-600">Book your one-to-one Quran Recitation & Tajweed sessions</p>
                 </div>
                 
-                <div class="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
+                <div class="booking-summary-grid mb-8">
                     <div class="bg-gradient-to-br from-gray-50 to-gray-100 rounded-2xl p-6 shadow-sm border border-gray-200">
                         <div class="w-14 h-14 rounded-full bg-gray-200 flex items-center justify-center mb-4">
                             <svg class="w-7 h-7 text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -104,8 +105,8 @@
                     </div>
                 </div>
                 
-                <div class="bg-white rounded-2xl p-6 shadow-sm mb-8 border border-gray-200">
-                    <div class="flex items-center justify-between mb-3">
+                <div class="bg-white rounded-2xl booking-panel shadow-sm mb-8 border border-gray-200">
+                    <div class="flex flex-wrap items-center justify-between gap-2 mb-3">
                         <span class="text-sm font-semibold text-gray-700">Monthly Progress</span>
                         <span class="text-sm font-bold text-teal-600">${summary.usedSessions} / ${summary.totalSessions} (${summary.progressPercentage}%)</span>
                     </div>
@@ -115,12 +116,12 @@
                     <p class="text-xs text-gray-500 mt-2">${summary.remainingSessions} sessions remaining • Resets on 1st of next month</p>
                 </div>
                 
-                <div class="bg-white rounded-2xl p-6 shadow-sm mb-8 border border-gray-200">
+                <div class="bg-white rounded-2xl booking-panel shadow-sm mb-8 border border-gray-200">
                     <h3 class="text-xl font-bold text-gray-800 mb-6">Book Your Session</h3>
 
-                    <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                    <div class="grid grid-cols-1 lg:grid-cols-2 gap-6 booking-session-grid">
                         <!-- LEFT: Calendar -->
-                        <div class="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
+                        <div class="bg-white rounded-xl shadow-sm border border-gray-200 booking-panel">
                             <h4 class="text-lg font-semibold text-gray-900 mb-4">Select Date</h4>
 
                             <div id="rescheduleModeBanner" class="hidden mb-4 p-3 rounded-lg bg-amber-50 border border-amber-200 text-amber-900 text-sm flex items-center justify-between gap-3">
@@ -129,8 +130,8 @@
                             </div>
 
                             <!-- View Filters -->
-                            <div class="flex items-center justify-between mb-4">
-                                <div class="flex items-center space-x-2">
+                            <div class="booking-calendar-toolbar mb-4">
+                                <div class="booking-view-toggle">
                                     <button id="monthViewBtn" class="px-3 py-1 text-sm font-medium text-green-600 bg-green-100 rounded-lg hover:bg-green-200 transition">
                                         Month View
                                     </button>
@@ -142,14 +143,14 @@
                             </div>
 
                             <!-- Month/Week Display with Navigation -->
-                            <div class="flex items-center justify-between mb-4">
+                            <div class="booking-month-nav mb-4">
                                 <button id="prevBtn" class="p-2 rounded-lg text-gray-600 hover:bg-gray-100 transition">&lt;</button>
                                 <span id="currentMonth" class="text-base font-semibold text-gray-900"></span>
                                 <button id="nextBtn" class="p-2 rounded-lg text-gray-600 hover:bg-gray-100 transition">&gt;</button>
                             </div>
 
                             <!-- Day Headers -->
-                            <div class="grid grid-cols-7 gap-2 mb-3">
+                            <div class="grid grid-cols-7 gap-2 mb-3 booking-day-headers">
                                 <div class="text-center text-xs font-medium text-gray-500 py-2">Sun</div>
                                 <div class="text-center text-xs font-medium text-gray-500 py-2">Mon</div>
                                 <div class="text-center text-xs font-medium text-gray-500 py-2">Tue</div>
@@ -180,7 +181,7 @@
                         </div>
 
                         <!-- RIGHT: Time Slots -->
-                        <div class="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
+                        <div class="bg-white rounded-xl shadow-sm border border-gray-200 booking-panel">
                             <h4 class="text-lg font-semibold text-gray-900 mb-2">Time Slots (15 min each)</h4>
                             <p id="selectedDateDisplay" class="text-sm text-gray-500 mb-4">Please select a date</p>
 
@@ -952,7 +953,7 @@
                     </script>
                 </div>
                 
-                <div class="bg-white rounded-2xl p-6 shadow-sm border border-gray-200">
+                <div class="bg-white rounded-2xl booking-panel shadow-sm border border-gray-200">
                     <h3 class="text-xl font-bold text-gray-800 mb-6">My Booked Classes</h3>
                     
                     <c:if test="${empty myBookings}">
@@ -969,13 +970,13 @@
                         <c:forEach var="booking" items="${upcomingBookings}">
                             <c:set var="borderClass" value="border-blue-200 bg-blue-50" />
                             <div class="border-2 rounded-xl p-5 ${borderClass} booking-entry" data-booking-id="${booking.bookingId}" data-booking-date="${booking.bookingDate}" data-booking-time="${booking.bookingTime}" data-teacher-name="${booking.teacherName}" data-class-type="${booking.className}" data-booking-status="${booking.bookingStatus}" data-attendance-status="${booking.attendanceStatus}">
-                                <div class="flex items-start justify-between">
+                                <div class="booking-card-row">
                                     <div class="flex-1">
-                                        <div class="flex items-center gap-3 mb-3">
+                                        <div class="booking-card-header">
                                             <h4 class="font-bold text-gray-800 text-lg">${booking.className}</h4>
                                             <span class="px-3 py-1 bg-blue-100 text-blue-700 text-sm font-semibold rounded-full">Upcoming</span>
                                         </div>
-                                        <div class="grid grid-cols-3 gap-4">
+                                        <div class="booking-meta-grid">
                                             <div class="flex items-center gap-2">
                                                 <svg class="w-5 h-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
@@ -1005,7 +1006,7 @@
                                             </div>
                                         </div>
                                     </div>
-                                    <div class="flex flex-col gap-2 ml-4">
+                                    <div class="booking-card-actions">
                                         <button type="button" onclick="openDetailsModal('${booking.bookingId}')" class="px-4 py-2 border-2 border-gray-300 bg-white text-gray-700 rounded-lg text-sm font-semibold hover:bg-gray-100 transition-colors">
                                             View Details
                                         </button>
@@ -1021,13 +1022,13 @@
                         <c:forEach var="booking" items="${rescheduledBookings}">
                             <c:set var="borderClass" value="border-teal-200 bg-teal-50" />
                             <div class="border-2 rounded-xl p-5 ${borderClass} booking-entry" data-booking-id="${booking.bookingId}" data-booking-date="${booking.bookingDate}" data-booking-time="${booking.bookingTime}" data-teacher-name="${booking.teacherName}" data-teacher-id="${booking.teacherId}" data-schedule-id="${booking.scheduleId}" data-class-type="${booking.className}" data-booking-status="Rescheduled">
-                                <div class="flex items-start justify-between">
+                                <div class="booking-card-row">
                                     <div class="flex-1">
-                                        <div class="flex items-center gap-3 mb-3">
+                                        <div class="booking-card-header">
                                             <h4 class="font-bold text-gray-800 text-lg">${booking.className}</h4>
                                             <span class="px-3 py-1 bg-teal-100 text-teal-800 text-sm font-semibold rounded-full">Rescheduled</span>
                                         </div>
-                                        <div class="grid grid-cols-3 gap-4">
+                                        <div class="booking-meta-grid">
                                             <div class="flex items-center gap-2">
                                                 <svg class="w-5 h-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
@@ -1060,7 +1061,7 @@
                                             <div class="mt-3 text-sm text-teal-800">${booking.cancellationReason}</div>
                                         </c:if>
                                     </div>
-                                    <div class="flex flex-col gap-2 ml-4">
+                                    <div class="booking-card-actions">
                                         <button type="button" onclick="openDetailsModal('${booking.bookingId}')" class="px-4 py-2 border-2 border-gray-300 bg-white text-gray-700 rounded-lg text-sm font-semibold hover:bg-gray-100 transition-colors">
                                             View Details
                                         </button>
@@ -1085,9 +1086,9 @@
                                 </c:otherwise>
                             </c:choose>
                             <div class="border-2 rounded-xl p-5 ${borderClass} booking-entry" data-booking-id="${booking.bookingId}" data-booking-date="${booking.bookingDate}" data-booking-time="${booking.bookingTime}" data-teacher-name="${booking.teacherName}" data-class-type="${booking.className}" data-booking-status="${booking.bookingStatus}" data-attendance-status="${booking.attendanceStatus}" data-needs-reschedule="${booking.needsReschedule}">
-                                <div class="flex items-start justify-between">
+                                <div class="booking-card-row">
                                     <div class="flex-1">
-                                        <div class="flex items-center gap-3 mb-3">
+                                        <div class="booking-card-header">
                                             <h4 class="font-bold text-gray-800 text-lg">${booking.className}</h4>
                                             <c:choose>
                                                 <c:when test="${booking.needsReschedule}">
@@ -1098,7 +1099,7 @@
                                                 </c:otherwise>
                                             </c:choose>
                                         </div>
-                                        <div class="grid grid-cols-3 gap-4">
+                                        <div class="booking-meta-grid">
                                             <div class="flex items-center gap-2">
                                                 <svg class="w-5 h-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
@@ -1128,7 +1129,7 @@
                                             </div>
                                         </div>
                                     </div>
-                                    <div class="flex flex-col gap-2 ml-4">
+                                    <div class="booking-card-actions">
                                         <button type="button" onclick="openDetailsModal('${booking.bookingId}')" class="px-4 py-2 border-2 border-gray-300 text-gray-700 rounded-lg text-sm font-semibold hover:bg-gray-100 transition-colors">
                                             View Details
                                         </button>
@@ -1149,13 +1150,13 @@
                         <c:forEach var="booking" items="${cancelledBookings}">
                             <c:set var="borderClass" value="border-red-200 bg-red-50" />
                             <div class="border-2 rounded-xl p-5 ${borderClass} booking-entry" data-booking-id="${booking.bookingId}" data-booking-date="${booking.bookingDate}" data-booking-time="${booking.bookingTime}" data-teacher-name="${booking.teacherName}" data-teacher-id="${booking.teacherId}" data-schedule-id="${booking.scheduleId}" data-class-type="${booking.className}" data-booking-status="${booking.bookingStatus}">
-                                <div class="flex items-start justify-between">
+                                <div class="booking-card-row">
                                     <div class="flex-1">
-                                        <div class="flex items-center gap-3 mb-3">
+                                        <div class="booking-card-header">
                                             <h4 class="font-bold text-gray-800 text-lg">${booking.className}</h4>
                                             <span class="px-3 py-1 bg-red-100 text-red-700 text-sm font-semibold rounded-full">Cancelled</span>
                                         </div>
-                                        <div class="grid grid-cols-3 gap-4">
+                                        <div class="booking-meta-grid">
                                             <div class="flex items-center gap-2">
                                                 <svg class="w-5 h-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
@@ -1188,7 +1189,7 @@
                                             <div class="mt-3 text-sm text-red-700">Cancellation reason: ${booking.cancellationReason}</div>
                                         </c:if>
                                     </div>
-                                        <div class="flex gap-2 ml-4">
+                                        <div class="booking-card-actions booking-card-actions-inline">
                                                 <button type="button" onclick="openDetailsModal('${booking.bookingId}')" class="px-4 py-2 border-2 border-gray-300 bg-white text-gray-700 rounded-lg text-sm font-semibold hover:bg-gray-100 transition-colors">
                                                     View Details
                                                 </button>
@@ -1203,7 +1204,7 @@
     </div>
     
     <div id="cancelModal" class="hidden fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-        <div class="bg-white rounded-2xl p-8 max-w-md w-full mx-4 shadow-2xl">
+        <div class="bg-white rounded-2xl booking-panel booking-modal-panel max-w-md w-full mx-4 shadow-2xl">
             <h3 class="text-2xl font-bold text-gray-800 mb-2">Cancel Booking</h3>
             <p id="cancelSummary" class="text-sm text-gray-600 mb-4">Are you sure you want to cancel this class?</p>
             <form method="POST" action="<%= request.getContextPath() %>/student/cancel-booking">
@@ -1217,7 +1218,7 @@
                     <textarea name="reason" rows="4" placeholder="Please provide a reason for cancelling this booking..." 
                               class="w-full px-4 py-3 border-2 border-gray-300 rounded-xl focus:outline-none focus:border-red-500 transition-colors resize-none" required></textarea>
                 </div>
-                <div class="flex gap-3">
+                <div class="booking-modal-actions flex gap-3">
                     <button type="button" onclick="closeCancelModal()" class="flex-1 px-4 py-3 border-2 border-gray-300 text-gray-700 rounded-xl font-semibold hover:bg-gray-50 transition-colors">
                         Keep Booking
                     </button>
@@ -1231,7 +1232,7 @@
 
     <!-- Details Modal -->
     <div id="detailsModal" class="hidden fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-        <div class="bg-white rounded-2xl p-8 max-w-lg w-full mx-4 shadow-2xl">
+        <div class="bg-white rounded-2xl booking-panel booking-modal-panel max-w-lg w-full mx-4 shadow-2xl">
             <div class="flex items-start justify-between mb-4">
                 <h3 class="text-2xl font-bold text-gray-800">Class Details</h3>
                 <button onclick="closeDetailsModal()" class="text-gray-500 hover:text-gray-700">✕</button>
@@ -1330,7 +1331,7 @@
     
     <!-- Confirm Booking Modal -->
     <div id="confirmModal" class="hidden fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-        <div class="bg-white rounded-2xl p-8 max-w-md w-full mx-4 shadow-2xl">
+        <div class="bg-white rounded-2xl booking-panel booking-modal-panel max-w-md w-full mx-4 shadow-2xl">
             <h3 class="text-2xl font-bold text-gray-800 mb-2">Confirm Booking</h3>
             <div class="space-y-3 text-sm text-gray-700 mb-6">
                 <div>
@@ -1356,7 +1357,7 @@
                 <input type="hidden" name="bookingTime" id="confirm_bookingTime">
                 <input type="hidden" name="teacherId" id="confirm_teacherId">
                 <input type="hidden" name="rescheduleBookingId" id="confirm_rescheduleBookingId">
-                <div class="flex gap-3">
+                <div class="booking-modal-actions flex gap-3">
                     <button type="button" onclick="closeConfirmModal()" class="flex-1 px-4 py-3 border-2 border-gray-300 text-gray-700 rounded-xl font-semibold hover:bg-gray-50 transition-colors">Cancel</button>
                     <button type="submit" class="flex-1 px-4 py-3 bg-gradient-to-r from-teal-400 to-teal-600 text-white rounded-xl font-semibold">Confirm Booking</button>
                 </div>
