@@ -20,9 +20,9 @@
             <jsp:param name="notifPrefix" value="dashNotif"/>
         </jsp:include>
 
-        <div class="page-content">
-            <h1 class="page-title">Assalamu'alaikum, ${studentName}</h1>
-            <p class="page-subtitle">Here is an overview of your Quran learning progress.<c:if test="${not empty packageName and packageName ne '-'}"> Package: <strong>${packageName}</strong></c:if></p>
+        <div class="page-content student-dashboard">
+            <h1 class="page-title dashboard-greeting">Assalamu'alaikum, ${studentName}</h1>
+            <p class="page-subtitle dashboard-intro">Here is an overview of your Quran learning progress.<c:if test="${not empty packageName and packageName ne '-'}"> Package: <strong>${packageName}</strong></c:if></p>
 
             <div class="stats-grid-4">
                 <div class="stat-card">
@@ -69,6 +69,7 @@
                         </div>
 
                         <c:if test="${nextSession != null}">
+                            <div class="session-details-grid">
                             <div class="session-detail">
                                 <i class="fas fa-calendar"></i>
                                 <div>
@@ -97,7 +98,8 @@
                                     <div class="session-detail-value">${nextSession.sessionType}</div>
                                 </div>
                             </div>
-                            <a href="<%= request.getContextPath() %>/student/sessions" class="btn-primary btn-block" style="margin-top:20px;">Join Session</a>
+                            </div>
+                            <a href="<%= request.getContextPath() %>/student/sessions" class="btn-primary btn-block dashboard-join-btn">Join Session</a>
                         </c:if>
                         <c:if test="${nextSession == null}">
                             <div class="panel-empty">
@@ -106,21 +108,21 @@
                         </c:if>
                     </div>
 
-                    <div class="panel" style="margin-bottom:0;">
+                    <div class="panel dashboard-panel-last">
                         <div class="panel-title">Learning Progress</div>
-                        <div class="panel-subtitle" style="margin-bottom:16px;">Session completion overview</div>
+                        <div class="panel-subtitle dashboard-progress-subtitle">Session completion overview</div>
                         <c:set var="progressPercent" value="0" />
                         <c:if test="${totalSessions > 0}">
                             <c:set var="progressPercent" value="${(completedSessions * 100.0) / totalSessions}" />
                         </c:if>
-                        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px;">
-                            <span style="font-size:13px;font-weight:600;color:#64748b;">Session Completion</span>
-                            <span style="font-size:13px;font-weight:700;color:var(--student-green);">${completedSessions}/${totalSessions}</span>
+                        <div class="progress-meta">
+                            <span class="progress-meta-label">Session Completion</span>
+                            <span class="progress-meta-value">${completedSessions}/${totalSessions}</span>
                         </div>
                         <div class="progress-track">
                             <div class="progress-fill" style="width:${progressPercent}%;"></div>
                         </div>
-                        <p style="font-size:13px;color:#64748b;margin-top:12px;">You've completed <fmt:formatNumber value="${progressPercent}" maxFractionDigits="2" minFractionDigits="0"/>% of your sessions. Keep up the great work!</p>
+                        <p class="progress-caption">You've completed <fmt:formatNumber value="${progressPercent}" maxFractionDigits="2" minFractionDigits="0"/>% of your sessions. Keep up the great work!</p>
                     </div>
                 </div>
 
@@ -141,7 +143,7 @@
                             <div class="empty-state">No announcements yet</div>
                         </c:if>
                     </div>
-                    <a href="<%= request.getContextPath() %>/student/announcements" class="btn-outline" style="margin-top:16px;">View All Announcements</a>
+                    <a href="<%= request.getContextPath() %>/student/announcements" class="btn-outline dashboard-announcements-btn">View All Announcements</a>
                 </div>
             </div>
         </div>

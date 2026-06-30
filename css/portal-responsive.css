@@ -188,3 +188,70 @@
     .btn-primary,
     .btn-secondary { font-size: 12px; padding: 9px 16px; }
 }
+
+/* ── Student dashboard: iPad & mobile ── */
+@media (max-width: 1024px) {
+    .student-dashboard .panel-announcements {
+        min-height: 0;
+    }
+    .student-dashboard .content-grid-2-1 {
+        gap: 20px;
+    }
+}
+
+@media (max-width: 768px) {
+    .student-dashboard .stats-grid-4 {
+        gap: 16px;
+    }
+    .student-dashboard .stat-card {
+        align-items: flex-start;
+    }
+    .student-dashboard .session-details-grid {
+        grid-template-columns: 1fr;
+        gap: 0;
+    }
+    .student-dashboard .session-detail {
+        padding: 10px 0;
+    }
+    .student-dashboard .panel-head {
+        align-items: stretch;
+    }
+    .student-dashboard .panel-head .status-pill {
+        align-self: flex-start;
+    }
+    .student-dashboard .announcement-item p {
+        word-break: break-word;
+    }
+}
+
+@media (max-width: 480px) {
+    .student-dashboard .stats-grid-4 {
+        gap: 12px;
+    }
+    .student-dashboard .stat-icon {
+        width: 48px;
+        height: 48px;
+        font-size: 20px;
+        border-radius: 14px;
+    }
+    .student-dashboard .stat-label {
+        font-size: 12px;
+    }
+    .student-dashboard .dashboard-greeting {
+        font-size: 20px !important;
+        line-height: 1.25;
+    }
+    .student-dashboard .dashboard-intro {
+        margin-bottom: 20px !important;
+    }
+}
+
+@supports (padding: max(0px)) {
+    @media (max-width: 768px) {
+        .student-dashboard.page-content {
+            padding-left: max(16px, env(safe-area-inset-left));
+            padding-right: max(16px, env(safe-area-inset-right));
+            padding-bottom: max(20px, env(safe-area-inset-bottom));
+        }
+    }
+}

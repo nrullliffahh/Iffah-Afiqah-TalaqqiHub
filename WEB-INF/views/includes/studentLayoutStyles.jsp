@@ -71,7 +71,7 @@
     .panel-subtitle { font-size: 12px; color: #94A3B8; margin-bottom: 0; }
     .panel-head { display: flex; justify-content: space-between; align-items: flex-start; gap: 16px; margin-bottom: 24px; flex-wrap: wrap; }
     .trends-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 24px; margin-bottom: 40px; }
-    .content-grid-2-1 { display: grid; grid-template-columns: 1fr 380px; gap: 24px; align-items: stretch; }
+    .content-grid-2-1 { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 380px); gap: 24px; align-items: start; }
     .dashboard-left { display: flex; flex-direction: column; gap: 24px; }
     .panel-announcements { display: flex; flex-direction: column; margin-bottom: 0; min-height: 100%; }
     .announcements-list { flex: 1; }
@@ -117,6 +117,23 @@
     .announcement-item .date { font-size: 12px; color: #94a3b8; margin-bottom: 4px; }
     .announcement-item p { font-size: 13px; color: var(--student-text-muted); line-height: 1.5; }
     .badge-count { min-width: 24px; height: 24px; border-radius: 999px; background: var(--student-gradient); color: white; font-size: 11px; font-weight: 700; display: inline-flex; align-items: center; justify-content: center; padding: 0 6px; }
+
+    /* Student dashboard layout helpers */
+    .student-dashboard .dashboard-greeting { word-break: break-word; }
+    .student-dashboard .dashboard-intro { word-break: break-word; }
+    .student-dashboard .session-details-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 0 20px; }
+    .student-dashboard .session-details-grid .session-detail { min-width: 0; }
+    .student-dashboard .session-details-grid .session-detail-value { word-break: break-word; }
+    .student-dashboard .dashboard-join-btn { margin-top: 20px; min-height: 44px; }
+    .student-dashboard .dashboard-panel-last { margin-bottom: 0; }
+    .student-dashboard .dashboard-progress-subtitle { margin-bottom: 16px; }
+    .student-dashboard .progress-meta { display: flex; justify-content: space-between; align-items: center; gap: 12px; margin-bottom: 4px; flex-wrap: wrap; }
+    .student-dashboard .progress-meta-label { font-size: 13px; font-weight: 600; color: #64748b; }
+    .student-dashboard .progress-meta-value { font-size: 13px; font-weight: 700; color: var(--student-green); }
+    .student-dashboard .progress-caption { font-size: 13px; color: #64748b; margin-top: 12px; line-height: 1.5; }
+    .student-dashboard .dashboard-announcements-btn { margin-top: 16px; min-height: 44px; }
+    .student-dashboard .stat-card > div:last-child { min-width: 0; flex: 1; }
+    .student-dashboard .stat-value-sm { font-size: clamp(18px, 4vw, 26px); line-height: 1.2; word-break: break-word; }
 </style>
 <link rel="stylesheet" href="<%= request.getContextPath() %>/css/portal-responsive.css">
 <script src="<%= request.getContextPath() %>/js/portal-responsive.js" defer></script>
