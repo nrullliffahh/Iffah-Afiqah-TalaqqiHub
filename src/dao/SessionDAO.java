@@ -2,13 +2,17 @@ package dao;
 
 import model.Session;
 import model.ClassSchedule;
+import model.StudentBooking;
+import util.BookingPartitionUtil;
 import util.DBConnection;
 import java.sql.Connection;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.time.LocalDate;
+import java.time.LocalTime;
 import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -58,95 +62,55 @@ public class SessionDAO {
 
     
     public Session getNextUpcomingSession(String studentId) {
-        Session session = null;
-        Connection conn = null;
-        PreparedStatement pstmt = null;
-        ResultSet rs = null;
-        
-        try {
-            conn = DBConnection.getConnection();
-            if (conn == null) {
-                System.err.println("getNextUpcomingSession: DB connection is null. Cannot query next session.");
-                return null;
-            }
-            // Use classbooking/classschedule as the DB contains those tables
-            String sql = "SELECT cb.bookingId AS sessionId, cb.studentId, cs.teacherId, t.teacherName, " +
-                        "cb.bookingDate AS sessionDate, cb.bookingTime AS sessionTime, cs.className AS sessionType, cb.bookingStatus AS sessionStatus " +
-                        "FROM classbooking cb " +
-                        "LEFT JOIN classschedule cs ON cb.scheduleId = cs.scheduleId " +
-                        "LEFT JOIN teacher t ON cs.teacherId = t.teacherId " +
-                        "WHERE cb.studentId = ? AND cb.bookingDate >= CURDATE() " +
-                        "ORDER BY cb.bookingDate ASC, cb.bookingTime ASC LIMIT 1";
-            pstmt = conn.prepareStatement(sql);
-            pstmt.setString(1, studentId);
-            
-            rs = pstmt.executeQuery();
-            
-            if (rs.next()) {
-                session = new Session();
-                session.setSessionId(rs.getString("sessionId"));
-                session.setStudentId(rs.getString("studentId"));
-                session.setTeacherId(rs.getString("teacherId"));
-                session.setTeacherName(rs.getString("teacherName"));
-                session.setSessionDate(rs.getString("sessionDate"));
-                session.setSessionTime(rs.getString("sessionTime"));
-                session.setSessionType(rs.getString("sessionType"));
-                session.setStatus(rs.getString("sessionStatus"));
-            }
-            
-        } catch (SQLException e) {
-            System.err.println("Error getting next session: " + e.getMessage());
-            e.printStackTrace();
-        } finally {
-            try {
-                if (rs != null) rs.close();
-                if (pstmt != null) pstmt.close();
-                if (conn != null) conn.close();
-            } catch (SQLException e) {
-                e.printStackTrace();
-            }
+        List<StudentBooking> active = loadUpcomingAndRescheduledThisMonth(studentId);
+        if (active.isEmpty()) {
+            return null;
         }
-        
-        return session;
+        return toDashboardSession(active.get(0));
     }
     
     public int getUpcomingSessionCount(String studentId) {
-        int count = 0;
-        Connection conn = null;
-        PreparedStatement pstmt = null;
-        ResultSet rs = null;
-        
-        try {
-            conn = DBConnection.getConnection();
-            if (conn == null) {
-                System.err.println("getUpcomingSessionCount: DB connection is null. Returning count=0.");
-                return 0;
-            }
-            String sql = "SELECT COUNT(*) as total FROM classbooking " +
-                        "WHERE studentId = ? AND bookingDate >= CURDATE()";
-            pstmt = conn.prepareStatement(sql);
-            pstmt.setString(1, studentId);
-            
-            rs = pstmt.executeQuery();
-            
-            if (rs.next()) {
-                count = rs.getInt("total");
-            }
-            
-        } catch (SQLException e) {
-            System.err.println("Error counting upcoming sessions: " + e.getMessage());
-            e.printStackTrace();
-        } finally {
-            try {
-                if (rs != null) rs.close();
-                if (pstmt != null) pstmt.close();
-                if (conn != null) conn.close();
-            } catch (SQLException e) {
-                e.printStackTrace();
-            }
+        return loadUpcomingAndRescheduledThisMonth(studentId).size();
+    }
+
+    /** Same partitions as Class Booking: Upcoming + Rescheduled for the current month. */
+    private List<StudentBooking> loadUpcomingAndRescheduledThisMonth(String studentId) {
+        List<StudentBooking> empty = new ArrayList<>();
+        if (studentId == null || studentId.trim().isEmpty()) {
+            return empty;
         }
-        
-        return count;
+        try {
+            StudentBookingDAO bookingDAO = new StudentBookingDAO();
+            List<StudentBooking> bookings = bookingDAO.getMyBookingsByMonth(studentId.trim());
+            BookingPartitionUtil.Partition partitioned = BookingPartitionUtil.partition(bookings);
+            List<StudentBooking> active = new ArrayList<>();
+            active.addAll(partitioned.upcoming);
+            active.addAll(partitioned.rescheduled);
+            active.sort(Comparator
+                .comparing(StudentBooking::getBookingDate, Comparator.nullsLast(Comparator.naturalOrder()))
+                .thenComparing(b -> b.getBookingTime() != null ? b.getBookingTime() : LocalTime.MIN));
+            return active;
+        } catch (Exception e) {
+            System.err.println("loadUpcomingAndRescheduledThisMonth: " + e.getMessage());
+            return empty;
+        }
+    }
+
+    private static Session toDashboardSession(StudentBooking booking) {
+        Session session = new Session();
+        session.setSessionId(booking.getBookingId());
+        session.setStudentId(booking.getStudentId());
+        session.setTeacherId(booking.getTeacherId());
+        session.setTeacherName(booking.getTeacherName());
+        if (booking.getBookingDate() != null) {
+            session.setSessionDate(booking.getBookingDate().toString());
+        }
+        if (booking.getBookingTime() != null) {
+            session.setSessionTime(booking.getBookingTime().toString());
+        }
+        session.setSessionType(booking.getClassName());
+        session.setStatus(booking.getBookingStatus());
+        return session;
     }
     
     public int getCompletedSessionCount(String studentId) {
