@@ -1158,11 +1158,17 @@ public class StudentBookingDAO {
                 + "AND a.attendanceDate = cb.bookingDate "
                 + "AND a.attendanceStatus IN ('Present', 'Late')"
                 + ")";
+            String sessionEndedFilter =
+                "(cb.bookingDate < CURDATE() OR ("
+                + "cb.bookingDate = CURDATE() AND ADDTIME("
+                + "COALESCE(cb.bookingTime, cs.startTime), "
+                + "SEC_TO_TIME(COALESCE(cs.duration, 15) * 60)) <= CURTIME()))";
             String bookingSql =
                 "UPDATE classbooking cb "
                 + "INNER JOIN classschedule cs ON cs.scheduleId = cb.scheduleId "
                 + "SET cb.bookingStatus = 'Completed' "
                 + "WHERE cb.bookingStatus NOT IN ('Cancelled', 'Rescheduled', 'Completed') "
+                + "AND " + sessionEndedFilter + " "
                 + "AND " + attendedExists;
             if (studentId != null && !studentId.isEmpty()) {
                 bookingSql += " AND cb.studentId = ?";
@@ -1180,6 +1186,7 @@ public class StudentBookingDAO {
                 + "INNER JOIN classbooking cb ON cb.scheduleId = cs.scheduleId "
                 + "SET cs.classStatus = 'Completed' "
                 + "WHERE cb.bookingStatus = 'Completed' "
+                + "AND " + sessionEndedFilter + " "
                 + "AND " + attendedExists;
             if (studentId != null && !studentId.isEmpty()) {
                 scheduleSql += " AND cb.studentId = ?";
@@ -1351,7 +1358,7 @@ public class StudentBookingDAO {
             + "AND a.scheduleId = b.scheduleId "
             + "AND a.attendanceDate = b.bookingDate "
             + "ORDER BY "
-            + "CASE a.attendanceStatus WHEN 'Absent' THEN 0 WHEN 'Late' THEN 1 WHEN 'Present' THEN 2 ELSE 3 END, "
+            + "CASE a.attendanceStatus WHEN 'Present' THEN 0 WHEN 'Late' THEN 1 WHEN 'Absent' THEN 2 ELSE 3 END, "
             + "a.attendanceId DESC LIMIT 1) AS attendanceStatus";
     }
 
@@ -1382,6 +1389,9 @@ public class StudentBookingDAO {
         try {
             booking.setAttendanceStatus(rs.getString("attendanceStatus"));
         } catch (SQLException ignored) {
+            booking.setAttendanceStatus(null);
+        }
+        if (BookingStatus.isActive(booking.getBookingStatus()) && booking.isFutureSession()) {
             booking.setAttendanceStatus(null);
         }
     }

@@ -1500,9 +1500,10 @@
                 const sts = (el.dataset.bookingStatus || 'Upcoming');
                 const att = (el.dataset.attendanceStatus || '');
                 const needsReschedule = el.dataset.needsReschedule === 'true';
+                const isActiveBooking = /^(pending|upcoming|confirmed|approved)$/i.test(sts.trim());
                 let displaySts = sts;
                 const card = el.closest('.booking-entry');
-                if (needsReschedule || att === 'Absent') {
+                if (!isActiveBooking && (needsReschedule || att === 'Absent')) {
                     displaySts = 'Not Completed';
                 } else if (att === 'Present' || att === 'Late' || sts === 'Completed'
                         || (card && card.classList.contains('bg-green-50'))) {
@@ -1511,6 +1512,8 @@
                     displaySts = 'Rescheduled';
                 } else if (sts === 'Rescheduled') {
                     displaySts = 'Rescheduled';
+                } else if (isActiveBooking) {
+                    displaySts = 'Upcoming';
                 }
                 statusEl.textContent = displaySts;
                 statusEl.className = 'inline-block px-3 py-1 rounded-full text-xs font-semibold';
@@ -1520,10 +1523,8 @@
                     statusEl.classList.add('bg-amber-100','text-amber-800');
                 } else if (displaySts === 'Completed') {
                     statusEl.classList.add('bg-green-100','text-green-700');
-                } else if (sts === 'Upcoming' || sts === 'Confirmed') {
+                } else if (displaySts === 'Upcoming' || sts === 'Upcoming' || sts === 'Confirmed' || sts === 'Pending') {
                     statusEl.classList.add('bg-blue-100','text-blue-700');
-                } else if (sts === 'Completed') {
-                    statusEl.classList.add('bg-green-100','text-green-700');
                 } else if (sts === 'Cancelled') {
                     statusEl.classList.add('bg-red-100','text-red-700');
                 } else {

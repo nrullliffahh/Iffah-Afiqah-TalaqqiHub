@@ -37,23 +37,19 @@ public final class BookingPartitionUtil {
                 }
             } else if (b.isRescheduledReplacement()) {
                 p.rescheduled.add(b);
-            } else if (BookingStatus.isActive(status) && b.isFutureSession() && !b.isAttended()) {
+            } else if (BookingStatus.isActive(status) && !b.isAttended() && !b.isNeedsReschedule()) {
                 p.upcoming.add(b);
             } else if (b.isAttended()) {
                 p.completed.add(b);
-            } else if (b.isNeedsReschedule()) {
+            } else if (b.isNeedsReschedule() || b.isAbsent()) {
                 p.completed.add(b);
             } else if ("Completed".equalsIgnoreCase(status)) {
-                if (b.isFutureSession()) {
-                    p.upcoming.add(b);
-                } else {
-                    p.completed.add(b);
-                }
+                p.completed.add(b);
             } else {
                 p.upcoming.add(b);
             }
         }
-        p.completed.sort(Comparator.comparing(StudentBooking::isNeedsReschedule).reversed());
+        p.completed.sort(Comparator.comparing(StudentBooking::isAbsent).reversed());
         return p;
     }
 

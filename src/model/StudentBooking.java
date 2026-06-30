@@ -163,7 +163,7 @@ public class StudentBooking {
         return "Present".equalsIgnoreCase(att) || "Late".equalsIgnoreCase(att);
     }
 
-    /** Student was marked absent, or past session ended without attendance. */
+    /** Only explicit Absent on a non-active booking is "Not Completed". */
     public boolean isNeedsReschedule() {
         String status = bookingStatus != null ? bookingStatus.trim() : "";
         if ("Cancelled".equalsIgnoreCase(status) || "Rescheduled".equalsIgnoreCase(status)) {
@@ -172,32 +172,14 @@ public class StudentBooking {
         if (isRescheduledReplacement()) {
             return false;
         }
-        // Future active bookings are always upcoming — never "Not Completed" on book.
-        if (isFutureSession() && BookingStatus.isActive(status)) {
-            return false;
-        }
-        if (isAbsent()) {
-            return true;
-        }
-        if (isFutureSession()) {
-            return false;
-        }
-        if (!isSessionEnded()) {
-            return false;
-        }
-        if (attendanceStatus != null && !attendanceStatus.trim().isEmpty()) {
-            String att = attendanceStatus.trim();
-            if ("Present".equalsIgnoreCase(att) || "Late".equalsIgnoreCase(att)) {
+        // Pending / Upcoming / Confirmed: future slots are always Upcoming.
+        if (BookingStatus.isActive(status)) {
+            if (isFutureSession()) {
                 return false;
             }
-            if ("Absent".equalsIgnoreCase(att)) {
-                return true;
-            }
+            return isAbsent();
         }
-        if ("Completed".equalsIgnoreCase(status)) {
-            return false;
-        }
-        return BookingStatus.isActive(status);
+        return isAbsent();
     }
 
     /** Session start is still in the future (active upcoming slot). */
