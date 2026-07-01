@@ -433,13 +433,84 @@ body.booking-details-open {
     background: #dc2626;
 }
 
-#cancelModal .booking-cancel-reason {
-    box-sizing: border-box;
-    min-height: 112px;
+#cancelModal .booking-cancel-modal-panel {
+    max-width: 22rem;
+    padding: 1rem 1.125rem;
+    max-height: min(78vh, 520px);
+}
+
+#cancelModal .booking-cancel-modal-header {
+    margin-bottom: 0.625rem;
+}
+
+#cancelModal .booking-cancel-summary {
+    margin: 0 0 0.75rem;
+    font-size: 0.8125rem;
+    line-height: 1.4;
+}
+
+#cancelModal .booking-cancel-modal-body {
+    gap: 0.625rem;
+    margin-bottom: 0.75rem;
+}
+
+#cancelModal .booking-cancel-datetime-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 0.625rem;
+}
+
+#cancelModal .booking-cancel-form-section {
+    margin-bottom: 0.875rem;
 }
 
 #cancelModal .booking-cancel-notice {
-    margin: 0;
+    margin: 0 0 0.625rem;
+    padding: 0.5rem 0.625rem;
+    line-height: 1.35;
+}
+
+#cancelModal .booking-cancel-label {
+    margin: 0 0 0.375rem;
+    font-size: 0.8125rem;
+}
+
+#cancelModal .booking-cancel-reason {
+    box-sizing: border-box;
+    min-height: 4.5rem;
+    padding: 0.5rem 0.75rem;
+    font-size: 0.8125rem;
+    line-height: 1.4;
+}
+
+#cancelModal .booking-cancel-modal-footer {
+    gap: 0.5rem;
+}
+
+#cancelModal .booking-cancel-modal-btn-secondary,
+#cancelModal .booking-cancel-modal-btn-danger {
+    min-height: 2.5rem;
+    padding: 0.5rem 0.875rem;
+    border-radius: 0.625rem;
+    font-size: 0.875rem;
+    font-weight: 600;
+}
+
+#cancelModal .booking-cancel-modal-btn-secondary {
+    border: 2px solid #d1d5db;
+    background: #ffffff;
+    color: #374151;
+}
+
+#cancelModal .booking-cancel-modal-btn-secondary:hover {
+    background: #f9fafb;
+}
+
+@media (min-width: 640px) {
+    #cancelModal .booking-cancel-modal-panel {
+        max-width: 24rem;
+        padding: 1.125rem 1.25rem;
+    }
 }
 
 #detailsModal .booking-details-modal-btn.hidden {
@@ -454,6 +525,11 @@ body.booking-details-open {
         padding: 0;
     }
 
+    #cancelModal.booking-cancel-modal-overlay:not(.hidden) {
+        align-items: center;
+        padding: 12px;
+    }
+
     #detailsModal .booking-details-modal-panel,
     #confirmModal .booking-details-modal-panel,
     #cancelModal .booking-details-modal-panel {
@@ -462,12 +538,26 @@ body.booking-details-open {
         max-height: min(88vh, 100%);
         margin: 0;
     }
+
+    #cancelModal .booking-cancel-modal-panel {
+        max-width: min(22rem, calc(100vw - 24px));
+        border-radius: 14px;
+        max-height: min(78vh, 520px);
+        margin: auto;
+    }
+
+    #cancelModal .booking-cancel-datetime-grid {
+        grid-template-columns: 1fr;
+    }
 }
 
 @media (min-width: 769px) and (max-width: 1024px) {
     #detailsModal .booking-details-modal-panel,
-    #confirmModal .booking-details-modal-panel,
-    #cancelModal .booking-details-modal-panel {
+    #confirmModal .booking-details-modal-panel {
         max-width: min(32rem, calc(100vw - 48px));
+    }
+
+    #cancelModal .booking-cancel-modal-panel {
+        max-width: min(24rem, calc(100vw - 48px));
     }
 }
