@@ -2,6 +2,29 @@
 <%@ taglib uri="http://java.sun.com/jsp/jstl/core" prefix="c" %>
 <%@ taglib uri="http://java.sun.com/jsp/jstl/fmt" prefix="fmt" %>
 <%@ taglib uri="http://java.sun.com/jsp/jstl/functions" prefix="fn" %>
+<%!
+    private static String jsAttr(Object value) {
+        if (value == null) {
+            return "";
+        }
+        String s = String.valueOf(value);
+        StringBuilder sb = new StringBuilder(s.length() + 16);
+        for (int i = 0; i < s.length(); i++) {
+            char c = s.charAt(i);
+            switch (c) {
+                case '\\': sb.append("\\\\"); break;
+                case '\'': sb.append("\\'"); break;
+                case '"': sb.append("\\\""); break;
+                case '\n': sb.append("\\n"); break;
+                case '\r': break;
+                case '\t': sb.append("\\t"); break;
+                case '<': sb.append("\\u003c"); break;
+                default: sb.append(c);
+            }
+        }
+        return sb.toString();
+    }
+%>
 <%
     if (session == null || session.getAttribute("teacherId") == null) {
         response.sendRedirect(request.getContextPath() + "/teacher/login");
@@ -328,15 +351,17 @@
                                                             class="px-6 py-2 bg-blue-600 text-white rounded-lg font-semibold hover:bg-blue-700 transition">
                                                         View Details
                                                     </button>
-                                                    <button onclick="showCancelClass(this)"
-                                                            data-student-name="${classItem.studentName}"
+                                                    <button type="button"
+                                                            onclick="showCancelClass(this)"
+                                                            data-student-name="<c:out value='${classItem.studentName}' />"
                                                             data-schedule-date="<fmt:formatDate value='${classItem.scheduleDate}' pattern='EEEE, MMMM d, yyyy' />"
                                                             data-schedule-iso="<fmt:formatDate value='${classItem.scheduleDate}' pattern='yyyy-MM-dd' />"
                                                             data-start-time="<fmt:formatDate value='${classItem.startTime}' pattern='HH:mm' />"
                                                             data-end-time="<fmt:formatDate value='${classItem.endTime}' pattern='HH:mm' />"
                                                             data-schedule-id="${classItem.scheduleId}"
                                                             data-booking-id="${classItem.bookingId}"
-                                                            class="cancel-class-btn px-6 py-2 bg-red-600 text-white rounded-lg font-semibold hover:bg-red-700 transition">
+                                                            <c:if test="${not classItem.canCancel}">disabled title="Classes cannot be cancelled less than 12 hours before the start time."</c:if>
+                                                            class="cancel-class-btn px-6 py-2 bg-red-600 text-white rounded-lg font-semibold hover:bg-red-700 transition<c:if test='${not classItem.canCancel}'> opacity-50 cursor-not-allowed</c:if>">
                                                         Cancel Class
                                                     </button>
                                                 </div>
@@ -882,12 +907,12 @@
         console.log('Loading completed classes:');
         <c:forEach items="${completedClasses}" var="classItem" varStatus="status">
         completedClassesData.push({
-            scheduleId: '${classItem.scheduleId}',
-            studentName: '${classItem.studentName}',
-            className: '${classItem.className}',
-            scheduleDate: '${classItem.scheduleDate}',
-            startTime: '${fn:substring(classItem.startTime, 0, 5)}',
-            endTime: '${fn:substring(classItem.endTime, 0, 5)}',
+            scheduleId: '<%= jsAttr(pageContext.getAttribute("classItem") instanceof java.util.Map ? ((java.util.Map) pageContext.getAttribute("classItem")).get("scheduleId") : "") %>',
+            studentName: '<%= jsAttr(pageContext.getAttribute("classItem") instanceof java.util.Map ? ((java.util.Map) pageContext.getAttribute("classItem")).get("studentName") : "") %>',
+            className: '<%= jsAttr(pageContext.getAttribute("classItem") instanceof java.util.Map ? ((java.util.Map) pageContext.getAttribute("classItem")).get("className") : "") %>',
+            scheduleDate: '<%= jsAttr(pageContext.getAttribute("classItem") instanceof java.util.Map ? ((java.util.Map) pageContext.getAttribute("classItem")).get("scheduleDate") : "") %>',
+            startTime: '<%= jsAttr(pageContext.getAttribute("classItem") instanceof java.util.Map && ((java.util.Map) pageContext.getAttribute("classItem")).get("startTime") != null ? String.valueOf(((java.util.Map) pageContext.getAttribute("classItem")).get("startTime")).substring(0, Math.min(5, String.valueOf(((java.util.Map) pageContext.getAttribute("classItem")).get("startTime")).length())) : "") %>',
+            endTime: '<%= jsAttr(pageContext.getAttribute("classItem") instanceof java.util.Map && ((java.util.Map) pageContext.getAttribute("classItem")).get("endTime") != null ? String.valueOf(((java.util.Map) pageContext.getAttribute("classItem")).get("endTime")).substring(0, Math.min(5, String.valueOf(((java.util.Map) pageContext.getAttribute("classItem")).get("endTime")).length())) : "") %>',
             needsReschedule: ${classItem.needsReschedule}
         });
         </c:forEach>
@@ -897,13 +922,13 @@
         console.log('Loading rescheduled classes:');
         <c:forEach items="${rescheduledClasses}" var="classItem" varStatus="status">
         rescheduledClassesData.push({
-            scheduleId: '${classItem.scheduleId}',
-            studentName: '${classItem.studentName}',
-            className: '${classItem.className}',
-            scheduleDate: '${classItem.scheduleDate}',
-            startTime: '${fn:substring(classItem.startTime, 0, 5)}',
-            endTime: '${fn:substring(classItem.endTime, 0, 5)}',
-            cancellationReason: '${classItem.cancellationReason}'
+            scheduleId: '<%= jsAttr(pageContext.getAttribute("classItem") instanceof java.util.Map ? ((java.util.Map) pageContext.getAttribute("classItem")).get("scheduleId") : "") %>',
+            studentName: '<%= jsAttr(pageContext.getAttribute("classItem") instanceof java.util.Map ? ((java.util.Map) pageContext.getAttribute("classItem")).get("studentName") : "") %>',
+            className: '<%= jsAttr(pageContext.getAttribute("classItem") instanceof java.util.Map ? ((java.util.Map) pageContext.getAttribute("classItem")).get("className") : "") %>',
+            scheduleDate: '<%= jsAttr(pageContext.getAttribute("classItem") instanceof java.util.Map ? ((java.util.Map) pageContext.getAttribute("classItem")).get("scheduleDate") : "") %>',
+            startTime: '<%= jsAttr(pageContext.getAttribute("classItem") instanceof java.util.Map && ((java.util.Map) pageContext.getAttribute("classItem")).get("startTime") != null ? String.valueOf(((java.util.Map) pageContext.getAttribute("classItem")).get("startTime")).substring(0, Math.min(5, String.valueOf(((java.util.Map) pageContext.getAttribute("classItem")).get("startTime")).length())) : "") %>',
+            endTime: '<%= jsAttr(pageContext.getAttribute("classItem") instanceof java.util.Map && ((java.util.Map) pageContext.getAttribute("classItem")).get("endTime") != null ? String.valueOf(((java.util.Map) pageContext.getAttribute("classItem")).get("endTime")).substring(0, Math.min(5, String.valueOf(((java.util.Map) pageContext.getAttribute("classItem")).get("endTime")).length())) : "") %>',
+            cancellationReason: '<%= jsAttr(pageContext.getAttribute("classItem") instanceof java.util.Map ? ((java.util.Map) pageContext.getAttribute("classItem")).get("cancellationReason") : "") %>'
         });
         </c:forEach>
         </c:if>
@@ -912,15 +937,14 @@
         console.log('Loading cancelled classes:');
         <c:forEach items="${cancelledClasses}" var="classItem" varStatus="status">
         cancelledClassesData.push({
-            scheduleId: '${classItem.scheduleId}',
-            studentName: '${classItem.studentName}',
-            className: '${classItem.className}',
-            scheduleDate: '${classItem.scheduleDate}',
-            startTime: '${fn:substring(classItem.startTime, 0, 5)}',
-            endTime: '${fn:substring(classItem.endTime, 0, 5)}',
-            cancellationReason: '${classItem.cancellationReason}'
+            scheduleId: '<%= jsAttr(pageContext.getAttribute("classItem") instanceof java.util.Map ? ((java.util.Map) pageContext.getAttribute("classItem")).get("scheduleId") : "") %>',
+            studentName: '<%= jsAttr(pageContext.getAttribute("classItem") instanceof java.util.Map ? ((java.util.Map) pageContext.getAttribute("classItem")).get("studentName") : "") %>',
+            className: '<%= jsAttr(pageContext.getAttribute("classItem") instanceof java.util.Map ? ((java.util.Map) pageContext.getAttribute("classItem")).get("className") : "") %>',
+            scheduleDate: '<%= jsAttr(pageContext.getAttribute("classItem") instanceof java.util.Map ? ((java.util.Map) pageContext.getAttribute("classItem")).get("scheduleDate") : "") %>',
+            startTime: '<%= jsAttr(pageContext.getAttribute("classItem") instanceof java.util.Map && ((java.util.Map) pageContext.getAttribute("classItem")).get("startTime") != null ? String.valueOf(((java.util.Map) pageContext.getAttribute("classItem")).get("startTime")).substring(0, Math.min(5, String.valueOf(((java.util.Map) pageContext.getAttribute("classItem")).get("startTime")).length())) : "") %>',
+            endTime: '<%= jsAttr(pageContext.getAttribute("classItem") instanceof java.util.Map && ((java.util.Map) pageContext.getAttribute("classItem")).get("endTime") != null ? String.valueOf(((java.util.Map) pageContext.getAttribute("classItem")).get("endTime")).substring(0, Math.min(5, String.valueOf(((java.util.Map) pageContext.getAttribute("classItem")).get("endTime")).length())) : "") %>',
+            cancellationReason: '<%= jsAttr(pageContext.getAttribute("classItem") instanceof java.util.Map ? ((java.util.Map) pageContext.getAttribute("classItem")).get("cancellationReason") : "") %>'
         });
-        console.log('  Cancelled: ${classItem.studentName} on ${classItem.scheduleDate}');
         </c:forEach>
         </c:if>
         
@@ -2090,6 +2114,10 @@
         }
 
         function showCancelClass(button) {
+            if (!button || button.disabled) {
+                alert(CANCEL_TOO_LATE_MSG);
+                return;
+            }
             const dataset = button.dataset;
             if (!canCancelByPolicy(dataset.scheduleIso, dataset.startTime)) {
                 alert(CANCEL_TOO_LATE_MSG);
@@ -2520,10 +2548,10 @@ function submitAvailability() {
         });
         
         window.onload = function() {
-            initCalendar();
-            updateCompletedCancelledDisplay();
-            updateTeacherCancelButtons();
-            selectDate(currentYear, currentMonth, today);
+            try { initCalendar(); } catch (e) { console.error('initCalendar failed:', e); }
+            try { updateCompletedCancelledDisplay(); } catch (e) { console.error('updateCompletedCancelledDisplay failed:', e); }
+            try { updateTeacherCancelButtons(); } catch (e) { console.error('updateTeacherCancelButtons failed:', e); }
+            try { selectDate(currentYear, currentMonth, today); } catch (e) { console.error('selectDate failed:', e); }
         };
     </script>
 </body>

@@ -118,6 +118,13 @@ public class ClassScheduleServlet extends HttpServlet {
             row.put("status", b.getBookingStatus());
             row.put("needsReschedule", b.isNeedsReschedule());
             row.put("cancellationReason", b.getCancellationReason());
+            boolean canCancel = false;
+            if (b.getBookingId() != null && !b.getBookingId().trim().isEmpty()) {
+                canCancel = classScheduleDAO.isCancellationAllowedByBookingId(b.getBookingId());
+            } else if (b.getScheduleId() != null && !b.getScheduleId().trim().isEmpty()) {
+                canCancel = classScheduleDAO.isCancellationAllowed(b.getScheduleId());
+            }
+            row.put("canCancel", canCancel);
             result.add(row);
         }
         return result;
