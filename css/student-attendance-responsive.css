@@ -39,7 +39,7 @@
 }
 
 .student-attendance .attendance-stats-grid {
-    gap: clamp(0.875rem, 2.5vw, 1.5rem);
+    align-items: stretch;
 }
 
 .student-attendance .attendance-stat-card {
@@ -47,26 +47,29 @@
 }
 
 .student-attendance .attendance-stat-card .w-14 {
-    width: clamp(2.75rem, 8vw, 3.5rem);
-    height: clamp(2.75rem, 8vw, 3.5rem);
+    width: clamp(2.5rem, 7vw, 3.5rem);
+    height: clamp(2.5rem, 7vw, 3.5rem);
+    flex-shrink: 0;
 }
 
 .student-attendance .attendance-stat-card .w-7 {
-    width: clamp(1.25rem, 4vw, 1.75rem);
-    height: clamp(1.25rem, 4vw, 1.75rem);
+    width: clamp(1.125rem, 3.5vw, 1.75rem);
+    height: clamp(1.125rem, 3.5vw, 1.75rem);
 }
 
 .student-attendance .attendance-stat-value {
-    font-size: clamp(1.75rem, 6vw, 2.25rem);
+    font-size: clamp(1.5rem, 5vw, 2.25rem);
     line-height: 1.1;
 }
 
 .student-attendance .attendance-charts-grid {
-    gap: clamp(1rem, 3vw, 2rem);
+    align-items: stretch;
 }
 
 .student-attendance .attendance-chart-panel {
     min-width: 0;
+    display: flex;
+    flex-direction: column;
 }
 
 .student-attendance .attendance-chart-title {
@@ -78,24 +81,37 @@
 .student-attendance .attendance-chart-canvas-wrap {
     width: 100%;
     max-width: 100%;
+    flex: 1;
+    min-height: 0;
 }
 
 .student-attendance .attendance-distribution-chart-wrap {
-    min-height: 220px;
-    max-width: min(100%, 20rem);
+    min-height: 240px;
+    max-width: min(100%, 22rem);
+    margin-left: auto;
+    margin-right: auto;
+    position: relative;
+}
+
+.student-attendance .attendance-distribution-chart-wrap canvas {
+    width: 100% !important;
+    height: 100% !important;
 }
 
 .student-attendance .attendance-trend-chart-wrap {
-    min-height: 240px;
+    min-height: 280px;
+    position: relative;
 }
 
 .student-attendance .attendance-trend-chart-inner {
     width: 100%;
-    height: clamp(220px, 42vw, 300px);
+    height: 280px;
+    position: relative;
 }
 
-.student-attendance .attendance-chart-canvas-wrap canvas {
-    max-width: 100%;
+.student-attendance .attendance-trend-chart-inner canvas {
+    width: 100% !important;
+    height: 100% !important;
 }
 
 .student-attendance .attendance-records-panel {
@@ -117,103 +133,13 @@
     -webkit-overflow-scrolling: touch;
 }
 
-.student-attendance .attendance-table {
-    min-width: 720px;
-}
-
 .student-attendance .attendance-table th,
 .student-attendance .attendance-table td {
-    word-break: break-word;
+    vertical-align: top;
 }
 
-.student-attendance .attendance-mobile-records {
-    display: flex;
-    flex-direction: column;
-    gap: 0.75rem;
-    padding: 0.75rem clamp(0.75rem, 3vw, 1rem) 1rem;
-}
-
-.student-attendance .attendance-record-card {
-    background: #ffffff;
-    border: 1px solid #e5e7eb;
-    border-radius: 14px;
-    padding: 0.875rem 1rem;
-    box-shadow: 0 1px 2px rgba(15, 23, 42, 0.05);
-}
-
-.student-attendance .attendance-record-card-empty {
-    padding: 2rem 1rem;
-}
-
-.student-attendance .attendance-record-card-top {
-    display: flex;
-    align-items: flex-start;
-    justify-content: space-between;
-    gap: 0.75rem;
-    margin-bottom: 0.75rem;
-}
-
-.student-attendance .attendance-record-date {
-    font-size: 0.8125rem;
-    color: #6b7280;
-    margin-bottom: 0.25rem;
-}
-
-.student-attendance .attendance-record-session {
-    font-size: 0.9375rem;
-    font-weight: 600;
-    color: #111827;
-    line-height: 1.35;
-    word-break: break-word;
-}
-
-.student-attendance .attendance-status-badge {
-    flex-shrink: 0;
-    padding: 0.25rem 0.625rem;
-    border-radius: 9999px;
-    font-size: 0.6875rem;
-    font-weight: 600;
-    color: #ffffff;
-    white-space: nowrap;
-}
-
-.student-attendance .attendance-status-present {
-    background: #10b981;
-}
-
-.student-attendance .attendance-status-absent {
-    background: #ef4444;
-}
-
-.student-attendance .attendance-status-late {
-    background: #f59e0b;
-}
-
-.student-attendance .attendance-record-meta {
-    display: grid;
-    grid-template-columns: 1fr 1fr;
-    gap: 0.5rem 0.75rem;
-}
-
-.student-attendance .attendance-record-meta-row {
-    min-width: 0;
-}
-
-.student-attendance .attendance-record-label {
-    display: block;
-    font-size: 0.6875rem;
-    font-weight: 600;
-    color: #9ca3af;
-    text-transform: uppercase;
-    letter-spacing: 0.02em;
-    margin-bottom: 0.125rem;
-}
-
-.student-attendance .attendance-record-value {
-    display: block;
-    font-size: 0.8125rem;
-    color: #374151;
-    word-break: break-word;
+.student-attendance .attendance-table td:nth-child(2) {
+    min-width: 10rem;
 }
 
 @media (hover: none) {
@@ -240,47 +166,39 @@
         padding-right: 0.75rem;
     }
 
-    .student-attendance .attendance-stat-card {
-        padding: 1rem !important;
-        border-radius: 1rem !important;
-    }
-
     .student-attendance .attendance-chart-panel {
         padding: 1rem !important;
         border-radius: 1rem !important;
     }
 
     .student-attendance .attendance-distribution-chart-wrap {
-        min-height: 200px;
+        min-height: 220px;
     }
 
+    .student-attendance .attendance-trend-chart-wrap,
     .student-attendance .attendance-trend-chart-inner {
-        height: 220px;
-    }
-
-    .student-attendance .attendance-table th,
-    .student-attendance .attendance-table td {
-        padding-left: 0.875rem;
-        padding-right: 0.875rem;
-        font-size: 0.8125rem;
+        min-height: 240px;
+        height: 240px;
     }
 }
 
-@media (min-width: 769px) and (max-width: 1024px) {
+@media (min-width: 769px) and (max-width: 1535px) {
     .student-attendance .attendance-toolbar-actions {
         width: auto;
     }
 
-    .student-attendance .attendance-stat-card {
+    .student-attendance .attendance-chart-panel {
         padding: 1.25rem !important;
     }
 
-    .student-attendance .attendance-chart-panel {
-        padding: 1.5rem !important;
+    .student-attendance .attendance-distribution-chart-wrap {
+        min-height: 260px;
     }
 
+    .student-attendance .attendance-trend-chart-wrap,
     .student-attendance .attendance-trend-chart-inner {
-        height: 260px;
+        min-height: 280px;
+        height: 280px;
     }
 }
 
@@ -288,22 +206,14 @@
     .student-attendance .attendance-toolbar-actions button {
         flex: 1 1 100%;
     }
-
-    .student-attendance .attendance-record-meta {
-        grid-template-columns: 1fr;
-    }
 }
 
 @supports (padding: max(0px)) {
-    @media (max-width: 768px) {
+    @media (max-width: 1535px) {
         .student-attendance.page-content {
             padding-left: max(16px, env(safe-area-inset-left)) !important;
             padding-right: max(16px, env(safe-area-inset-right)) !important;
-            padding-bottom: max(20px, env(safe-area-inset-bottom)) !important;
-        }
-
-        .student-attendance .attendance-mobile-records {
-            padding-bottom: max(1rem, env(safe-area-inset-bottom));
+            padding-bottom: max(24px, env(safe-area-inset-bottom)) !important;
         }
     }
 }
