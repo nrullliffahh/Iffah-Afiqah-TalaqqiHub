@@ -151,8 +151,8 @@
                 </div>
 
                 <!-- Video + Quran side by side (like teacher session) -->
-                <section class="session-main-grid">
-                    <div class="session-video-col space-y-3">
+                <section class="grid grid-cols-1 lg:grid-cols-3 gap-4 sm:gap-6 session-main-grid">
+                    <div class="lg:col-span-2 space-y-3">
                         <div class="video-shell relative">
                             <div id="jitsiContainer" class="hidden absolute inset-0 w-full h-full"
                                  data-room-name="${talaqqiSession.roomName}"
