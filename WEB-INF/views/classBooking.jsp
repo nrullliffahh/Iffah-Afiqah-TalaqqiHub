@@ -572,11 +572,52 @@
                             }
 
                             // Confirm modal helpers
+                            function formatConfirmTimeDisplay(bookingDate, bookingTime) {
+                                var rawTime = bookingTime || '';
+                                function parseTimeLocal(t) {
+                                    if (!t) return null;
+                                    var s = String(t).trim();
+                                    var m12 = s.match(/^(\d{1,2}):(\d{2})\s*([AaPp][Mm])$/);
+                                    var m24 = s.match(/^(\d{1,2}):(\d{2})(?::\d{2})?$/);
+                                    if (m12) {
+                                        var hh = parseInt(m12[1], 10), mm = parseInt(m12[2], 10), am = m12[3].toUpperCase();
+                                        if (am === 'PM' && hh < 12) hh += 12;
+                                        if (am === 'AM' && hh === 12) hh = 0;
+                                        return { h: hh, m: mm };
+                                    }
+                                    if (m24) return { h: parseInt(m24[1], 10), m: parseInt(m24[2], 10) };
+                                    var dt = new Date('1970-01-01T' + s);
+                                    if (!isNaN(dt.getTime())) return { h: dt.getHours(), m: dt.getMinutes() };
+                                    return null;
+                                }
+                                function fmtTimeLocal(d) {
+                                    var h = d.getHours(), m = d.getMinutes();
+                                    var am = h >= 12 ? 'PM' : 'AM';
+                                    if (h === 0) h = 12; else if (h > 12) h -= 12;
+                                    return String(h).padStart(2, '0') + ':' + String(m).padStart(2, '0') + ' ' + am;
+                                }
+                                var parseFn = (window.talaqqi && window.talaqqi.parseTime) ? window.talaqqi.parseTime : parseTimeLocal;
+                                var fmtFn = (window.talaqqi && window.talaqqi.fmtTime) ? window.talaqqi.fmtTime : fmtTimeLocal;
+                                var t = parseFn(rawTime);
+                                if (!t) return rawTime;
+                                var base = new Date();
+                                if (bookingDate) {
+                                    try { base = new Date(bookingDate + 'T00:00:00'); } catch (e) {}
+                                }
+                                var start = new Date(base.getFullYear(), base.getMonth(), base.getDate(), t.h, t.m, 0);
+                                var end = new Date(start.getTime() + (15 * 60 * 1000));
+                                return fmtFn(start) + ' - ' + fmtFn(end);
+                            }
+
                             window.openConfirmModal = function(data){
                                 try {
+                                    var prettyDate = data.dateDisplay || data.bookingDate || '';
+                                    if (window.talaqqi && typeof window.talaqqi.formatDateISO === 'function' && data.bookingDate) {
+                                        prettyDate = window.talaqqi.formatDateISO(data.bookingDate);
+                                    }
                                     document.getElementById('confirmTeacher').textContent = data.teacherName || '';
-                                    document.getElementById('confirmDate').textContent = data.dateDisplay || data.bookingDate || '';
-                                    document.getElementById('confirmTime').textContent = data.bookingTime || '';
+                                    document.getElementById('confirmDate').textContent = prettyDate;
+                                    document.getElementById('confirmTime').textContent = formatConfirmTimeDisplay(data.bookingDate, data.bookingTime);
                                     document.getElementById('confirm_scheduleId').value = data.scheduleId || '';
                                     document.getElementById('confirm_bookingDate').value = data.bookingDate || '';
                                     document.getElementById('confirm_bookingTime').value = data.bookingTime || '';
@@ -588,13 +629,29 @@
                                             || '';
                                     }
                                     document.getElementById('confirm_rescheduleBookingId').value = rs && rs !== 'null' ? rs : '';
-                                    document.getElementById('confirmModal').classList.remove('hidden');
+                                    var modal = document.getElementById('confirmModal');
+                                    if (modal) {
+                                        if (modal.parentNode !== document.body) {
+                                            document.body.appendChild(modal);
+                                        }
+                                        modal.classList.remove('hidden');
+                                        modal.setAttribute('aria-hidden', 'false');
+                                        document.body.classList.add('booking-details-open');
+                                    }
                                     // ensure the calendar dataset is not cleared until submit
                                     try { if (calendarGrid && (!calendarGrid.dataset.pendingReschedule || calendarGrid.dataset.pendingReschedule === '')) { /* nothing */ } } catch(e){}
                                 } catch(e){ console.error('openConfirmModal error', e); }
                             }
                             window.closeConfirmModal = function(){
-                                try{ document.getElementById('confirmModal').classList.add('hidden'); }catch(e){}
+                                try {
+                                    var modal = document.getElementById('confirmModal');
+                                    if (!modal) return;
+                                    modal.classList.add('hidden');
+                                    modal.setAttribute('aria-hidden', 'true');
+                                    if (document.getElementById('detailsModal') && document.getElementById('detailsModal').classList.contains('hidden')) {
+                                        document.body.classList.remove('booking-details-open');
+                                    }
+                                } catch(e){}
                             }
 
                             // Delegate book button clicks to open confirm modal
@@ -1269,25 +1326,28 @@
     </div>
     
     <!-- Confirm Booking Modal -->
-    <div id="confirmModal" class="hidden fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-        <div class="bg-white rounded-2xl booking-panel booking-modal-panel max-w-md w-full mx-4 shadow-2xl">
-            <h3 class="text-2xl font-bold text-gray-800 mb-2">Confirm Booking</h3>
-            <div class="space-y-3 text-sm text-gray-700 mb-6">
-                <div>
-                    <p class="text-xs text-gray-500">Class Type:</p>
-                    <p id="confirmClassType" class="font-semibold text-gray-800">Quran Recitation &amp; Tajweed</p>
+    <div id="confirmModal" class="hidden fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-[1050] booking-modal-overlay" aria-hidden="true">
+        <div class="bg-white rounded-2xl shadow-2xl w-full max-w-lg mx-4 p-6 sm:p-8 booking-details-modal-panel" role="dialog" aria-modal="true" aria-labelledby="confirmModalTitle">
+            <div class="flex items-start justify-between gap-4 mb-6 booking-details-modal-header">
+                <h3 id="confirmModalTitle" class="text-2xl font-bold text-gray-800 leading-tight">Confirm Booking</h3>
+                <button type="button" onclick="closeConfirmModal()" class="shrink-0 text-gray-500 hover:text-gray-700 text-xl leading-none p-1 booking-details-modal-close" aria-label="Close">✕</button>
+            </div>
+            <div class="space-y-4 mb-6 booking-details-modal-body">
+                <div class="booking-details-modal-field">
+                    <p class="booking-details-modal-label">Class Type:</p>
+                    <p id="confirmClassType" class="booking-details-modal-value">Quran Recitation &amp; Tajweed</p>
                 </div>
-                <div>
-                    <p class="text-xs text-gray-500">Teacher:</p>
-                    <p id="confirmTeacher" class="font-semibold text-gray-800"></p>
+                <div class="booking-details-modal-field">
+                    <p class="booking-details-modal-label">Teacher:</p>
+                    <p id="confirmTeacher" class="booking-details-modal-value"></p>
                 </div>
-                <div>
-                    <p class="text-xs text-gray-500">Date:</p>
-                    <p id="confirmDate" class="font-semibold text-gray-800"></p>
+                <div class="booking-details-modal-field">
+                    <p class="booking-details-modal-label">Date:</p>
+                    <p id="confirmDate" class="booking-details-modal-value"></p>
                 </div>
-                <div>
-                    <p class="text-xs text-gray-500">Time:</p>
-                    <p id="confirmTime" class="font-semibold text-gray-800"></p>
+                <div class="booking-details-modal-field">
+                    <p class="booking-details-modal-label">Time:</p>
+                    <p id="confirmTime" class="booking-details-modal-value"></p>
                 </div>
             </div>
             <form id="confirmBookingForm" method="POST" action="<%= request.getContextPath() %>/student/book-session">
@@ -1296,9 +1356,9 @@
                 <input type="hidden" name="bookingTime" id="confirm_bookingTime">
                 <input type="hidden" name="teacherId" id="confirm_teacherId">
                 <input type="hidden" name="rescheduleBookingId" id="confirm_rescheduleBookingId">
-                <div class="booking-modal-actions flex gap-3">
-                    <button type="button" onclick="closeConfirmModal()" class="flex-1 px-4 py-3 border-2 border-gray-300 text-gray-700 rounded-xl font-semibold hover:bg-gray-50 transition-colors">Cancel</button>
-                    <button type="submit" class="flex-1 px-4 py-3 bg-gradient-to-r from-teal-400 to-teal-600 text-white rounded-xl font-semibold">Confirm Booking</button>
+                <div class="booking-details-modal-footer">
+                    <button type="button" onclick="closeConfirmModal()" class="w-full mb-3 px-6 py-3 border-2 border-gray-300 bg-white text-gray-700 rounded-xl font-semibold hover:bg-gray-50 transition-colors booking-details-modal-btn booking-details-modal-btn-secondary">Cancel</button>
+                    <button type="submit" class="w-full px-6 py-3 bg-gradient-to-r from-teal-400 to-teal-600 text-white rounded-xl font-semibold hover:opacity-95 transition-opacity booking-details-modal-btn booking-details-modal-btn-primary">Confirm Booking</button>
                 </div>
             </form>
         </div>
@@ -1586,7 +1646,10 @@
             if (!modal) return;
             modal.classList.add('hidden');
             modal.setAttribute('aria-hidden', 'true');
-            document.body.classList.remove('booking-details-open');
+            const confirmModal = document.getElementById('confirmModal');
+            if (!confirmModal || confirmModal.classList.contains('hidden')) {
+                document.body.classList.remove('booking-details-open');
+            }
         }
     </script>
     <script>
@@ -1606,7 +1669,7 @@
                 if(!t) return null;
                 const s = t.trim();
                 const m12 = s.match(/^(\d{1,2}):(\d{2})\s*([AaPp][Mm])$/);
-                const m24 = s.match(/^(\d{1,2}):(\d{2})$/);
+                const m24 = s.match(/^(\d{1,2}):(\d{2})(?::\d{2})?$/);
                 if(m12){
                     let hh = parseInt(m12[1],10), mm = parseInt(m12[2],10); const am = m12[3].toUpperCase();
                     if(am==='PM' && hh<12) hh+=12; if(am==='AM' && hh===12) hh=0; return {h:hh,m:mm};

@@ -290,8 +290,9 @@
     }
 }
 
-/* Class Details modal (outside .student-class-booking wrapper) */
-#detailsModal.booking-modal-overlay {
+/* Booking modals (outside .student-class-booking wrapper) */
+#detailsModal.booking-modal-overlay,
+#confirmModal.booking-modal-overlay {
     position: fixed !important;
     inset: 0 !important;
     z-index: 1050 !important;
@@ -307,11 +308,13 @@
     -webkit-overflow-scrolling: touch;
 }
 
-#detailsModal.booking-modal-overlay.hidden {
+#detailsModal.booking-modal-overlay.hidden,
+#confirmModal.booking-modal-overlay.hidden {
     display: none !important;
 }
 
-#detailsModal.booking-modal-overlay:not(.hidden) {
+#detailsModal.booking-modal-overlay:not(.hidden),
+#confirmModal.booking-modal-overlay:not(.hidden) {
     display: flex !important;
 }
 
@@ -319,7 +322,8 @@ body.booking-details-open {
     overflow: hidden;
 }
 
-#detailsModal .booking-details-modal-panel {
+#detailsModal .booking-details-modal-panel,
+#confirmModal .booking-details-modal-panel {
     width: 100%;
     max-width: 32rem;
     margin: auto;
@@ -334,7 +338,8 @@ body.booking-details-open {
     box-sizing: border-box;
 }
 
-#detailsModal .booking-details-modal-header {
+#detailsModal .booking-details-modal-header,
+#confirmModal .booking-details-modal-header {
     display: flex !important;
     flex-direction: row !important;
     flex-wrap: nowrap !important;
@@ -342,30 +347,35 @@ body.booking-details-open {
     justify-content: space-between !important;
 }
 
-#detailsModal .booking-details-modal-close {
+#detailsModal .booking-details-modal-close,
+#confirmModal .booking-details-modal-close {
     flex-shrink: 0;
     border: none;
     background: transparent;
     cursor: pointer;
 }
 
-#detailsModal .booking-details-modal-body {
+#detailsModal .booking-details-modal-body,
+#confirmModal .booking-details-modal-body {
     display: flex;
     flex-direction: column;
     gap: 16px;
 }
 
-#detailsModal .booking-details-modal-field {
+#detailsModal .booking-details-modal-field,
+#confirmModal .booking-details-modal-field {
     min-width: 0;
 }
 
-#detailsModal .booking-details-modal-label {
+#detailsModal .booking-details-modal-label,
+#confirmModal .booking-details-modal-label {
     font-size: 0.75rem;
     color: #6b7280;
     margin: 0 0 4px;
 }
 
-#detailsModal .booking-details-modal-value {
+#detailsModal .booking-details-modal-value,
+#confirmModal .booking-details-modal-value {
     font-size: 0.875rem;
     font-weight: 600;
     color: #1f2937;
@@ -378,15 +388,26 @@ body.booking-details-open {
     margin-top: 2px;
 }
 
-#detailsModal .booking-details-modal-footer {
+#detailsModal .booking-details-modal-footer,
+#confirmModal .booking-details-modal-footer {
     display: flex;
     flex-direction: column;
 }
 
-#detailsModal .booking-details-modal-btn {
+#detailsModal .booking-details-modal-btn,
+#confirmModal .booking-details-modal-btn {
     min-height: 48px;
-    border: none;
     cursor: pointer;
+}
+
+#detailsModal .booking-details-modal-btn-primary,
+#confirmModal .booking-details-modal-btn-primary {
+    border: none;
+}
+
+#confirmModal .booking-details-modal-btn-secondary {
+    border: 2px solid #d1d5db;
+    background: #ffffff;
 }
 
 #detailsModal .booking-details-modal-btn.hidden {
@@ -394,12 +415,14 @@ body.booking-details-open {
 }
 
 @media (max-width: 768px) {
-    #detailsModal.booking-modal-overlay:not(.hidden) {
+    #detailsModal.booking-modal-overlay:not(.hidden),
+    #confirmModal.booking-modal-overlay:not(.hidden) {
         align-items: flex-end;
         padding: 0;
     }
 
-    #detailsModal .booking-details-modal-panel {
+    #detailsModal .booking-details-modal-panel,
+    #confirmModal .booking-details-modal-panel {
         max-width: 100%;
         border-radius: 16px 16px 0 0;
         max-height: min(88vh, 100%);
@@ -408,7 +431,8 @@ body.booking-details-open {
 }
 
 @media (min-width: 769px) and (max-width: 1024px) {
-    #detailsModal .booking-details-modal-panel {
+    #detailsModal .booking-details-modal-panel,
+    #confirmModal .booking-details-modal-panel {
         max-width: min(32rem, calc(100vw - 48px));
     }
 }
