@@ -12,8 +12,8 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Evaluation & Progress - TalaqqiHub</title>
     <%@ include file="/WEB-INF/views/includes/studentLayoutStyles.jsp" %>
-    <link rel="stylesheet" href="<%= request.getContextPath() %>/css/student-evaluation-responsive.css">
     <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="<%= request.getContextPath() %>/css/student-evaluation-responsive.css?v=2">
     <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/3.9.1/chart.min.js"></script>
     <style>
         .score-cards-container {
@@ -115,12 +115,14 @@
             background: white;
             border-radius: 16px;
             padding: 20px;
-            display: flex;
+            display: grid;
+            grid-template-columns: auto minmax(0, 1fr) auto;
             align-items: center;
             gap: 16px;
             margin-bottom: 16px;
             box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
             transition: all 0.3s;
+            min-width: 0;
         }
         
         .evaluation-card:hover {
@@ -149,7 +151,7 @@
         }
         
         .evaluation-content {
-            flex: 1;
+            min-width: 0;
         }
         
         .evaluation-title {
@@ -190,13 +192,17 @@
         .evaluation-button {
             background: #4ECDC4;
             color: white;
-            padding: 8px 16px;
+            padding: 10px 18px;
             border-radius: 8px;
             border: none;
             cursor: pointer;
-            font-size: 12px;
+            font-size: 13px;
             font-weight: 600;
             transition: all 0.3s;
+            flex-shrink: 0;
+            white-space: nowrap;
+            min-height: 44px;
+            line-height: 1.2;
         }
         
         .evaluation-button:hover {
@@ -214,11 +220,17 @@
             background: white;
             border-radius: 16px;
             padding: 20px;
-            display: flex;
+            display: grid;
+            grid-template-columns: auto minmax(0, 1fr) auto;
             align-items: center;
             gap: 16px;
             margin-bottom: 16px;
             box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+            min-width: 0;
+        }
+
+        .session-card-body {
+            min-width: 0;
         }
         
         .session-time {
@@ -249,9 +261,10 @@
         }
 
         .teacher-feedback-header {
-            display: flex;
-            align-items: flex-start;
-            justify-content: space-between;
+            display: grid;
+            grid-template-columns: minmax(0, 1fr) auto;
+            gap: 16px;
+            align-items: start;
             margin-bottom: 16px;
         }
 
@@ -290,6 +303,8 @@
 
         .teacher-feedback-rating {
             text-align: right;
+            flex-shrink: 0;
+            min-width: fit-content;
         }
 
         .teacher-feedback-stars {
@@ -341,13 +356,17 @@
         .teacher-feedback-edit {
             background: #F97316;
             color: white;
-            padding: 6px 14px;
+            padding: 8px 16px;
             border-radius: 8px;
             border: none;
             cursor: pointer;
-            font-size: 12px;
+            font-size: 13px;
             font-weight: 600;
             margin-top: 8px;
+            white-space: nowrap;
+            flex-shrink: 0;
+            min-height: 44px;
+            line-height: 1.2;
         }
 
         .submitted-eval-empty {
@@ -425,6 +444,58 @@
             font-size: 18px;
             font-weight: 700;
             color: #1E293B;
+        }
+        
+        .eval-modal-shell {
+            display: flex;
+            flex-direction: column;
+            max-height: min(92dvh, 92vh);
+            overflow: hidden;
+        }
+
+        .eval-modal-scroll {
+            flex: 1 1 auto;
+            overflow-y: auto;
+            -webkit-overflow-scrolling: touch;
+            overscroll-behavior: contain;
+        }
+
+        .eval-modal-footer {
+            flex-shrink: 0;
+            border-top: 1px solid #e2e8f0;
+            background: #ffffff;
+            padding: 1rem 1.5rem;
+        }
+
+        @media (max-width: 1024px) {
+            .evaluation-card,
+            .session-card {
+                grid-template-columns: auto minmax(0, 1fr);
+            }
+
+            .evaluation-card .evaluation-button,
+            .session-card .evaluation-button {
+                grid-column: 1 / -1;
+                width: 100%;
+                justify-self: stretch;
+                text-align: center;
+            }
+
+            .teacher-feedback-header {
+                grid-template-columns: 1fr;
+            }
+
+            .teacher-feedback-rating {
+                text-align: left;
+                display: flex;
+                flex-wrap: wrap;
+                align-items: center;
+                gap: 10px;
+            }
+
+            .teacher-feedback-edit {
+                margin-top: 0;
+            }
         }
         
         @media (max-width: 1200px) {
@@ -673,7 +744,7 @@
                         <c:out value="${fn:substring(nameParts[0], 0, 1)}${fn:substring(nameParts[fn:length(nameParts)-1], 0, 1)}" />
                     </div>
                     
-                    <div style="flex: 1;">
+                    <div class="session-card-body">
                         <div class="evaluation-title">${session.teacherName}</div>
                         <div class="session-time">${session.sessionDate} • ${session.startTime} - ${session.endTime}</div>
                         <div class="session-surah"><c:choose><c:when test="${not empty session.surahName}">${session.surahName}<c:if test="${not empty session.ayahRange}"> - Ayah ${session.ayahRange}</c:if></c:when><c:otherwise>Lesson not recorded</c:otherwise></c:choose></div>
@@ -772,15 +843,15 @@
     </div>
     
     <!-- EVALUATION DETAILS MODAL -->
-    <div id="evaluationModal" class="fixed inset-0 bg-black/70 z-50 hidden flex items-center justify-center p-4">
-        <div class="bg-white rounded-3xl shadow-2xl overflow-y-auto max-h-[95vh] w-full max-w-5xl relative">
+    <div id="evaluationModal" class="fixed inset-0 bg-black/70 z-50 hidden flex items-end sm:items-center justify-center p-0 sm:p-4">
+        <div class="eval-modal-shell bg-white rounded-t-3xl sm:rounded-3xl shadow-2xl w-full max-w-5xl relative">
             <!-- Close Button -->
-            <button onclick="closeEvaluationModal()" class="absolute top-6 right-6 text-gray-500 hover:text-gray-700 z-10">
+            <button onclick="closeEvaluationModal()" class="absolute top-4 right-4 sm:top-6 sm:right-6 text-gray-500 hover:text-gray-700 z-10">
                 <i class="fas fa-times text-2xl"></i>
             </button>
             
             <!-- Modal Content -->
-            <div class="p-8">
+            <div class="eval-modal-scroll p-5 sm:p-8 pt-12 sm:pt-8">
                 <!-- Header -->
                 <div class="mb-8">
                     <h2 class="text-3xl font-bold text-gray-900 mb-2">Detailed Evaluation Report</h2>
@@ -873,9 +944,10 @@
                         </div>
                     </div>
                 </div>
-                
-                <!-- Close Button -->
-                <button onclick="closeEvaluationModal()" class="w-full bg-gradient-to-r from-teal-500 to-teal-600 hover:from-teal-600 hover:to-teal-700 text-white font-semibold py-3 rounded-xl transition-all">
+            </div>
+            
+            <div class="eval-modal-footer">
+                <button onclick="closeEvaluationModal()" class="w-full bg-gradient-to-r from-teal-500 to-teal-600 hover:from-teal-600 hover:to-teal-700 text-white font-semibold py-3 rounded-xl transition-all min-h-[48px]">
                     Close
                 </button>
             </div>
@@ -883,15 +955,15 @@
     </div>
     
     <!-- TEACHER EVALUATION MODAL -->
-    <div id="teacherEvaluationModal" class="fixed inset-0 bg-black/70 z-50 hidden flex items-center justify-center p-4">
-        <div class="bg-white rounded-3xl shadow-2xl overflow-y-auto max-h-[95vh] w-full max-w-3xl relative">
+    <div id="teacherEvaluationModal" class="fixed inset-0 bg-black/70 z-50 hidden flex items-end sm:items-center justify-center p-0 sm:p-4">
+        <div class="eval-modal-shell bg-white rounded-t-3xl sm:rounded-3xl shadow-2xl w-full max-w-3xl relative">
             <!-- Close Button -->
-            <button onclick="closeTeacherEvaluationReportModal()" class="absolute top-6 right-6 text-gray-500 hover:text-gray-700 z-10">
+            <button onclick="closeTeacherEvaluationReportModal()" class="absolute top-4 right-4 sm:top-6 sm:right-6 text-gray-500 hover:text-gray-700 z-10">
                 <i class="fas fa-times text-2xl"></i>
             </button>
             
             <!-- Modal Content -->
-            <div class="p-8">
+            <div class="eval-modal-scroll p-5 sm:p-8 pt-12 sm:pt-8">
                 <!-- Header -->
                 <div class="mb-8">
                     <h2 class="text-3xl font-bold text-gray-900 mb-2">Evaluate Teacher</h2>
@@ -941,17 +1013,16 @@
                         </label>
                         <textarea id="suggestions" name="suggestions" placeholder="Any suggestions for improvement?" rows="4" class="w-full px-4 py-3 rounded-2xl border-2 border-gray-200 focus:border-teal-400 focus:outline-none focus:ring-2 focus:ring-teal-400/30 resize-none" style="font-family: inherit;"></textarea>
                     </div>
-                    
-                    <!-- Buttons -->
-                    <div class="flex gap-4">
-                        <button type="button" onclick="closeTeacherEvaluationModal()" class="flex-1 px-6 py-3 rounded-2xl border-2 border-gray-300 text-gray-700 font-semibold hover:bg-gray-50 transition-colors">
-                            Cancel
-                        </button>
-                        <button type="submit" class="flex-1 px-6 py-3 rounded-2xl bg-gradient-to-r from-teal-500 to-teal-600 hover:from-teal-600 hover:to-teal-700 text-white font-semibold transition-all">
-                            Submit Evaluation
-                        </button>
-                    </div>
                 </form>
+            </div>
+
+            <div class="eval-modal-footer flex flex-col sm:flex-row gap-3">
+                <button type="button" onclick="closeTeacherEvaluationReportModal()" class="flex-1 px-6 py-3 rounded-2xl border-2 border-gray-300 text-gray-700 font-semibold hover:bg-gray-50 transition-colors min-h-[48px]">
+                    Cancel
+                </button>
+                <button type="submit" form="teacherEvaluationForm" class="flex-1 px-6 py-3 rounded-2xl bg-gradient-to-r from-teal-500 to-teal-600 hover:from-teal-600 hover:to-teal-700 text-white font-semibold transition-all min-h-[48px]">
+                    Submit Evaluation
+                </button>
             </div>
         </div>
     </div>
@@ -1014,15 +1085,15 @@
     </div>
     
     <!-- EDIT FEEDBACK MODAL -->
-    <div id="editFeedbackModal" class="fixed inset-0 bg-black/70 z-50 hidden flex items-center justify-center p-4">
-        <div class="bg-white rounded-3xl shadow-2xl overflow-y-auto max-h-[95vh] w-full max-w-4xl relative">
+    <div id="editFeedbackModal" class="fixed inset-0 bg-black/70 z-50 hidden flex items-end sm:items-center justify-center p-0 sm:p-4">
+        <div class="eval-modal-shell bg-white rounded-t-3xl sm:rounded-3xl shadow-2xl w-full max-w-4xl relative">
             <!-- Close Button -->
-            <button onclick="closeEditFeedbackModal()" class="absolute top-6 right-6 text-gray-500 hover:text-gray-700 z-10">
+            <button onclick="closeEditFeedbackModal()" class="absolute top-4 right-4 sm:top-6 sm:right-6 text-gray-500 hover:text-gray-700 z-10">
                 <i class="fas fa-times text-2xl"></i>
             </button>
             
             <!-- Modal Content -->
-            <div class="p-8">
+            <div class="eval-modal-scroll p-5 sm:p-8 pt-12 sm:pt-8">
                 <!-- Header -->
                 <div class="mb-8 pb-6 border-b border-gray-200">
                     <h2 class="text-3xl font-bold text-gray-900 mb-2">Edit Evaluation</h2>
@@ -1064,29 +1135,28 @@
                         </label>
                         <textarea id="editSuggestions" name="suggestions" rows="4" class="w-full px-5 py-4 rounded-2xl border-2 border-gray-200 focus:border-teal-400 focus:outline-none focus:ring-2 focus:ring-teal-400/30 resize-none" style="font-family: inherit;"></textarea>
                     </div>
-                    
-                    <!-- Buttons -->
-                    <div class="flex gap-4">
-                        <button type="button" onclick="closeEditFeedbackModal()" class="flex-1 px-6 py-3 rounded-2xl border-2 border-gray-300 text-gray-700 font-semibold hover:bg-gray-50 transition-colors">
-                            Cancel
-                        </button>
-                        <button type="submit" class="flex-1 px-6 py-3 rounded-2xl bg-gradient-to-r from-teal-500 to-cyan-400 hover:from-teal-600 hover:to-cyan-500 text-white font-semibold transition-all">
-                            Update Evaluation
-                        </button>
-                    </div>
                 </form>
+            </div>
+
+            <div class="eval-modal-footer flex flex-col sm:flex-row gap-3">
+                <button type="button" onclick="closeEditFeedbackModal()" class="flex-1 px-6 py-3 rounded-2xl border-2 border-gray-300 text-gray-700 font-semibold hover:bg-gray-50 transition-colors min-h-[48px]">
+                    Cancel
+                </button>
+                <button type="submit" form="editFeedbackForm" class="flex-1 px-6 py-3 rounded-2xl bg-gradient-to-r from-teal-500 to-cyan-400 hover:from-teal-600 hover:to-cyan-500 text-white font-semibold transition-all min-h-[48px]">
+                    Update Evaluation
+                </button>
             </div>
         </div>
     </div>
     
     <!-- STUDENT TEACHER EVALUATION MODAL -->
-    <div id="studentTeacherEvaluationModal" class="fixed inset-0 bg-black/70 z-50 hidden flex items-center justify-center p-4">
-        <div class="bg-white rounded-3xl shadow-2xl overflow-y-auto max-h-[95vh] w-full max-w-2xl relative">
-            <button onclick="closeTeacherEvaluationModal()" class="absolute top-6 right-6 text-gray-500 hover:text-gray-700 z-10">
+    <div id="studentTeacherEvaluationModal" class="fixed inset-0 bg-black/70 z-50 hidden flex items-end sm:items-center justify-center p-0 sm:p-4">
+        <div class="eval-modal-shell bg-white rounded-t-3xl sm:rounded-3xl shadow-2xl w-full max-w-2xl relative">
+            <button onclick="closeTeacherEvaluationModal()" class="absolute top-4 right-4 sm:top-6 sm:right-6 text-gray-500 hover:text-gray-700 z-10">
                 <i class="fas fa-times text-2xl"></i>
             </button>
 
-            <div class="p-8">
+            <div class="eval-modal-scroll p-5 sm:p-8 pt-12 sm:pt-8">
                 <div class="mb-8">
                     <h2 class="text-3xl font-bold text-gray-900 mb-2">Evaluate Teacher</h2>
                     <p class="text-gray-500" id="studentTeacherEvalSubtitle">Share feedback for this completed session</p>
@@ -1126,19 +1196,18 @@
                         <label for="studentTeacherSuggestions" class="block text-lg font-semibold text-gray-900 mb-3">Suggestions <span class="text-gray-500 font-normal">(Optional)</span></label>
                         <textarea id="studentTeacherSuggestions" name="suggestions" rows="4" class="w-full px-5 py-4 rounded-2xl border-2 border-gray-200 focus:border-teal-400 focus:outline-none focus:ring-2 focus:ring-teal-400/30 resize-none" style="font-family: inherit;" placeholder="How can the teacher improve?"></textarea>
                     </div>
-
-                    <div class="flex gap-4">
-                        <button type="button" onclick="closeTeacherEvaluationModal()" class="flex-1 px-6 py-3 rounded-2xl border-2 border-gray-300 text-gray-700 font-semibold hover:bg-gray-50 transition-colors">
-                            Cancel
-                        </button>
-                        <button type="submit" class="flex-1 px-6 py-3 rounded-2xl bg-gradient-to-r from-teal-500 to-cyan-400 hover:from-teal-600 hover:to-cyan-500 text-white font-semibold transition-all">
-                            Submit Evaluation
-                        </button>
-                    </div>
                 </form>
             </div>
+
+            <div class="eval-modal-footer flex flex-col sm:flex-row gap-3">
+                <button type="button" onclick="closeTeacherEvaluationModal()" class="flex-1 px-6 py-3 rounded-2xl border-2 border-gray-300 text-gray-700 font-semibold hover:bg-gray-50 transition-colors min-h-[48px]">
+                    Cancel
+                </button>
+                <button type="submit" form="studentTeacherEvaluationForm" class="flex-1 px-6 py-3 rounded-2xl bg-gradient-to-r from-teal-500 to-cyan-400 hover:from-teal-600 hover:to-cyan-500 text-white font-semibold transition-all min-h-[48px]">
+                    Submit Evaluation
+                </button>
+            </div>
         </div>
-    </div>
     </div>
 
     <script>
