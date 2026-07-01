@@ -1,6 +1,8 @@
-# TalaqqiHub — Java Maven WAR (Servlet/JSP on Tomcat 9).
-# Kerocket production deploy uses Docker (see kerocket.toml + Dockerfile).
-# This file satisfies Nixpacks/Maven detection when the platform scans the repo.
+# TalaqqiHub — Maven WAR for Tomcat (NOT a standalone JAR).
+# Kerocket production deploy MUST use Docker (kerocket.toml builder=docker).
+# This file exists so Nixpacks/Maven manifest detection passes if the platform scans the repo.
+
+providers = ["java"]
 
 [variables]
 NIXPACKS_JDK_VERSION = "17"
@@ -9,7 +11,8 @@ NIXPACKS_JDK_VERSION = "17"
 nixPkgs = ["maven"]
 
 [phases.build]
-cmds = ["mvn -B -DskipTests package"]
+cmds = ["mvn -B -DskipTests clean package"]
 
+# Servlet WAR requires Tomcat; Nixpacks default "java -jar target/*jar" does not apply.
 [start]
-cmd = "echo 'TalaqqiHub requires Tomcat — deploy with Dockerfile (kerocket.toml builder=docker).' >&2; exit 1"
+cmd = "echo 'TalaqqiHub is a Tomcat WAR — deploy with Dockerfile (kerocket.toml builder=docker).' >&2; exit 1"

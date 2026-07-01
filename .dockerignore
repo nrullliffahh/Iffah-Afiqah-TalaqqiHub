@@ -1,51 +1,60 @@
+# Version control and IDE
 .git
 .gitignore
+.cursor
+.classpath
+.project
+.worktrees
+**/.worktrees
+
+# Secrets (set in Kerocket Deploy tab)
 .env
 .env.*
+!.env.example
+
+# Documentation and notes
 *.md
 !README.md
 *.txt
+sources.txt
+agent-tools
+**/agent-transcripts
+
+# Local scripts and Windows helpers
 *.bat
 *.ps1
-*.sql
-*.bak
-*.jsp.bak
-bin/
-build/
-target/
-.worktrees/
-**/.worktrees/
-node_modules/
-tools/node_modules/
-WEB-INF/classes/
-WEB-INF/lib/
-uploads/
-!uploads/.gitkeep
-sources.txt
-agent-tools/
-.cursor/
-.classpath
-.project
-package-lock.json
-tools/
-docs/
-scripts/
-kerocket.toml
+scripts
 
-# Local test/debug artifacts (not needed in production WAR)
+# Database dumps and migrations (not needed at runtime)
+*.sql
+db
+
+# Build output and local tooling
+target
+bin
+build
+node_modules
+tools
+package-lock.json
+
+# Compiled classes and local libs (Maven WAR rebuilds these)
+WEB-INF/classes
+WEB-INF/lib
+
+# User uploads (mount or persist separately in production)
+uploads
+!uploads/.gitkeep
+
+# Local test/debug pages
 test_*.jsp
 test_*.html
 tmp_*.html
 tmp_*.txt
 debug-*.jsp
 beautiful_page.html
-*_backup*.sql
+*_backup*
 *.html
 
-# Keep deployment/build files in the Docker build context
-!Dockerfile
-!docker-entrypoint.sh
-!pom.xml
-!nixpacks.toml
-!README.md
-!.env.example
+# Kerocket/Nixpacks config is not needed inside the image
+kerocket.toml
+nixpacks.toml

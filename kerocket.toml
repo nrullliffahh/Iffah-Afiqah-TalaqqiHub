@@ -1,16 +1,11 @@
-# TalaqqiHub — Java Servlet/JSP on Apache Tomcat 9 (NOT Node.js).
+# TalaqqiHub — Java Servlet/JSP on Apache Tomcat 9 (WAR deployment).
 #
-# BUILD: Docker only (Maven WAR + Tomcat 9). Do not use Nixpacks Node detection.
+# BUILD: Docker only. Do not use Nixpacks auto-detect (Servlet WAR needs Tomcat).
 #
-# DEPLOY TAB — required environment variables (copy from .env.example):
-#   PORT           = 8080
-#   DB_URL         = jdbc:mysql://avnadmin:PASSWORD@HOST:16135/talaqqihub_db?sslMode=REQUIRED
-#                    (embed Aiven user + password in the URL — Kerocket may not pass DB_USER/DB_PASSWORD)
-#
-# Alternative: separate lines instead of embedded URL:
-#   DB_URL, DB_USER=avnadmin, DB_PASSWORD=<Aiven password>
-#
-# Or attach MySQL data service and set DATABASE_URL (internal Kerocket MySQL only).
+# Deploy tab — required environment variables (see .env.example):
+#   PORT=8080
+#   DB_URL=jdbc:mysql://USER:PASSWORD@HOST:PORT/db?sslMode=REQUIRED&serverTimezone=UTC
+# Or: DB_URL + DB_USER + DB_PASSWORD
 
 [project]
 name = "TalaqqiHub"
@@ -28,3 +23,9 @@ context = "."
 type = "docker"
 port = 8080
 start = "/usr/local/bin/docker-entrypoint.sh catalina.sh run"
+
+[healthcheck]
+path = "/"
+port = 8080
+interval = 30
+timeout = 10
