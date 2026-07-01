@@ -8,6 +8,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Attendance - TalaqqiHub</title>
     <%@ include file="/WEB-INF/views/includes/studentLayoutStyles.jsp" %>
+    <link rel="stylesheet" href="<%= request.getContextPath() %>/css/student-attendance-responsive.css">
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <style>
@@ -32,13 +33,13 @@
             <jsp:param name="notifPrefix" value="attendanceNotif"/>
         </jsp:include>
 
-        <div class="page-content">
-            <p class="page-subtitle" style="margin-top:-24px;margin-bottom:32px;"><span class="w-2 h-2 bg-green-500 rounded-full mr-2 inline-block"></span>Track your session history</p>
+        <div class="page-content student-attendance">
+            <p class="page-subtitle attendance-subtitle" style="margin-top:-24px;margin-bottom:32px;"><span class="w-2 h-2 bg-green-500 rounded-full mr-2 inline-block"></span>Track your session history</p>
 
                     <!-- TOP ACTIONS -->
-                    <div class="flex justify-between items-center mb-8">
+                    <div class="attendance-toolbar">
                         <div></div>
-                        <div class="flex gap-3">
+                        <div class="attendance-toolbar-actions">
                             <button id="exportBtn" class="bg-gradient-to-r from-teal-500 to-green-600 hover:from-teal-600 hover:to-green-700 text-white px-6 py-2.5 rounded-lg flex items-center transition shadow-lg hover:shadow-xl transform hover:scale-105">
                                 <svg class="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8"></path>
@@ -61,7 +62,7 @@
                                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"></path>
                             </svg>
                             <input type="text" placeholder="Search by date, session, or teacher..." 
-                                   class="w-full pl-12 pr-4 py-3 border-2 border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent shadow-sm hover:border-gray-300 transition">
+                                   class="attendance-search-input w-full pl-12 pr-4 py-3 border-2 border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent shadow-sm hover:border-gray-300 transition">
                         </div>
                     </div>
                     
@@ -72,7 +73,7 @@
                             <div class="flex items-start justify-between">
                                 <div>
                                     <p class="text-gray-500 text-sm font-medium">Total Sessions</p>
-                                    <p class="text-4xl font-bold text-gray-900 mt-2">${total}</p>
+                                    <p class="attendance-stat-value text-4xl font-bold text-gray-900 mt-2">${total}</p>
                                 </div>
                                 <div class="w-14 h-14 bg-teal-100 rounded-2xl flex items-center justify-center flex-shrink-0">
                                     <svg class="w-7 h-7 text-teal-600" fill="currentColor" viewBox="0 0 24 24">
@@ -87,7 +88,7 @@
                             <div class="flex items-start justify-between">
                                 <div>
                                     <p class="text-gray-500 text-sm font-medium">Present</p>
-                                    <p class="text-4xl font-bold text-green-600 mt-2">${present}</p>
+                                    <p class="attendance-stat-value text-4xl font-bold text-green-600 mt-2">${present}</p>
                                 </div>
                                 <div class="w-14 h-14 bg-green-100 rounded-2xl flex items-center justify-center flex-shrink-0">
                                     <svg class="w-7 h-7 text-green-600" fill="currentColor" viewBox="0 0 24 24">
@@ -102,7 +103,7 @@
                             <div class="flex items-start justify-between">
                                 <div>
                                     <p class="text-gray-500 text-sm font-medium">Absent</p>
-                                    <p class="text-4xl font-bold text-red-600 mt-2">${absent}</p>
+                                    <p class="attendance-stat-value text-4xl font-bold text-red-600 mt-2">${absent}</p>
                                 </div>
                                 <div class="w-14 h-14 bg-red-100 rounded-2xl flex items-center justify-center flex-shrink-0">
                                     <svg class="w-7 h-7 text-red-600" fill="currentColor" viewBox="0 0 24 24">
@@ -117,7 +118,7 @@
                             <div class="flex items-start justify-between">
                                 <div>
                                     <p class="text-gray-500 text-sm font-medium">Attendance Rate <span class="text-gray-400">ⓘ</span></p>
-                                    <p class="text-4xl font-bold text-teal-700 mt-2">${rate}%</p>
+                                    <p class="attendance-stat-value text-4xl font-bold text-teal-700 mt-2">${rate}%</p>
                                 </div>
                                 <div class="w-14 h-14 bg-emerald-100 rounded-2xl flex items-center justify-center flex-shrink-0">
                                     <svg class="w-7 h-7 text-emerald-600" fill="currentColor" viewBox="0 0 24 24">
@@ -131,7 +132,7 @@
                     <!-- CHARTS SECTION -->
                     <div class="grid grid-cols-1 lg:grid-cols-2 gap-8 mb-8">
                         <!-- Attendance Distribution Chart -->
-                        <div class="fade-in card-hover bg-white rounded-2xl shadow-lg p-8 hover:shadow-xl">
+                        <div class="fade-in card-hover bg-white rounded-2xl shadow-lg p-8 hover:shadow-xl attendance-chart-panel">
                             <h3 class="text-xl font-bold text-gray-800 mb-8">Attendance Distribution</h3>
                             <div class="flex justify-center items-center min-h-60 max-w-sm mx-auto">
                                 <canvas id="distributionChart"></canvas>
@@ -139,7 +140,7 @@
                         </div>
                         
                         <!-- Attendance Trend Chart -->
-                        <div class="fade-in card-hover bg-white rounded-2xl shadow-lg p-8 hover:shadow-xl">
+                        <div class="fade-in card-hover bg-white rounded-2xl shadow-lg p-8 hover:shadow-xl attendance-chart-panel">
                             <h3 class="text-xl font-bold text-gray-800 mb-8">Attendance Trend</h3>
                             <div class="flex justify-center items-center min-h-80">
                                 <div class="w-full" style="height: 300px;">
@@ -150,14 +151,14 @@
                     </div>
                     
                     <!-- ATTENDANCE RECORDS TABLE -->
-                    <div class="fade-in card-hover bg-white rounded-2xl shadow-lg overflow-hidden">
-                        <div class="px-8 py-6 border-b border-gray-200">
+                    <div class="fade-in card-hover bg-white rounded-2xl shadow-lg overflow-hidden attendance-records-panel">
+                        <div class="px-8 py-6 border-b border-gray-200 attendance-records-header">
                             <div class="flex justify-between items-center">
                                 <h3 class="text-2xl font-bold text-gray-800">Attendance Records</h3>
                             </div>
                         </div>
-                        <div class="overflow-x-auto">
-                            <table class="w-full">
+                        <div class="overflow-x-auto attendance-table-wrap">
+                            <table class="w-full attendance-table">
                                 <thead class="border-b-2 border-gray-200 bg-white">
                                     <tr>
                                         <th class="px-6 py-4 text-left text-sm font-semibold text-gray-700">Date</th>

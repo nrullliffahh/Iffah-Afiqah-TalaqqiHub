@@ -12,6 +12,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Evaluation & Progress - TalaqqiHub</title>
     <%@ include file="/WEB-INF/views/includes/studentLayoutStyles.jsp" %>
+    <link rel="stylesheet" href="<%= request.getContextPath() %>/css/student-evaluation-responsive.css">
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/3.9.1/chart.min.js"></script>
     <style>
@@ -454,7 +455,7 @@
             <jsp:param name="notifPrefix" value="evalNotif"/>
         </jsp:include>
 
-        <div class="page-content">
+        <div class="page-content student-evaluation">
             <div class="page-title">Evaluation & Progress</div>
             <div class="page-subtitle">Track your learning progress and provide feedback on your learning experience</div>
             

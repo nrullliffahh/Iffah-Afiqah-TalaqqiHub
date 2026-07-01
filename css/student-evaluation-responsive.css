@@ -1,0 +1,127 @@
+/* Student Evaluation – mobile & iPad enhancements (existing grid breakpoints preserved) */
+
+.student-evaluation {
+    max-width: 100%;
+    overflow-x: hidden;
+}
+
+.student-evaluation .page-title,
+.student-evaluation .page-subtitle,
+.student-evaluation .section-name,
+.student-evaluation .history-title {
+    word-break: break-word;
+}
+
+.student-evaluation .score-value {
+    font-size: clamp(1.5rem, 5vw, 2rem);
+}
+
+.student-evaluation .score-card,
+.student-evaluation .chart-card,
+.student-evaluation .teacher-feedback-card {
+    min-width: 0;
+}
+
+.student-evaluation .evaluation-title,
+.student-evaluation .evaluation-meta,
+.student-evaluation .session-surah,
+.student-evaluation .teacher-feedback-name,
+.student-evaluation .teacher-feedback-meta,
+.student-evaluation .teacher-feedback-comments,
+.student-evaluation .teacher-feedback-suggestions {
+    word-break: break-word;
+}
+
+.student-evaluation .evaluation-button,
+.student-evaluation .btn-view,
+.student-evaluation .btn-edit,
+.student-evaluation .teacher-feedback-edit {
+    min-height: 44px;
+    min-width: 44px;
+}
+
+.student-evaluation .evaluation-badges {
+    flex-wrap: wrap;
+}
+
+.student-evaluation .chart-card canvas {
+    max-width: 100%;
+}
+
+/* Modals – fit small screens without changing page layout */
+.student-evaluation #evaluationModal > div,
+.student-evaluation #teacherEvaluationModal > div,
+.student-evaluation #studentTeacherEvaluationModal > div,
+.student-evaluation #editFeedbackModal > div {
+    max-width: min(100%, calc(100vw - 24px));
+}
+
+@media (max-width: 768px) {
+    .student-evaluation .evaluation-card,
+    .student-evaluation .session-card {
+        flex-wrap: wrap;
+        align-items: flex-start;
+    }
+
+    .student-evaluation .evaluation-card .evaluation-button,
+    .student-evaluation .session-card .evaluation-button {
+        width: 100%;
+        margin-top: 4px;
+    }
+
+    .student-evaluation .session-time {
+        min-width: 0;
+    }
+
+    .student-evaluation .teacher-feedback-header {
+        flex-direction: column;
+        align-items: stretch;
+        gap: 12px;
+    }
+
+    .student-evaluation .teacher-feedback-rating {
+        text-align: left;
+    }
+
+    .student-evaluation #evaluationModal .grid.grid-cols-4 {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+
+    .student-evaluation #evaluationModal > div,
+    .student-evaluation #teacherEvaluationModal > div,
+    .student-evaluation #studentTeacherEvaluationModal > div,
+    .student-evaluation #editFeedbackModal > div {
+        padding-left: 1rem !important;
+        padding-right: 1rem !important;
+    }
+
+    .student-evaluation #evaluationModal > div > div,
+    .student-evaluation #teacherEvaluationModal > div > div,
+    .student-evaluation #studentTeacherEvaluationModal > div > div,
+    .student-evaluation #editFeedbackModal > div > div {
+        padding: 1.25rem !important;
+    }
+
+    .student-evaluation #teacherEvaluationModal .flex.gap-4,
+    .student-evaluation #studentTeacherEvaluationModal .flex.gap-4,
+    .student-evaluation #editFeedbackModal .flex.gap-4 {
+        flex-direction: column;
+    }
+}
+
+@media (min-width: 769px) and (max-width: 1024px) {
+    .student-evaluation .score-card,
+    .student-evaluation .chart-card {
+        padding: 1.25rem;
+    }
+}
+
+@supports (padding: max(0px)) {
+    @media (max-width: 768px) {
+        .student-evaluation.page-content {
+            padding-left: max(16px, env(safe-area-inset-left)) !important;
+            padding-right: max(16px, env(safe-area-inset-right)) !important;
+            padding-bottom: max(20px, env(safe-area-inset-bottom)) !important;
+        }
+    }
+}
