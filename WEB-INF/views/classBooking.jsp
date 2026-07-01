@@ -1264,44 +1264,21 @@
     
     <div id="cancelModal" class="hidden fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-[1050] booking-modal-overlay booking-cancel-modal-overlay" aria-hidden="true">
         <div class="bg-white rounded-2xl shadow-2xl w-full mx-4 booking-details-modal-panel booking-cancel-modal-panel" role="dialog" aria-modal="true" aria-labelledby="cancelModalTitle">
-            <div class="flex items-start justify-between gap-3 booking-details-modal-header booking-cancel-modal-header">
-                <h3 id="cancelModalTitle" class="text-xl font-bold text-gray-800 leading-tight">Cancel Booking</h3>
-                <button type="button" onclick="closeCancelModal()" class="shrink-0 text-gray-500 hover:text-gray-700 text-lg leading-none p-1 booking-details-modal-close" aria-label="Close">✕</button>
-            </div>
-            <p id="cancelSummary" class="booking-cancel-summary text-sm text-gray-600">Are you sure you want to cancel this class?</p>
-            <div class="booking-details-modal-body booking-cancel-modal-body">
-                <div class="booking-details-modal-field">
-                    <p class="booking-details-modal-label">Class Type:</p>
-                    <p id="cancelClassType" class="booking-details-modal-value">Quran Recitation &amp; Tajweed</p>
-                </div>
-                <div class="booking-details-modal-field">
-                    <p class="booking-details-modal-label">Teacher:</p>
-                    <p id="cancelTeacher" class="booking-details-modal-value"></p>
-                </div>
-                <div class="booking-cancel-datetime-grid">
-                    <div class="booking-details-modal-field">
-                        <p class="booking-details-modal-label">Date:</p>
-                        <p id="cancelDate" class="booking-details-modal-value"></p>
-                    </div>
-                    <div class="booking-details-modal-field">
-                        <p class="booking-details-modal-label">Time:</p>
-                        <p id="cancelTime" class="booking-details-modal-value"></p>
-                    </div>
-                </div>
+            <h3 id="cancelModalTitle" class="booking-cancel-title">Cancel Booking</h3>
+            <p id="cancelSummary" class="booking-cancel-summary">Are you sure you want to cancel this class?</p>
+            <div id="cancelBookingInfo" class="booking-cancel-info">
+                <p id="cancelClassType" class="booking-cancel-info-title">Quran Recitation &amp; Tajweed</p>
+                <p id="cancelSchedule" class="booking-cancel-info-meta"></p>
+                <p id="cancelTeacherLine" class="booking-cancel-info-meta"></p>
             </div>
             <form method="POST" action="<%= request.getContextPath() %>/student/cancel-booking" class="booking-cancel-modal-form">
                 <input type="hidden" name="bookingId" id="cancelBookingId">
-                <div class="booking-cancel-form-section">
-                    <p class="booking-cancel-notice text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2">
-                        Bookings cannot be cancelled less than 12 hours before the class start time.
-                    </p>
-                    <label for="cancelReason" class="booking-cancel-label block text-sm font-semibold text-gray-700">Reason for Cancellation <span class="text-red-500">*</span></label>
-                    <textarea id="cancelReason" name="reason" rows="3" placeholder="Please provide a reason for cancelling this booking..."
-                              class="booking-cancel-reason w-full border-2 border-gray-300 rounded-xl focus:outline-none focus:border-red-500 transition-colors resize-none" required></textarea>
-                </div>
-                <div class="booking-details-modal-footer booking-cancel-modal-footer">
-                    <button type="button" onclick="closeCancelModal()" class="w-full booking-details-modal-btn booking-details-modal-btn-secondary booking-cancel-modal-btn-secondary">Keep Booking</button>
-                    <button type="submit" class="w-full booking-details-modal-btn booking-details-modal-btn-danger booking-cancel-modal-btn-danger">Cancel Booking</button>
+                <label for="cancelReason" class="booking-cancel-label">Reason for Cancellation <span class="text-red-500">*</span></label>
+                <textarea id="cancelReason" name="reason" rows="4" placeholder="Please provide a reason for cancelling this booking..."
+                          class="booking-cancel-reason w-full border-2 border-gray-300 rounded-xl focus:outline-none focus:border-red-500 transition-colors resize-none" required></textarea>
+                <div class="booking-cancel-modal-footer">
+                    <button type="button" onclick="closeCancelModal()" class="booking-cancel-modal-btn booking-cancel-modal-btn-secondary">Keep Booking</button>
+                    <button type="submit" class="booking-cancel-modal-btn booking-cancel-modal-btn-danger">Cancel Booking</button>
                 </div>
             </form>
         </div>
@@ -1559,10 +1536,11 @@
                 const teacher = el.dataset.teacherName || '';
                 const rawDate = el.dataset.bookingDate || '';
                 const rawTime = el.dataset.bookingTime || '';
+                const prettyDate = formatBookingDateDisplay(rawDate);
+                const prettyTime = formatBookingTimeRangeDisplay(rawDate, rawTime);
                 document.getElementById('cancelClassType').textContent = classType;
-                document.getElementById('cancelTeacher').textContent = teacher;
-                document.getElementById('cancelDate').textContent = formatBookingDateDisplay(rawDate);
-                document.getElementById('cancelTime').textContent = formatBookingTimeRangeDisplay(rawDate, rawTime);
+                document.getElementById('cancelSchedule').textContent = (prettyDate || rawDate) + (prettyTime ? ' at ' + prettyTime : '');
+                document.getElementById('cancelTeacherLine').textContent = 'Teacher: ' + (teacher || '');
             }
             document.getElementById('cancelBookingId').value = bookingId;
             var reasonEl = document.getElementById('cancelReason');
