@@ -13,7 +13,7 @@
     <title>Evaluation & Progress - TalaqqiHub</title>
     <%@ include file="/WEB-INF/views/includes/studentLayoutStyles.jsp" %>
     <script src="https://cdn.tailwindcss.com"></script>
-    <link rel="stylesheet" href="<%= request.getContextPath() %>/css/student-evaluation-responsive.css?v=2">
+    <link rel="stylesheet" href="<%= request.getContextPath() %>/css/student-evaluation-responsive.css?v=3">
     <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/3.9.1/chart.min.js"></script>
     <style>
         .score-cards-container {
@@ -449,22 +449,176 @@
         .eval-modal-shell {
             display: flex;
             flex-direction: column;
-            max-height: min(92dvh, 92vh);
+            max-height: min(90dvh, 90vh);
             overflow: hidden;
+            border-radius: 1.5rem;
+            width: 100%;
         }
 
         .eval-modal-scroll {
             flex: 1 1 auto;
+            min-height: 0;
             overflow-y: auto;
             -webkit-overflow-scrolling: touch;
             overscroll-behavior: contain;
+        }
+
+        .eval-modal-header {
+            margin-bottom: 1.5rem;
+        }
+
+        .eval-modal-header-bordered {
+            margin-bottom: 1.5rem;
+            padding-bottom: 1.5rem;
+            border-bottom: 1px solid #e2e8f0;
         }
 
         .eval-modal-footer {
             flex-shrink: 0;
             border-top: 1px solid #e2e8f0;
             background: #ffffff;
-            padding: 1rem 1.5rem;
+            padding: 1.25rem 1.5rem;
+            display: flex;
+            flex-direction: row;
+            gap: 0.75rem;
+        }
+
+        .eval-modal-btn-cancel {
+            flex: 1;
+            min-height: 48px;
+            padding: 0.75rem 1.5rem;
+            border-radius: 1rem;
+            border: 2px solid #d1d5db;
+            background: #ffffff;
+            color: #374151;
+            font-weight: 600;
+            cursor: pointer;
+            transition: background 0.2s;
+        }
+
+        .eval-modal-btn-cancel:hover {
+            background: #f9fafb;
+        }
+
+        .eval-modal-btn-primary {
+            flex: 1.35;
+            min-height: 48px;
+            padding: 0.75rem 1.5rem;
+            border-radius: 1rem;
+            border: none;
+            background: linear-gradient(to right, #14b8a6, #2dd4bf);
+            color: #ffffff;
+            font-weight: 600;
+            cursor: pointer;
+            transition: opacity 0.2s;
+        }
+
+        .eval-modal-btn-primary:hover {
+            opacity: 0.92;
+        }
+
+        .eval-modal-btn-close {
+            width: 100%;
+            min-height: 48px;
+            padding: 0.75rem 1.5rem;
+            border-radius: 0.75rem;
+            border: none;
+            background: linear-gradient(to right, #14b8a6, #0d9488);
+            color: #ffffff;
+            font-weight: 600;
+            cursor: pointer;
+            transition: opacity 0.2s;
+        }
+
+        .eval-modal-btn-close:hover {
+            opacity: 0.92;
+        }
+
+        .eval-score-grid {
+            display: grid;
+            grid-template-columns: repeat(4, minmax(0, 1fr));
+            gap: 1rem;
+            text-align: center;
+        }
+
+        .eval-score-label {
+            font-size: 0.875rem;
+            color: #64748b;
+            margin-bottom: 0.5rem;
+        }
+
+        .eval-score-value {
+            font-size: clamp(1.75rem, 4vw, 2.25rem);
+            font-weight: 700;
+            line-height: 1;
+        }
+
+        .eval-score-value.teal { color: #0d9488; }
+        .eval-score-value.blue { color: #2563eb; }
+        .eval-score-value.purple { color: #9333ea; }
+        .eval-score-value.green { color: #16a34a; }
+
+        .eval-strength-item {
+            display: flex;
+            align-items: flex-start;
+            gap: 0.75rem;
+            background: #ecfdf5;
+            border-radius: 0.75rem;
+            padding: 1rem 1.25rem;
+            color: #334155;
+            font-size: 0.9375rem;
+            line-height: 1.5;
+        }
+
+        .eval-session-info {
+            margin-bottom: 2rem;
+        }
+
+        .eval-session-time {
+            font-size: 0.875rem;
+            color: #64748b;
+            margin-bottom: 0.25rem;
+        }
+
+        .eval-session-lesson {
+            font-size: 1.125rem;
+            font-weight: 600;
+            color: #111827;
+        }
+
+        .eval-star-btn {
+            font-size: 2.25rem;
+            line-height: 1;
+            cursor: pointer;
+            border: none;
+            background: none;
+            padding: 0;
+            color: #d1d5db;
+            transition: transform 0.15s, color 0.15s;
+        }
+
+        .eval-star-btn:hover {
+            transform: scale(1.08);
+        }
+
+        .eval-star-btn.filled {
+            color: #fbbf24;
+        }
+
+        @media (max-width: 640px) {
+            .eval-score-grid {
+                grid-template-columns: repeat(2, minmax(0, 1fr));
+            }
+
+            .eval-modal-footer {
+                flex-direction: column;
+            }
+
+            .eval-modal-btn-primary,
+            .eval-modal-btn-cancel {
+                flex: 1 1 auto;
+                width: 100%;
+            }
         }
 
         @media (max-width: 1024px) {
@@ -843,46 +997,39 @@
     </div>
     
     <!-- EVALUATION DETAILS MODAL -->
-    <div id="evaluationModal" class="fixed inset-0 bg-black/70 z-50 hidden flex items-end sm:items-center justify-center p-0 sm:p-4">
-        <div class="eval-modal-shell bg-white rounded-t-3xl sm:rounded-3xl shadow-2xl w-full max-w-5xl relative">
-            <!-- Close Button -->
-            <button onclick="closeEvaluationModal()" class="absolute top-4 right-4 sm:top-6 sm:right-6 text-gray-500 hover:text-gray-700 z-10">
-                <i class="fas fa-times text-2xl"></i>
+    <div id="evaluationModal" class="fixed inset-0 bg-black/70 z-50 hidden flex items-center justify-center p-4">
+        <div class="eval-modal-shell bg-white shadow-2xl max-w-3xl relative">
+            <button onclick="closeEvaluationModal()" class="absolute top-5 right-5 text-gray-400 hover:text-gray-600 z-10" aria-label="Close">
+                <i class="fas fa-times text-xl"></i>
             </button>
             
-            <!-- Modal Content -->
-            <div class="eval-modal-scroll p-5 sm:p-8 pt-12 sm:pt-8">
-                <!-- Header -->
-                <div class="mb-8">
-                    <h2 class="text-3xl font-bold text-gray-900 mb-2">Detailed Evaluation Report</h2>
+            <div class="eval-modal-scroll p-6 sm:p-8 pt-10 sm:pt-8">
+                <div class="eval-modal-header">
+                    <h2 class="text-2xl sm:text-3xl font-bold text-gray-900 mb-2">Detailed Evaluation Report</h2>
                     <p class="text-gray-500" id="modalSubtitle">Select an evaluation to view details</p>
                 </div>
                 
-                <!-- Lesson Covered -->
-                <div class="mb-8">
-                    <h3 class="text-lg font-semibold text-gray-900 mb-3">Lesson Covered</h3>
+                <div class="mb-6">
+                    <h3 class="text-base font-semibold text-gray-900 mb-2">Lesson Covered</h3>
                     <p class="text-gray-700" id="modalLesson">--</p>
                 </div>
                 
-                <!-- Scores Section -->
-                <div class="mb-8">
-                    <div class="grid grid-cols-4 gap-4">
-                        <div class="text-center p-4 bg-gradient-to-br from-blue-50 to-blue-100 rounded-xl">
-                            <div class="text-sm text-gray-600 mb-2">Tajweed</div>
-                            <div class="text-4xl font-bold text-blue-600" id="modalTajweed">--</div>
-                        </div>
-                        <div class="text-center p-4 bg-gradient-to-br from-purple-50 to-purple-100 rounded-xl">
-                            <div class="text-sm text-gray-600 mb-2">Fluency</div>
-                            <div class="text-4xl font-bold text-purple-600" id="modalFluency">--</div>
-                        </div>
-                        <div class="text-center p-4 bg-gradient-to-br from-green-50 to-green-100 rounded-xl">
-                            <div class="text-sm text-gray-600 mb-2">Accuracy</div>
-                            <div class="text-4xl font-bold text-green-600" id="modalAccuracy">--</div>
-                        </div>
-                        <div class="text-center p-4 bg-gradient-to-br from-teal-50 to-teal-100 rounded-xl">
-                            <div class="text-sm text-gray-600 mb-2">Overall</div>
-                            <div class="text-4xl font-bold text-teal-600" id="modalOverall">--</div>
-                        </div>
+                <div class="mb-8 eval-score-grid">
+                    <div>
+                        <div class="eval-score-label">Tajweed</div>
+                        <div class="eval-score-value green" id="modalTajweed">--</div>
+                    </div>
+                    <div>
+                        <div class="eval-score-label">Fluency</div>
+                        <div class="eval-score-value purple" id="modalFluency">--</div>
+                    </div>
+                    <div>
+                        <div class="eval-score-label">Accuracy</div>
+                        <div class="eval-score-value green" id="modalAccuracy">--</div>
+                    </div>
+                    <div>
+                        <div class="eval-score-label">Overall</div>
+                        <div class="eval-score-value teal" id="modalOverall">--</div>
                     </div>
                 </div>
                 
@@ -947,7 +1094,7 @@
             </div>
             
             <div class="eval-modal-footer">
-                <button onclick="closeEvaluationModal()" class="w-full bg-gradient-to-r from-teal-500 to-teal-600 hover:from-teal-600 hover:to-teal-700 text-white font-semibold py-3 rounded-xl transition-all min-h-[48px]">
+                <button type="button" onclick="closeEvaluationModal()" class="eval-modal-btn-close">
                     Close
                 </button>
             </div>
@@ -955,25 +1102,21 @@
     </div>
     
     <!-- TEACHER EVALUATION MODAL -->
-    <div id="teacherEvaluationModal" class="fixed inset-0 bg-black/70 z-50 hidden flex items-end sm:items-center justify-center p-0 sm:p-4">
-        <div class="eval-modal-shell bg-white rounded-t-3xl sm:rounded-3xl shadow-2xl w-full max-w-3xl relative">
-            <!-- Close Button -->
-            <button onclick="closeTeacherEvaluationReportModal()" class="absolute top-4 right-4 sm:top-6 sm:right-6 text-gray-500 hover:text-gray-700 z-10">
-                <i class="fas fa-times text-2xl"></i>
+    <div id="teacherEvaluationModal" class="fixed inset-0 bg-black/70 z-50 hidden flex items-center justify-center p-4">
+        <div class="eval-modal-shell bg-white shadow-2xl max-w-2xl relative">
+            <button onclick="closeTeacherEvaluationReportModal()" class="absolute top-5 right-5 text-gray-400 hover:text-gray-600 z-10" aria-label="Close">
+                <i class="fas fa-times text-xl"></i>
             </button>
             
-            <!-- Modal Content -->
-            <div class="eval-modal-scroll p-5 sm:p-8 pt-12 sm:pt-8">
-                <!-- Header -->
-                <div class="mb-8">
-                    <h2 class="text-3xl font-bold text-gray-900 mb-2">Evaluate Teacher</h2>
+            <div class="eval-modal-scroll p-6 sm:p-8 pt-10 sm:pt-8">
+                <div class="eval-modal-header">
+                    <h2 class="text-2xl sm:text-3xl font-bold text-gray-900 mb-2">Evaluate Teacher</h2>
                     <p class="text-gray-500" id="modalTeacherSubtitle">Fatima Ali • Dec 29, 2024</p>
                 </div>
                 
-                <!-- Session Info -->
-                <div class="mb-8 bg-gray-50 rounded-2xl p-6">
-                    <p class="text-sm text-gray-600 mb-2" id="modalSessionTime">Session: 09:00 AM - 09:15 AM</p>
-                    <p class="text-lg font-semibold text-gray-900" id="modalSessionLesson">Al-Baqarah - Ayah 6-10</p>
+                <div class="eval-session-info">
+                    <p class="eval-session-time" id="modalSessionTime">Session: 09:00 AM - 09:15 AM</p>
+                    <p class="eval-session-lesson" id="modalSessionLesson">Al-Baqarah - Ayah 6-10</p>
                 </div>
                 
                 <!-- Form -->
@@ -989,12 +1132,12 @@
                         <label class="block text-lg font-semibold text-gray-900 mb-4">
                             Teacher Rating <span class="text-red-500">*</span>
                         </label>
-                        <div class="flex gap-4" id="starRating">
-                            <button type="button" class="star-btn text-4xl cursor-pointer transition-transform hover:scale-110" data-rating="1" onclick="setRating(1)">☆</button>
-                            <button type="button" class="star-btn text-4xl cursor-pointer transition-transform hover:scale-110" data-rating="2" onclick="setRating(2)">☆</button>
-                            <button type="button" class="star-btn text-4xl cursor-pointer transition-transform hover:scale-110" data-rating="3" onclick="setRating(3)">☆</button>
-                            <button type="button" class="star-btn text-4xl cursor-pointer transition-transform hover:scale-110" data-rating="4" onclick="setRating(4)">☆</button>
-                            <button type="button" class="star-btn text-4xl cursor-pointer transition-transform hover:scale-110" data-rating="5" onclick="setRating(5)">☆</button>
+                        <div class="flex gap-3" id="starRating">
+                            <button type="button" class="eval-star-btn star-btn" data-rating="1" onclick="setRating(1)">☆</button>
+                            <button type="button" class="eval-star-btn star-btn" data-rating="2" onclick="setRating(2)">☆</button>
+                            <button type="button" class="eval-star-btn star-btn" data-rating="3" onclick="setRating(3)">☆</button>
+                            <button type="button" class="eval-star-btn star-btn" data-rating="4" onclick="setRating(4)">☆</button>
+                            <button type="button" class="eval-star-btn star-btn" data-rating="5" onclick="setRating(5)">☆</button>
                         </div>
                     </div>
                     
@@ -1016,11 +1159,11 @@
                 </form>
             </div>
 
-            <div class="eval-modal-footer flex flex-col sm:flex-row gap-3">
-                <button type="button" onclick="closeTeacherEvaluationReportModal()" class="flex-1 px-6 py-3 rounded-2xl border-2 border-gray-300 text-gray-700 font-semibold hover:bg-gray-50 transition-colors min-h-[48px]">
+            <div class="eval-modal-footer">
+                <button type="button" onclick="closeTeacherEvaluationReportModal()" class="eval-modal-btn-cancel">
                     Cancel
                 </button>
-                <button type="submit" form="teacherEvaluationForm" class="flex-1 px-6 py-3 rounded-2xl bg-gradient-to-r from-teal-500 to-teal-600 hover:from-teal-600 hover:to-teal-700 text-white font-semibold transition-all min-h-[48px]">
+                <button type="submit" form="teacherEvaluationForm" class="eval-modal-btn-primary">
                     Submit Evaluation
                 </button>
             </div>
@@ -1085,18 +1228,15 @@
     </div>
     
     <!-- EDIT FEEDBACK MODAL -->
-    <div id="editFeedbackModal" class="fixed inset-0 bg-black/70 z-50 hidden flex items-end sm:items-center justify-center p-0 sm:p-4">
-        <div class="eval-modal-shell bg-white rounded-t-3xl sm:rounded-3xl shadow-2xl w-full max-w-4xl relative">
-            <!-- Close Button -->
-            <button onclick="closeEditFeedbackModal()" class="absolute top-4 right-4 sm:top-6 sm:right-6 text-gray-500 hover:text-gray-700 z-10">
-                <i class="fas fa-times text-2xl"></i>
+    <div id="editFeedbackModal" class="fixed inset-0 bg-black/70 z-50 hidden flex items-center justify-center p-4">
+        <div class="eval-modal-shell bg-white shadow-2xl max-w-2xl relative">
+            <button onclick="closeEditFeedbackModal()" class="absolute top-5 right-5 text-gray-400 hover:text-gray-600 z-10" aria-label="Close">
+                <i class="fas fa-times text-xl"></i>
             </button>
             
-            <!-- Modal Content -->
-            <div class="eval-modal-scroll p-5 sm:p-8 pt-12 sm:pt-8">
-                <!-- Header -->
-                <div class="mb-8 pb-6 border-b border-gray-200">
-                    <h2 class="text-3xl font-bold text-gray-900 mb-2">Edit Evaluation</h2>
+            <div class="eval-modal-scroll p-6 sm:p-8 pt-10 sm:pt-8">
+                <div class="eval-modal-header-bordered">
+                    <h2 class="text-2xl sm:text-3xl font-bold text-gray-900 mb-2">Edit Evaluation</h2>
                     <p class="text-gray-500" id="editTeacherInfo">Ibrahim Khan • Dec 30, 2024</p>
                 </div>
                 
@@ -1111,12 +1251,12 @@
                         <label class="block text-lg font-semibold text-gray-900 mb-4">
                             Teacher Rating <span class="text-red-500">*</span>
                         </label>
-                        <div class="flex gap-4" id="editStarRating">
-                            <button type="button" class="edit-star-btn text-5xl cursor-pointer transition-transform hover:scale-110" data-rating="1" onclick="setEditRating(1)">★</button>
-                            <button type="button" class="edit-star-btn text-5xl cursor-pointer transition-transform hover:scale-110" data-rating="2" onclick="setEditRating(2)">★</button>
-                            <button type="button" class="edit-star-btn text-5xl cursor-pointer transition-transform hover:scale-110" data-rating="3" onclick="setEditRating(3)">★</button>
-                            <button type="button" class="edit-star-btn text-5xl cursor-pointer transition-transform hover:scale-110" data-rating="4" onclick="setEditRating(4)">★</button>
-                            <button type="button" class="edit-star-btn text-5xl cursor-pointer transition-transform hover:scale-110" data-rating="5" onclick="setEditRating(5)">★</button>
+                        <div class="flex gap-3" id="editStarRating">
+                            <button type="button" class="eval-star-btn edit-star-btn filled" data-rating="1" onclick="setEditRating(1)">★</button>
+                            <button type="button" class="eval-star-btn edit-star-btn filled" data-rating="2" onclick="setEditRating(2)">★</button>
+                            <button type="button" class="eval-star-btn edit-star-btn filled" data-rating="3" onclick="setEditRating(3)">★</button>
+                            <button type="button" class="eval-star-btn edit-star-btn filled" data-rating="4" onclick="setEditRating(4)">★</button>
+                            <button type="button" class="eval-star-btn edit-star-btn filled" data-rating="5" onclick="setEditRating(5)">★</button>
                         </div>
                     </div>
                     
@@ -1138,11 +1278,11 @@
                 </form>
             </div>
 
-            <div class="eval-modal-footer flex flex-col sm:flex-row gap-3">
-                <button type="button" onclick="closeEditFeedbackModal()" class="flex-1 px-6 py-3 rounded-2xl border-2 border-gray-300 text-gray-700 font-semibold hover:bg-gray-50 transition-colors min-h-[48px]">
+            <div class="eval-modal-footer">
+                <button type="button" onclick="closeEditFeedbackModal()" class="eval-modal-btn-cancel">
                     Cancel
                 </button>
-                <button type="submit" form="editFeedbackForm" class="flex-1 px-6 py-3 rounded-2xl bg-gradient-to-r from-teal-500 to-cyan-400 hover:from-teal-600 hover:to-cyan-500 text-white font-semibold transition-all min-h-[48px]">
+                <button type="submit" form="editFeedbackForm" class="eval-modal-btn-primary">
                     Update Evaluation
                 </button>
             </div>
@@ -1150,23 +1290,21 @@
     </div>
     
     <!-- STUDENT TEACHER EVALUATION MODAL -->
-    <div id="studentTeacherEvaluationModal" class="fixed inset-0 bg-black/70 z-50 hidden flex items-end sm:items-center justify-center p-0 sm:p-4">
-        <div class="eval-modal-shell bg-white rounded-t-3xl sm:rounded-3xl shadow-2xl w-full max-w-2xl relative">
-            <button onclick="closeTeacherEvaluationModal()" class="absolute top-4 right-4 sm:top-6 sm:right-6 text-gray-500 hover:text-gray-700 z-10">
-                <i class="fas fa-times text-2xl"></i>
+    <div id="studentTeacherEvaluationModal" class="fixed inset-0 bg-black/70 z-50 hidden flex items-center justify-center p-4">
+        <div class="eval-modal-shell bg-white shadow-2xl max-w-2xl relative">
+            <button onclick="closeTeacherEvaluationModal()" class="absolute top-5 right-5 text-gray-400 hover:text-gray-600 z-10" aria-label="Close">
+                <i class="fas fa-times text-xl"></i>
             </button>
 
-            <div class="eval-modal-scroll p-5 sm:p-8 pt-12 sm:pt-8">
-                <div class="mb-8">
-                    <h2 class="text-3xl font-bold text-gray-900 mb-2">Evaluate Teacher</h2>
+            <div class="eval-modal-scroll p-6 sm:p-8 pt-10 sm:pt-8">
+                <div class="eval-modal-header">
+                    <h2 class="text-2xl sm:text-3xl font-bold text-gray-900 mb-2">Evaluate Teacher</h2>
                     <p class="text-gray-500" id="studentTeacherEvalSubtitle">Share feedback for this completed session</p>
                 </div>
 
-                <div class="mb-8 rounded-2xl bg-teal-50 border border-teal-100 p-5">
-                    <p class="text-sm text-teal-700 font-semibold mb-2">Session Details</p>
-                    <p class="text-gray-900 font-semibold" id="studentTeacherEvalTeacher">Teacher</p>
-                    <p class="text-gray-600 text-sm" id="studentTeacherEvalSession">Session</p>
-                    <p class="text-gray-600 text-sm" id="studentTeacherEvalLesson">Lesson</p>
+                <div class="eval-session-info">
+                    <p class="eval-session-time" id="studentTeacherEvalSession">Session: --</p>
+                    <p class="eval-session-lesson" id="studentTeacherEvalLesson">--</p>
                 </div>
 
                 <form id="studentTeacherEvaluationForm" method="POST" action="${pageContext.request.contextPath}/student/evaluation">
@@ -1177,19 +1315,19 @@
 
                     <div class="mb-8">
                         <label class="block text-lg font-semibold text-gray-900 mb-4">Teacher Rating <span class="text-red-500">*</span></label>
-                        <div class="flex gap-4" id="studentTeacherStarRating">
-                            <button type="button" class="student-teacher-star-btn text-5xl cursor-pointer transition-transform hover:scale-110" data-rating="1" onclick="setStudentTeacherRating(1)">★</button>
-                            <button type="button" class="student-teacher-star-btn text-5xl cursor-pointer transition-transform hover:scale-110" data-rating="2" onclick="setStudentTeacherRating(2)">★</button>
-                            <button type="button" class="student-teacher-star-btn text-5xl cursor-pointer transition-transform hover:scale-110" data-rating="3" onclick="setStudentTeacherRating(3)">★</button>
-                            <button type="button" class="student-teacher-star-btn text-5xl cursor-pointer transition-transform hover:scale-110" data-rating="4" onclick="setStudentTeacherRating(4)">★</button>
-                            <button type="button" class="student-teacher-star-btn text-5xl cursor-pointer transition-transform hover:scale-110" data-rating="5" onclick="setStudentTeacherRating(5)">★</button>
+                        <div class="flex gap-3" id="studentTeacherStarRating">
+                            <button type="button" class="eval-star-btn student-teacher-star-btn" data-rating="1" onclick="setStudentTeacherRating(1)">☆</button>
+                            <button type="button" class="eval-star-btn student-teacher-star-btn" data-rating="2" onclick="setStudentTeacherRating(2)">☆</button>
+                            <button type="button" class="eval-star-btn student-teacher-star-btn" data-rating="3" onclick="setStudentTeacherRating(3)">☆</button>
+                            <button type="button" class="eval-star-btn student-teacher-star-btn" data-rating="4" onclick="setStudentTeacherRating(4)">☆</button>
+                            <button type="button" class="eval-star-btn student-teacher-star-btn" data-rating="5" onclick="setStudentTeacherRating(5)">☆</button>
                         </div>
                         <input type="hidden" id="studentTeacherRatingValue" name="rating" value="0">
                     </div>
 
                     <div class="mb-8">
                         <label for="studentTeacherComments" class="block text-lg font-semibold text-gray-900 mb-3">Comments <span class="text-red-500">*</span></label>
-                        <textarea id="studentTeacherComments" name="comments" required rows="5" class="w-full px-5 py-4 rounded-2xl border-2 border-gray-200 focus:border-teal-400 focus:outline-none focus:ring-2 focus:ring-teal-400/30 resize-none" style="font-family: inherit;" placeholder="What went well in this session?"></textarea>
+                        <textarea id="studentTeacherComments" name="comments" required rows="5" class="w-full px-5 py-4 rounded-2xl border-2 border-gray-200 focus:border-teal-400 focus:outline-none focus:ring-2 focus:ring-teal-400/30 resize-none" style="font-family: inherit;" placeholder="Share your experience with this teacher..."></textarea>
                     </div>
 
                     <div class="mb-8">
@@ -1199,11 +1337,11 @@
                 </form>
             </div>
 
-            <div class="eval-modal-footer flex flex-col sm:flex-row gap-3">
-                <button type="button" onclick="closeTeacherEvaluationModal()" class="flex-1 px-6 py-3 rounded-2xl border-2 border-gray-300 text-gray-700 font-semibold hover:bg-gray-50 transition-colors min-h-[48px]">
+            <div class="eval-modal-footer">
+                <button type="button" onclick="closeTeacherEvaluationModal()" class="eval-modal-btn-cancel">
                     Cancel
                 </button>
-                <button type="submit" form="studentTeacherEvaluationForm" class="flex-1 px-6 py-3 rounded-2xl bg-gradient-to-r from-teal-500 to-cyan-400 hover:from-teal-600 hover:to-cyan-500 text-white font-semibold transition-all min-h-[48px]">
+                <button type="submit" form="studentTeacherEvaluationForm" class="eval-modal-btn-primary">
                     Submit Evaluation
                 </button>
             </div>
@@ -1225,8 +1363,15 @@
             }
             
             // Update modal content
-            document.getElementById('modalSubtitle').textContent = evalItem.createdAt;
-            document.getElementById('modalLesson').textContent = 'Quran Recitation (Surah ' + evalItem.surahName + (evalItem.ayahRange ? ', Ayah ' + evalItem.ayahRange : '') + ')';
+            const subtitleParts = [];
+            if (evalItem.createdAt) subtitleParts.push(evalItem.createdAt);
+            if (evalItem.teacherName) subtitleParts.push(evalItem.teacherName);
+            document.getElementById('modalSubtitle').textContent = subtitleParts.join(' • ');
+
+            const lessonText = evalItem.surahName
+                ? (evalItem.surahName + (evalItem.ayahRange ? ' - Ayah ' + evalItem.ayahRange : ''))
+                : 'Quran Recitation';
+            document.getElementById('modalLesson').textContent = lessonText;
             document.getElementById('modalTajweed').textContent = Math.round(evalItem.tajweedScore) + '%';
             document.getElementById('modalFluency').textContent = Math.round(evalItem.fluencyScore) + '%';
             document.getElementById('modalAccuracy').textContent = Math.round(evalItem.accuracyScore) + '%';
@@ -1238,8 +1383,8 @@
             const strengths = (evalItem.strengths || '').split(' | ');
             strengths.forEach(strength => {
                 const div = document.createElement('div');
-                div.className = 'bg-green-50 border-l-4 border-green-500 p-4 rounded';
-                div.innerHTML = '<p class="text-gray-700"><i class="fas fa-check-circle text-green-600 mr-2"></i>' + (strength.trim() || 'N/A') + '</p>';
+                div.className = 'eval-strength-item';
+                div.innerHTML = '<i class="fas fa-check text-green-600 mt-0.5"></i><span>' + (strength.trim() || 'N/A') + '</span>';
                 strengthsList.appendChild(div);
             });
             
@@ -1332,35 +1477,33 @@
             starBtns.forEach((btn, index) => {
                 if (index < stars) {
                     btn.textContent = '★';
-                    btn.style.color = '#FCD34D';
+                    btn.classList.add('filled');
                 } else {
                     btn.textContent = '☆';
-                    btn.style.color = '#D1D5DB';
+                    btn.classList.remove('filled');
                 }
             });
         }
         
-        // Reset Star Rating
         function resetStarRating() {
             const starBtns = document.querySelectorAll('#starRating .star-btn');
             starBtns.forEach(btn => {
                 btn.textContent = '☆';
-                btn.style.color = '#D1D5DB';
+                btn.classList.remove('filled');
             });
         }
         
-        // Add hover effects to stars
         document.querySelectorAll('#starRating .star-btn').forEach(btn => {
             btn.addEventListener('mouseover', function() {
                 const rating = parseInt(this.dataset.rating);
                 const starBtns = document.querySelectorAll('#starRating .star-btn');
                 starBtns.forEach((b, index) => {
                     if (index < rating) {
-                        b.style.color = '#FCD34D';
                         b.textContent = '★';
+                        b.classList.add('filled');
                     } else {
-                        b.style.color = '#D1D5DB';
                         b.textContent = '☆';
+                        b.classList.remove('filled');
                     }
                 });
             });
@@ -1476,24 +1619,24 @@
             document.getElementById('editRatingValue').value = stars;
             const starBtns = document.querySelectorAll('#editStarRating .edit-star-btn');
             starBtns.forEach((btn, index) => {
+                btn.textContent = '★';
                 if (index < stars) {
-                    btn.style.color = '#FCD34D';
+                    btn.classList.add('filled');
                 } else {
-                    btn.style.color = '#D1D5DB';
+                    btn.classList.remove('filled');
                 }
             });
         }
         
-        // Add hover effects to edit stars
         document.querySelectorAll('#editStarRating .edit-star-btn').forEach(btn => {
             btn.addEventListener('mouseover', function() {
                 const rating = parseInt(this.dataset.rating);
                 const starBtns = document.querySelectorAll('#editStarRating .edit-star-btn');
                 starBtns.forEach((b, index) => {
                     if (index < rating) {
-                        b.style.color = '#FCD34D';
+                        b.classList.add('filled');
                     } else {
-                        b.style.color = '#D1D5DB';
+                        b.classList.remove('filled');
                     }
                 });
             });
@@ -1554,10 +1697,9 @@
             document.getElementById('studentTeacherEvalSessionId').value = currentTeacherSession.sessionId;
             document.getElementById('studentTeacherEvalTeacherId').value = currentTeacherSession.teacherId;
             document.getElementById('studentTeacherEvalScheduleId').value = currentTeacherSession.scheduleId;
-            document.getElementById('studentTeacherEvalTeacher').textContent = currentTeacherSession.teacherName;
-            document.getElementById('studentTeacherEvalSession').textContent = currentTeacherSession.sessionDate + ' • ' + currentTeacherSession.sessionTime;
+            document.getElementById('studentTeacherEvalSubtitle').textContent = currentTeacherSession.teacherName + ' • ' + currentTeacherSession.sessionDate;
+            document.getElementById('studentTeacherEvalSession').textContent = 'Session: ' + currentTeacherSession.sessionTime;
             document.getElementById('studentTeacherEvalLesson').textContent = lessonText;
-            document.getElementById('studentTeacherEvalSubtitle').textContent = 'Session completed with ' + currentTeacherSession.teacherName;
 
             document.getElementById('studentTeacherEvaluationForm').reset();
             document.getElementById('studentTeacherEvalSessionId').value = currentTeacherSession.sessionId;
@@ -1632,10 +1774,10 @@
             starBtns.forEach((btn, index) => {
                 if (index < stars) {
                     btn.textContent = '★';
-                    btn.style.color = '#FCD34D';
+                    btn.classList.add('filled');
                 } else {
                     btn.textContent = '☆';
-                    btn.style.color = '#D1D5DB';
+                    btn.classList.remove('filled');
                 }
             });
         }
@@ -1646,11 +1788,11 @@
                 const starBtns = document.querySelectorAll('#studentTeacherStarRating .student-teacher-star-btn');
                 starBtns.forEach((b, index) => {
                     if (index < rating) {
-                        b.style.color = '#FCD34D';
                         b.textContent = '★';
+                        b.classList.add('filled');
                     } else {
-                        b.style.color = '#D1D5DB';
                         b.textContent = '☆';
+                        b.classList.remove('filled');
                     }
                 });
             });
