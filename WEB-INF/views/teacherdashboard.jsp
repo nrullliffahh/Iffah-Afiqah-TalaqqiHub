@@ -15,6 +15,10 @@
     int classesThisWeek = (Integer) request.getAttribute("classesThisWeek");
     int totalStudents = (Integer) request.getAttribute("totalStudents");
     int pendingEvaluations = (Integer) request.getAttribute("pendingEvaluations");
+    int completedEvaluations = request.getAttribute("completedEvaluations") != null
+        ? (Integer) request.getAttribute("completedEvaluations") : 0;
+    int studentsEvaluated = request.getAttribute("studentsEvaluated") != null
+        ? (Integer) request.getAttribute("studentsEvaluated") : 0;
     String averageRating = (String) request.getAttribute("averageRating");
 
     List<Map<String, Object>> upcomingClasses = (List<Map<String, Object>>) request.getAttribute("upcomingClasses");
@@ -26,7 +30,10 @@
     double avgRating = 0.0;
     try { avgRating = Double.parseDouble(averageRating); } catch (Exception ignored) {}
     int ratingWidth = (int) Math.min(100, Math.max(0, (avgRating / 5.0) * 100));
-    int pendingWidth = Math.min(100, pendingEvaluations * 10);
+    int pendingWidth = request.getAttribute("evaluationProgressWidth") != null
+        ? (Integer) request.getAttribute("evaluationProgressWidth") : 0;
+    int studentProgressWidth = request.getAttribute("studentProgressWidth") != null
+        ? (Integer) request.getAttribute("studentProgressWidth") : 0;
 %>
 <!DOCTYPE html>
 <html lang="en">
@@ -130,7 +137,7 @@
                     <div>
                         <div class="stat-value"><%= classesThisWeek %></div>
                         <div class="stat-label">Classes This Week</div>
-                        <div class="stat-hint">Your scheduled sessions</div>
+                        <div class="stat-hint">Booked sessions this week</div>
                     </div>
                 </div>
                 <div class="stat-card">
@@ -138,7 +145,7 @@
                     <div>
                         <div class="stat-value"><%= totalStudents %></div>
                         <div class="stat-label">Total Students</div>
-                        <div class="stat-hint">Students you teach</div>
+                        <div class="stat-hint">Students registered with you</div>
                     </div>
                 </div>
                 <div class="stat-card">
@@ -146,7 +153,7 @@
                     <div>
                         <div class="stat-value" style="color:#F59E0B;"><%= pendingEvaluations %></div>
                         <div class="stat-label">Pending Evaluations</div>
-                        <div class="stat-hint">Awaiting your review</div>
+                        <div class="stat-hint">Sessions awaiting your evaluation</div>
                     </div>
                 </div>
             </div>
@@ -196,11 +203,11 @@
 
                     <div class="rating-item" style="margin-bottom: 0;">
                         <div class="rating-header">
-                            <span class="rating-label">Students Taught</span>
-                            <span class="rating-score"><%= totalStudents %> <span>students</span></span>
+                            <span class="rating-label">Students Evaluated</span>
+                            <span class="rating-score"><%= studentsEvaluated %> <span>of <%= totalStudents %></span></span>
                         </div>
                         <div class="rating-track">
-                            <div class="rating-fill" style="width: <%= Math.min(100, totalStudents * 5) %>%"></div>
+                            <div class="rating-fill" style="width: <%= studentProgressWidth %>%"></div>
                         </div>
                     </div>
 
@@ -233,7 +240,7 @@
 
                                 Object bookedObj = classInfo.get("booked");
                                 boolean booked = bookedObj instanceof Boolean && (Boolean) bookedObj;
-                                if (studentName == null || studentName.trim().isEmpty() || !booked) continue;
+                                if (studentName == null || studentName.trim().isEmpty()) continue;
                                 hasUpcoming = true;
 
                                 String studentInitials = "S";

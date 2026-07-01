@@ -243,61 +243,78 @@ public class SessionDAO {
      */
     public List<Map<String, Object>> getUpcomingClasses(String teacherId, int limit) {
         List<Map<String, Object>> classList = new ArrayList<>();
+        java.util.LinkedHashMap<String, Map<String, Object>> bySchedule = new java.util.LinkedHashMap<>();
         Connection conn = null;
         PreparedStatement stmt = null;
         ResultSet rs = null;
         
         try {
             conn = DBConnection.getConnection();
-            // Include bookings from classbooking so booked slots show student info
             String sql = "SELECT cs.scheduleId, cs.className, cs.scheduleDate, " +
                         "cs.startTime, cs.endTime, cs.duration, cs.classStatus, " +
                         "cb.studentId AS bookedStudentId, s2.studentName AS bookedStudentName, " +
                         "cs.studentId AS assignedStudentId, s1.studentName AS assignedStudentName " +
                         "FROM classschedule cs " +
-                            "LEFT JOIN classbooking cb ON cb.scheduleId = cs.scheduleId " +
-                            "    AND cb.bookingDate = cs.scheduleDate AND cb.bookingStatus IN " + util.BookingStatus.SQL_ACTIVE + " " +
+                        "LEFT JOIN classbooking cb ON cb.scheduleId = cs.scheduleId " +
+                        "    AND cb.bookingStatus IN " + util.BookingStatus.SQL_ACTIVE + " " +
                         "LEFT JOIN student s2 ON cb.studentId = s2.studentId " +
                         "LEFT JOIN student s1 ON cs.studentId = s1.studentId " +
                         "WHERE cs.teacherId = ? " +
                         "AND cs.scheduleDate >= CURDATE() " +
+                        "AND (cs.classStatus IS NULL OR cs.classStatus != 'Cancelled') " +
                         "AND (cb.bookingId IS NOT NULL OR cs.studentId IS NOT NULL) " +
-                        "GROUP BY cs.scheduleId " +
-                        "ORDER BY cs.scheduleDate ASC, cs.startTime ASC LIMIT ?";
+                        "ORDER BY cs.scheduleDate ASC, cs.startTime ASC";
             stmt = conn.prepareStatement(sql);
             stmt.setString(1, teacherId);
-            stmt.setInt(2, limit);
             rs = stmt.executeQuery();
             
             while (rs.next()) {
+                String scheduleId = rs.getString("scheduleId");
+                if (scheduleId == null || bySchedule.containsKey(scheduleId)) {
+                    continue;
+                }
+
+                String bookedStudentId = rs.getString("bookedStudentId");
+                String bookedStudentName = rs.getString("bookedStudentName");
+                String assignedStudentId = rs.getString("assignedStudentId");
+                String assignedStudentName = rs.getString("assignedStudentName");
+
+                String chosenStudentId = null;
+                String chosenStudentName = null;
+                boolean isBooked = false;
+
+                if (bookedStudentId != null && !bookedStudentId.isEmpty()) {
+                    chosenStudentId = bookedStudentId;
+                    chosenStudentName = bookedStudentName != null ? bookedStudentName : "";
+                    isBooked = true;
+                } else if (assignedStudentId != null && !assignedStudentId.isEmpty()) {
+                    chosenStudentId = assignedStudentId;
+                    chosenStudentName = assignedStudentName != null ? assignedStudentName : "";
+                }
+
+                if (chosenStudentId == null || chosenStudentName == null || chosenStudentName.trim().isEmpty()) {
+                    continue;
+                }
+
                 Map<String, Object> classInfo = new HashMap<>();
-                classInfo.put("scheduleId", rs.getString("scheduleId"));
+                classInfo.put("scheduleId", scheduleId);
                 classInfo.put("className", rs.getString("className"));
                 classInfo.put("scheduleDate", rs.getDate("scheduleDate"));
                 classInfo.put("startTime", rs.getTime("startTime"));
                 classInfo.put("endTime", rs.getTime("endTime"));
                 classInfo.put("duration", rs.getInt("duration"));
                 classInfo.put("status", rs.getString("classStatus"));
-                // Prefer booked student (from classbooking) if present, else fall back to assigned student
-                String bookedStudentId = rs.getString("bookedStudentId");
-                String bookedStudentName = rs.getString("bookedStudentName");
-                String assignedStudentId = rs.getString("assignedStudentId");
-                String assignedStudentName = rs.getString("assignedStudentName");
+                classInfo.put("studentId", chosenStudentId);
+                classInfo.put("studentName", chosenStudentName);
+                classInfo.put("booked", isBooked);
+                bySchedule.put(scheduleId, classInfo);
 
-                if (bookedStudentId != null && !bookedStudentId.isEmpty()) {
-                    classInfo.put("studentId", bookedStudentId);
-                    classInfo.put("studentName", bookedStudentName != null ? bookedStudentName : "");
-                    classInfo.put("booked", true);
-                } else if (assignedStudentId != null && !assignedStudentId.isEmpty()) {
-                    classInfo.put("studentId", assignedStudentId);
-                    classInfo.put("studentName", assignedStudentName != null ? assignedStudentName : "");
-                    classInfo.put("booked", false);
-                } else {
-                    // Skip unbooked availability for teacher's upcoming classes list
-                    continue;
+                if (bySchedule.size() >= limit) {
+                    break;
                 }
-                classList.add(classInfo);
             }
+
+            classList.addAll(bySchedule.values());
         } catch (SQLException e) {
             e.printStackTrace();
         } finally {
@@ -326,8 +343,12 @@ public class SessionDAO {
             conn = DBConnection.getConnection();
             String sql = "SELECT cs.scheduleDate, cs.startTime " +
                         "FROM classschedule cs " +
+                        "LEFT JOIN classbooking cb ON cb.scheduleId = cs.scheduleId " +
+                        "    AND cb.bookingStatus IN " + util.BookingStatus.SQL_ACTIVE + " " +
                         "WHERE cs.teacherId = ? " +
                         "AND CONCAT(cs.scheduleDate, ' ', cs.startTime) > NOW() " +
+                        "AND (cs.classStatus IS NULL OR cs.classStatus != 'Cancelled') " +
+                        "AND (cb.bookingId IS NOT NULL OR cs.studentId IS NOT NULL) " +
                         "ORDER BY cs.scheduleDate ASC, cs.startTime ASC LIMIT 1";
             stmt = conn.prepareStatement(sql);
             stmt.setString(1, teacherId);

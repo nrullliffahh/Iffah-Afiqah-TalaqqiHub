@@ -445,9 +445,14 @@ public class TeacherDAO {
                 System.err.println("getClassesThisWeekCount: DB connection is null. Returning 0.");
                 return 0;
             }
-            String sql = "SELECT COUNT(*) as count FROM classschedule " +
-                        "WHERE teacherId = ? " +
-                        "AND YEARWEEK(scheduleDate, 1) = YEARWEEK(CURDATE(), 1)";
+            String sql = "SELECT COUNT(DISTINCT cs.scheduleId) AS count " +
+                        "FROM classschedule cs " +
+                        "LEFT JOIN classbooking cb ON cb.scheduleId = cs.scheduleId " +
+                        "    AND cb.bookingStatus IN " + util.BookingStatus.SQL_ACTIVE + " " +
+                        "WHERE cs.teacherId = ? " +
+                        "AND YEARWEEK(cs.scheduleDate, 1) = YEARWEEK(CURDATE(), 1) " +
+                        "AND (cs.classStatus IS NULL OR cs.classStatus != 'Cancelled') " +
+                        "AND (cb.bookingId IS NOT NULL OR cs.studentId IS NOT NULL)";
             stmt = conn.prepareStatement(sql);
             stmt.setString(1, teacherId);
             rs = stmt.executeQuery();
@@ -485,10 +490,18 @@ public class TeacherDAO {
                 System.err.println("getTotalStudentsTaught: DB connection is null. Returning 0.");
                 return 0;
             }
-            String sql = "SELECT COUNT(DISTINCT studentId) as count FROM classschedule " +
-                        "WHERE teacherId = ? AND studentId IS NOT NULL";
+            String sql = "SELECT COUNT(DISTINCT studentId) AS count FROM ( " +
+                        "SELECT cb.studentId AS studentId FROM classbooking cb " +
+                        "INNER JOIN classschedule cs ON cb.scheduleId = cs.scheduleId " +
+                        "WHERE cs.teacherId = ? AND cb.studentId IS NOT NULL " +
+                        "AND UPPER(TRIM(COALESCE(cb.bookingStatus, ''))) NOT IN ('CANCELLED', 'REJECTED') " +
+                        "UNION " +
+                        "SELECT cs.studentId AS studentId FROM classschedule cs " +
+                        "WHERE cs.teacherId = ? AND cs.studentId IS NOT NULL " +
+                        ") registered_students";
             stmt = conn.prepareStatement(sql);
             stmt.setString(1, teacherId);
+            stmt.setString(2, teacherId);
             rs = stmt.executeQuery();
             
             if (rs.next()) {
@@ -510,7 +523,7 @@ public class TeacherDAO {
     }
     
     /**
-     * Get average rating for this teacher from evaluations
+     * Average student-to-teacher feedback rating (1-5 scale).
      */
     public double getAverageRating(String teacherId) {
         double avgRating = 0.0;
@@ -524,10 +537,9 @@ public class TeacherDAO {
                 System.err.println("getAverageRating: DB connection is null. Returning 0.0.");
                 return 0.0;
             }
-            // Calculate average based on available score columns
-            String sql = "SELECT AVG((COALESCE(tajweedScore,0)+COALESCE(fluencyScore,0)+COALESCE(accuracyScore,0))/3) as avgRating " +
-                        "FROM studentevaluation " +
-                        "WHERE teacherId = ? AND (tajweedScore IS NOT NULL OR fluencyScore IS NOT NULL OR accuracyScore IS NOT NULL)";
+            String sql = "SELECT AVG(sf.rating) AS avgRating " +
+                        "FROM studentfeedback sf " +
+                        "WHERE sf.teacherId = ? AND sf.rating IS NOT NULL AND sf.rating BETWEEN 1 AND 5";
             stmt = conn.prepareStatement(sql);
             stmt.setString(1, teacherId);
             rs = stmt.executeQuery();

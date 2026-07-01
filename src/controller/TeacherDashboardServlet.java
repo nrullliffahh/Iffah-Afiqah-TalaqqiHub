@@ -3,6 +3,7 @@ package controller;
 import dao.TeacherDAO;
 import dao.EvaluationDAO;
 import dao.SessionDAO;
+import com.talaqqihub.dao.TeacherEvaluationDAO;
 import model.Teacher;
 
 import javax.servlet.ServletException;
@@ -11,6 +12,8 @@ import javax.servlet.http.HttpServletRequest;
 import javax.servlet.http.HttpServletResponse;
 import javax.servlet.http.HttpSession;
 import java.io.IOException;
+import java.sql.Connection;
+import java.sql.SQLException;
 import java.sql.Time;
 import java.text.SimpleDateFormat;
 import java.time.Duration;
@@ -19,6 +22,7 @@ import java.time.ZoneId;
 import java.util.Date;
 import java.util.List;
 import java.util.Map;
+import util.DBConnection;
 
 /**
  * TeacherDashboardServlet
@@ -56,8 +60,17 @@ public class TeacherDashboardServlet extends HttpServlet {
         }
         
         String teacherId = (String) session.getAttribute("teacherId");
+        Connection conn = null;
         
         try {
+            conn = DBConnection.getConnection();
+            if (conn == null) {
+                response.sendError(HttpServletResponse.SC_INTERNAL_SERVER_ERROR, "Database connection unavailable");
+                return;
+            }
+
+            TeacherEvaluationDAO teacherEvalDAO = new TeacherEvaluationDAO(conn);
+            
             // Fetch teacher information
             Teacher teacher = teacherDAO.getTeacherById(teacherId);
             
@@ -69,8 +82,24 @@ public class TeacherDashboardServlet extends HttpServlet {
             // Fetch statistics
             int classesThisWeek = teacherDAO.getClassesThisWeekCount(teacherId);
             int totalStudents = teacherDAO.getTotalStudentsTaught(teacherId);
-            int pendingEvaluations = evaluationDAO.getPendingEvaluationsCount(teacherId);
+            int pendingEvaluations = teacherEvalDAO.getPendingSessionsNeedingEvaluation(teacherId).size();
             double averageRating = teacherDAO.getAverageRating(teacherId);
+            Map<String, Object> evalSummary = teacherEvalDAO.getDashboardSummary(teacherId);
+            int completedEvaluations = evalSummary.get("totalSessionsEvaluated") instanceof Number
+                ? ((Number) evalSummary.get("totalSessionsEvaluated")).intValue() : 0;
+            int studentsEvaluated = evalSummary.get("totalStudentsEvaluated") instanceof Number
+                ? ((Number) evalSummary.get("totalStudentsEvaluated")).intValue() : 0;
+
+            int evaluationProgressWidth = 0;
+            int evaluationTotal = pendingEvaluations + completedEvaluations;
+            if (evaluationTotal > 0) {
+                evaluationProgressWidth = (int) Math.round(completedEvaluations * 100.0 / evaluationTotal);
+            }
+
+            int studentProgressWidth = 0;
+            if (totalStudents > 0) {
+                studentProgressWidth = (int) Math.round(studentsEvaluated * 100.0 / totalStudents);
+            }
             
             // Fetch upcoming classes (limit to 5)
             List<Map<String, Object>> upcomingClasses = sessionDAO.getUpcomingClasses(teacherId, 5);
@@ -107,6 +136,10 @@ public class TeacherDashboardServlet extends HttpServlet {
             request.setAttribute("classesThisWeek", classesThisWeek);
             request.setAttribute("totalStudents", totalStudents);
             request.setAttribute("pendingEvaluations", pendingEvaluations);
+            request.setAttribute("completedEvaluations", completedEvaluations);
+            request.setAttribute("studentsEvaluated", studentsEvaluated);
+            request.setAttribute("evaluationProgressWidth", evaluationProgressWidth);
+            request.setAttribute("studentProgressWidth", studentProgressWidth);
             request.setAttribute("averageRating", String.format("%.1f", averageRating));
             
             request.setAttribute("upcomingClasses", upcomingClasses);
@@ -119,6 +152,14 @@ public class TeacherDashboardServlet extends HttpServlet {
             e.printStackTrace();
             response.sendError(HttpServletResponse.SC_INTERNAL_SERVER_ERROR, 
                 "Error loading dashboard: " + e.getMessage());
+        } finally {
+            if (conn != null) {
+                try {
+                    conn.close();
+                } catch (SQLException e) {
+                    e.printStackTrace();
+                }
+            }
         }
     }
     
