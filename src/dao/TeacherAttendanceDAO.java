@@ -2,6 +2,7 @@ package dao;
 
 import model.Attendance;
 import util.DBConnection;
+import util.MonthlyScopeUtil;
 import java.sql.*;
 import java.util.*;
 
@@ -26,6 +27,7 @@ public class TeacherAttendanceDAO {
                       "INNER JOIN teacher t ON a.teacherId = t.teacherId " +
                       "INNER JOIN classschedule cs ON a.scheduleId = cs.scheduleId " +
                       "WHERE a.teacherId = ? " +
+                      MonthlyScopeUtil.andCurrentMonth("a.attendanceDate") + " " +
                       "GROUP BY s.studentName, s.studentId, a.attendanceDate, cs.className, t.teacherName, cs.startTime, cs.endTime " +
                       "ORDER BY a.attendanceDate DESC " +
                       "LIMIT 500";
@@ -110,6 +112,7 @@ public class TeacherAttendanceDAO {
         String query = "SELECT WEEK(a.attendanceDate) as week_num, COUNT(*) as present_count " +
                       "FROM attendance a " +
                       "WHERE a.teacherId = ? AND a.attendanceStatus = 'Present' " +
+                      MonthlyScopeUtil.andCurrentMonth("a.attendanceDate") + " " +
                       "GROUP BY WEEK(a.attendanceDate) " +
                       "ORDER BY week_num";
         

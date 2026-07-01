@@ -1287,6 +1287,7 @@ public class StudentBookingDAO {
             return empty;
         }
 
+        String monthFilter = util.MonthlyScopeUtil.andCurrentMonth("b.bookingDate");
         String orderBy = " ORDER BY b.bookingDate DESC, b.bookingTime DESC";
         String baseFrom =
             " FROM classbooking b "
@@ -1301,16 +1302,16 @@ public class StudentBookingDAO {
                 + "cs.className, t.teacherName AS teacherName, cs.teacherId, cs.duration, s.studentName AS studentName, "
                 + "sc.cancellationReason AS cancellationReason, " + attendanceSubquery + " "
                 + baseFrom + "LEFT JOIN studentcancellation sc ON b.bookingId = sc.bookingId "
-                + "WHERE cs.teacherId = ?" + orderBy,
+                + "WHERE cs.teacherId = ?" + monthFilter + orderBy,
             "SELECT b.bookingId, b.studentId, b.scheduleId, b.bookingDate, b.bookingTime, b.bookingStatus, NULL AS createdAt, "
                 + "cs.className, t.teacherName AS teacherName, cs.teacherId, cs.duration, s.studentName AS studentName, "
                 + "sc.cancellationReason AS cancellationReason, " + attendanceSubquery + " "
                 + baseFrom + "LEFT JOIN studentcancellation sc ON b.bookingId = sc.bookingId "
-                + "WHERE cs.teacherId = ?" + orderBy,
+                + "WHERE cs.teacherId = ?" + monthFilter + orderBy,
             "SELECT b.bookingId, b.studentId, b.scheduleId, b.bookingDate, b.bookingTime, b.bookingStatus, NULL AS createdAt, "
                 + "cs.className, t.teacherName AS teacherName, cs.teacherId, cs.duration, s.studentName AS studentName, "
                 + "NULL AS cancellationReason, " + attendanceSubquery + " "
-                + baseFrom + "WHERE cs.teacherId = ?" + orderBy
+                + baseFrom + "WHERE cs.teacherId = ?" + monthFilter + orderBy
         };
 
         try {

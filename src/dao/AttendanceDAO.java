@@ -1,6 +1,7 @@
 package dao;
 
 import util.DBConnection;
+import util.MonthlyScopeUtil;
 import java.sql.Connection;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
@@ -23,8 +24,10 @@ public class AttendanceDAO {
                 return 0.0;
             }
             String sql = "SELECT " +
-                        "(SELECT COUNT(*) FROM attendance WHERE studentId = ? AND attendanceStatus = 'Present') as present, " +
-                        "(SELECT COUNT(*) FROM attendance WHERE studentId = ?) as total";
+                        "(SELECT COUNT(*) FROM attendance WHERE studentId = ? AND attendanceStatus = 'Present'"
+                        + MonthlyScopeUtil.andCurrentMonth("attendanceDate") + ") as present, " +
+                        "(SELECT COUNT(*) FROM attendance WHERE studentId = ?"
+                        + MonthlyScopeUtil.andCurrentMonth("attendanceDate") + ") as total";
             pstmt = conn.prepareStatement(sql);
             pstmt.setString(1, studentId);
             pstmt.setString(2, studentId);
@@ -72,7 +75,7 @@ public class AttendanceDAO {
                         "SUM(CASE WHEN attendanceStatus = 'Absent' THEN 1 ELSE 0 END) as absent, " +
                         "SUM(CASE WHEN attendanceStatus = 'Late' THEN 1 ELSE 0 END) as late, " +
                         "COUNT(*) as total " +
-                        "FROM attendance";
+                        "FROM attendance WHERE " + MonthlyScopeUtil.currentMonthWhere("attendanceDate");
             pstmt = conn.prepareStatement(sql);
             rs = pstmt.executeQuery();
             

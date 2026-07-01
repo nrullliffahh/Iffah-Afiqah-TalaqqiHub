@@ -2,6 +2,7 @@ package dao;
 
 import model.Evaluation;
 import util.DBConnection;
+import util.MonthlyScopeUtil;
 import util.TalaqqiSchemaUtil;
 import util.TextEncodingUtil;
 import java.sql.*;
@@ -72,7 +73,8 @@ public class EvaluationDAO {
         List<Evaluation> list = new ArrayList<>();
         String sql = buildStudentEvalSelectSql(conn, withJoin)
             + "WHERE " + studentIdMatchClause("se.studentId", studentIdVariants(studentId))
-            + " AND " + evalCompletedPredicate(conn, "se") + " "
+            + " AND " + evalCompletedPredicate(conn, "se")
+            + evalPortalMonthClause(conn, "se") + " "
             + "ORDER BY se.studentEvaluationId DESC"
             + (limit > 0 ? " LIMIT " + limit : "");
         try (PreparedStatement ps = conn.prepareStatement(TalaqqiSchemaUtil.sql(sql, conn))) {
@@ -115,7 +117,8 @@ public class EvaluationDAO {
             + "FROM studentevaluation se "
             + "LEFT JOIN teacher t ON se.teacherId = t.teacherId "
             + "WHERE " + studentIdMatchClause("se.studentId", studentIdVariants(studentId))
-            + " AND " + evalCompletedPredicate(conn, "se") + " "
+            + " AND " + evalCompletedPredicate(conn, "se")
+            + evalPortalMonthClause(conn, "se") + " "
             + "ORDER BY se.studentEvaluationId DESC"
             + (limit > 0 ? " LIMIT " + limit : "");
         try (PreparedStatement ps = conn.prepareStatement(sql)) {
@@ -262,7 +265,8 @@ public class EvaluationDAO {
                 + "       COALESCE(se.accuracyScore, 0) AS accuracy "
                 + "FROM studentevaluation se "
                 + "WHERE " + studentIdMatchClause("se.studentId", studentIdVariants(studentId))
-                + " AND " + evalCompletedPredicate(conn, "se") + " "
+                + " AND " + evalCompletedPredicate(conn, "se")
+                + evalPortalMonthClause(conn, "se") + " "
                 + "ORDER BY " + dateCol + " ASC, se.studentEvaluationId ASC LIMIT 12";
 
             java.util.Map<String, Integer> labelCounts = new java.util.LinkedHashMap<>();
@@ -308,7 +312,8 @@ public class EvaluationDAO {
                 + "       AVG(COALESCE(accuracyScore, 0)) AS Accuracy "
                 + "FROM studentevaluation se "
                 + "WHERE " + studentIdMatchClause("se.studentId", studentIdVariants(studentId))
-                + " AND " + evalCompletedPredicate(conn, "se");
+                + " AND " + evalCompletedPredicate(conn, "se")
+                + evalPortalMonthClause(conn, "se");
 
             try (PreparedStatement ps = conn.prepareStatement(sql)) {
                 bindStudentIdVariants(ps, 1, studentId);
@@ -337,7 +342,8 @@ public class EvaluationDAO {
             syncCompletedEvaluationStatus(conn, studentId);
             String sql = "SELECT COUNT(*) AS cnt FROM studentevaluation se "
                 + "WHERE " + studentIdMatchClause("se.studentId", studentIdVariants(studentId))
-                + " AND " + evalCompletedPredicate(conn, "se");
+                + " AND " + evalCompletedPredicate(conn, "se")
+                + evalPortalMonthClause(conn, "se");
             try (PreparedStatement ps = conn.prepareStatement(sql)) {
                 bindStudentIdVariants(ps, 1, studentId);
                 try (ResultSet rs = ps.executeQuery()) {
@@ -607,6 +613,7 @@ public class EvaluationDAO {
             + "WHERE " + studentIdMatchClause("cb.studentId", studentIdVariants(studentId))
             + "  AND UPPER(TRIM(COALESCE(cb.bookingStatus, ''))) IN ('COMPLETED', 'COMPLETE', 'DONE') "
             + feedbackFilter
+            + MonthlyScopeUtil.andCurrentMonth("cs.scheduleDate")
             + "ORDER BY cs.scheduleDate DESC, cs.startTime DESC";
 
         try (PreparedStatement ps = conn.prepareStatement(TalaqqiSchemaUtil.sql(sql, conn))) {
@@ -657,6 +664,7 @@ public class EvaluationDAO {
             + "        AND (sf.sessionId = " + TalaqqiSchemaUtil.sessionIdForBookingSubquery(conn)
             + "             OR sf.sessionId = cb.bookingId) "
             + "  ) "
+            + MonthlyScopeUtil.andCurrentMonth("cb.bookingDate")
             + "ORDER BY cs.scheduleDate DESC, cs.startTime DESC";
         try (PreparedStatement ps = conn.prepareStatement(sql)) {
             bindStudentIdVariants(ps, 1, studentId);
@@ -694,6 +702,7 @@ public class EvaluationDAO {
             + "JOIN classbooking cb ON " + bookingLink + " AND " + studentClause + " "
             + "LEFT JOIN teacher t ON cs.teacherId = t.teacherId "
             + "WHERE ts.sessionDate IS NOT NULL "
+            + MonthlyScopeUtil.andCurrentMonth("COALESCE(ts.sessionDate, cs.scheduleDate)")
             + "  AND NOT EXISTS ( "
             + "      SELECT 1 FROM studentfeedback sf "
             + "      WHERE sf.studentId = cb.studentId AND sf.sessionId = ts.sessionId "
@@ -735,7 +744,8 @@ public class EvaluationDAO {
             + "FROM studentevaluation se "
             + "LEFT JOIN teacher t ON se.teacherId = t.teacherId "
             + "WHERE " + studentIdMatchClause("se.studentId", studentIdVariants(studentId))
-            + " AND " + evalCompletedPredicate(conn, "se") + " "
+            + " AND " + evalCompletedPredicate(conn, "se")
+            + evalPortalMonthClause(conn, "se") + " "
             + "AND " + sessionCol + " IS NOT NULL "
             + "AND " + feedbackNotExistsForSession("se.studentId", sessionCol, 
                 hasEvalColumn(conn, "scheduleId") ? "COALESCE(se.scheduleId, se.sessionId)" : sessionCol) + " "
@@ -787,6 +797,7 @@ public class EvaluationDAO {
             + "WHERE " + studentIdMatchClause("se.studentId", studentIdVariants(studentId))
             + " AND " + sessionCol + " IS NOT NULL "
             + " AND UPPER(COALESCE(se.status, 'PENDING')) = 'PENDING' "
+            + evalPortalMonthClause(conn, "se")
             + "AND " + feedbackNotExistsForSession("se.studentId", sessionCol, scheduleMatch) + " "
             + "ORDER BY se.studentEvaluationId DESC";
         try (PreparedStatement ps = conn.prepareStatement(sql)) {
@@ -825,6 +836,7 @@ public class EvaluationDAO {
             + "WHERE " + studentIdMatchClause("a.studentId", studentIdVariants(studentId))
             + " AND UPPER(TRIM(a.attendanceStatus)) IN ('PRESENT', 'LATE') "
             + " AND a.joinTime IS NOT NULL "
+            + MonthlyScopeUtil.andCurrentMonth("a.attendanceDate")
             + " AND " + feedbackNotExistsForSession("a.studentId", sessionIdExpr, "a.scheduleId") + " "
             + "ORDER BY a.attendanceDate DESC, cs.startTime DESC";
         try (PreparedStatement ps = conn.prepareStatement(sql)) {
@@ -886,6 +898,7 @@ public class EvaluationDAO {
             + "WHERE " + studentIdMatchClause("a.studentId", studentIdVariants(studentId))
             + " AND UPPER(TRIM(a.attendanceStatus)) IN ('PRESENT', 'LATE') "
             + " AND a.joinTime IS NOT NULL "
+            + MonthlyScopeUtil.andCurrentMonth("a.attendanceDate")
             + " AND " + feedbackNotExistsForSession("a.studentId", "a.scheduleId", "a.scheduleId") + " "
             + "ORDER BY a.attendanceDate DESC, cs.startTime DESC";
         try (PreparedStatement ps = conn.prepareStatement(sql)) {
@@ -925,6 +938,7 @@ public class EvaluationDAO {
             + "WHERE " + studentIdMatchClause("cb.studentId", studentIdVariants(studentId))
             + " AND " + studentIdMatchClause("a.studentId", studentIdVariants(studentId))
             + " AND cb.bookingStatus NOT IN ('Cancelled', 'Rescheduled') "
+            + MonthlyScopeUtil.andCurrentMonth("cb.bookingDate")
             + " AND " + feedbackNotExistsForSession("cb.studentId", sessionIdExpr, "cb.scheduleId") + " "
             + "ORDER BY cb.bookingDate DESC, cs.startTime DESC";
         try (PreparedStatement ps = conn.prepareStatement(sql)) {
@@ -995,7 +1009,8 @@ public class EvaluationDAO {
                 + "      SELECT 1 FROM studentfeedback sf "
                 + "      WHERE sf.sessionId = ts.sessionId AND sf.studentId = cb.studentId "
                 + "  ) "
-                + "ORDER BY cs.scheduleDate DESC LIMIT 20";
+                + MonthlyScopeUtil.andCurrentMonth("cs.scheduleDate")
+                + " ORDER BY cs.scheduleDate DESC LIMIT 20";
 
             try (PreparedStatement ps = conn.prepareStatement(sql)) {
                 bindStudentIdVariants(ps, 1, studentId);
@@ -1165,6 +1180,7 @@ public class EvaluationDAO {
             sql.append(TalaqqiSchemaUtil.leftJoinSessionFromFeedback(conn));
         }
         sql.append("WHERE ").append(studentIdMatchClause("sf.studentId", studentIdVariants(studentId)))
+            .append(feedbackPortalMonthClause(conn, withSessionJoin))
             .append(" ORDER BY ").append(feedbackOrderColumn(conn)).append(" DESC");
 
         try (PreparedStatement ps = conn.prepareStatement(sql.toString())) {
@@ -1289,17 +1305,28 @@ public class EvaluationDAO {
 
     /** Pending evaluations count for teacher dashboard. */
     public int getPendingEvaluationsCount(String teacherId) {
-        String sql =
-            "SELECT COUNT(*) AS cnt FROM studentevaluation " +
-            "WHERE teacherId=? AND tajweedScore IS NULL AND fluencyScore IS NULL AND accuracyScore IS NULL";
-        try (Connection conn = DBConnection.getConnection();
-             PreparedStatement ps = conn.prepareStatement(sql)) {
-            if (conn == null) return 0;
-            ps.setString(1, teacherId);
-            try (ResultSet rs = ps.executeQuery()) {
-                if (rs.next()) return rs.getInt("cnt");
+        try (Connection conn = DBConnection.getConnection()) {
+            if (conn == null) {
+                return 0;
             }
-        } catch (SQLException e) { e.printStackTrace(); }
+            String createdCol = TalaqqiSchemaUtil.studentEvalCreatedColumn(conn, "se");
+            String monthFilter = createdCol.contains(".")
+                ? MonthlyScopeUtil.andCurrentMonth(createdCol) : "";
+            String sql =
+                "SELECT COUNT(*) AS cnt FROM studentevaluation se "
+                + "WHERE se.teacherId=? AND se.tajweedScore IS NULL AND se.fluencyScore IS NULL "
+                + "AND se.accuracyScore IS NULL" + monthFilter;
+            try (PreparedStatement ps = conn.prepareStatement(sql)) {
+                ps.setString(1, teacherId);
+                try (ResultSet rs = ps.executeQuery()) {
+                    if (rs.next()) {
+                        return rs.getInt("cnt");
+                    }
+                }
+            }
+        } catch (SQLException e) {
+            e.printStackTrace();
+        }
         return 0;
     }
 
@@ -1311,8 +1338,9 @@ public class EvaluationDAO {
             "       s.studentName, s.studentId " +
             "FROM studentfeedback sf " +
             "JOIN student s ON sf.studentId = s.studentId " +
-            "WHERE sf.teacherId = ? " +
-            "ORDER BY sf.createdAt DESC LIMIT ?";
+            "WHERE sf.teacherId = ? "
+            + MonthlyScopeUtil.andCurrentMonth("sf.createdAt") + " "
+            + "ORDER BY sf.createdAt DESC LIMIT ?";
 
         try (Connection conn = DBConnection.getConnection()) {
             if (conn == null) return feedbackList;
@@ -1341,22 +1369,33 @@ public class EvaluationDAO {
     /** Average ratings for admin dashboard. */
     public Map<String, Object> getAverageRatings() {
         Map<String, Object> ratings = new HashMap<>();
-        String sql =
-            "SELECT AVG((COALESCE(tajweedScore,0)+COALESCE(fluencyScore,0)+COALESCE(accuracyScore,0))/3) AS avgTeacherRating " +
-            "FROM studentevaluation " +
-            "WHERE tajweedScore IS NOT NULL OR fluencyScore IS NOT NULL OR accuracyScore IS NOT NULL";
-        try (Connection conn = DBConnection.getConnection();
-             PreparedStatement ps = conn.prepareStatement(sql)) {
-            if (conn == null) { ratings.put("teacherRating", 4.6); ratings.put("studentPerformance", 4.2); return ratings; }
-            try (ResultSet rs = ps.executeQuery()) {
-                if (rs.next()) {
-                    double avg = rs.getDouble("avgTeacherRating");
-                    ratings.put("teacherRating",      avg > 0 ? avg : 4.6);
-                    ratings.put("studentPerformance", avg > 0 ? avg : 4.2);
-                    return ratings;
+        try (Connection conn = DBConnection.getConnection()) {
+            if (conn == null) {
+                ratings.put("teacherRating", 4.6);
+                ratings.put("studentPerformance", 4.2);
+                return ratings;
+            }
+            String createdCol = TalaqqiSchemaUtil.studentEvalCreatedColumn(conn, "se");
+            String monthFilter = createdCol.contains(".")
+                ? MonthlyScopeUtil.andCurrentMonth(createdCol) : "";
+            String sql =
+                "SELECT AVG((COALESCE(se.tajweedScore,0)+COALESCE(se.fluencyScore,0)+COALESCE(se.accuracyScore,0))/3) AS avgTeacherRating "
+                + "FROM studentevaluation se "
+                + "WHERE (se.tajweedScore IS NOT NULL OR se.fluencyScore IS NOT NULL OR se.accuracyScore IS NOT NULL)"
+                + monthFilter;
+            try (PreparedStatement ps = conn.prepareStatement(sql)) {
+                try (ResultSet rs = ps.executeQuery()) {
+                    if (rs.next()) {
+                        double avg = rs.getDouble("avgTeacherRating");
+                        ratings.put("teacherRating",      avg > 0 ? avg : 4.6);
+                        ratings.put("studentPerformance", avg > 0 ? avg : 4.2);
+                        return ratings;
+                    }
                 }
             }
-        } catch (SQLException e) { e.printStackTrace(); }
+        } catch (SQLException e) {
+            e.printStackTrace();
+        }
         ratings.put("teacherRating", 4.6);
         ratings.put("studentPerformance", 4.2);
         return ratings;
@@ -1626,6 +1665,28 @@ public class EvaluationDAO {
             return;
         }
         ps.setNull(index, Types.VARCHAR);
+    }
+
+    private String evalPortalMonthClause(Connection conn, String alias) {
+        if (hasEvalColumn(conn, "session_date")) {
+            return MonthlyScopeUtil.andCurrentMonth(alias + ".session_date");
+        }
+        String createdCol = TalaqqiSchemaUtil.studentEvalCreatedColumn(conn, alias);
+        if (createdCol.contains(".")) {
+            return MonthlyScopeUtil.andCurrentMonth(createdCol);
+        }
+        return "";
+    }
+
+    private String feedbackPortalMonthClause(Connection conn, boolean withSessionJoin) {
+        if (withSessionJoin) {
+            return MonthlyScopeUtil.andCurrentMonth("cs.scheduleDate");
+        }
+        String orderCol = feedbackOrderColumn(conn);
+        if (orderCol.startsWith("sf.") && !"sf.feedbackId".equals(orderCol)) {
+            return MonthlyScopeUtil.andCurrentMonth(orderCol);
+        }
+        return "";
     }
 
     private String feedbackCreatedAtExpr(Connection conn) {

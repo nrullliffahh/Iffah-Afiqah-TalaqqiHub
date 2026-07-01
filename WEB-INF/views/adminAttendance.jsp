@@ -2,6 +2,7 @@
 <%@ page import="java.util.*" %>
 <%@ page import="java.sql.*" %>
 <%@ page import="util.DBConnection" %>
+<%@ page import="util.MonthlyScopeUtil" %>
 <%
     // Auth check
     if (session == null || session.getAttribute("adminId") == null) {
@@ -40,8 +41,10 @@
             rs.close();
             pstmt.close();
             
-            // Get total sessions
-            pstmt = conn.prepareStatement("SELECT COUNT(*) as total FROM classschedule");
+            // Get total sessions (current month only)
+            pstmt = conn.prepareStatement(
+                "SELECT COUNT(*) as total FROM classschedule WHERE "
+                + MonthlyScopeUtil.currentMonthWhere("scheduleDate"));
             rs = pstmt.executeQuery();
             if (rs.next()) {
                 totalSessions = rs.getInt("total");
@@ -55,7 +58,7 @@
                 "COUNT(CASE WHEN attendanceStatus = 'Absent' THEN 1 END) as absent, " +
                 "COUNT(CASE WHEN attendanceStatus = 'Late' THEN 1 END) as late, " +
                 "COUNT(*) as total " +
-                "FROM attendance";
+                "FROM attendance WHERE " + MonthlyScopeUtil.currentMonthWhere("attendanceDate");
             pstmt = conn.prepareStatement(attendanceQuery);
             rs = pstmt.executeQuery();
             if (rs.next()) {
@@ -81,6 +84,7 @@
                 "LEFT JOIN student s ON a.studentId = s.studentId " +
                 "LEFT JOIN teacher t ON a.teacherId = t.teacherId " +
                 "LEFT JOIN classschedule cs ON a.scheduleId = cs.scheduleId " +
+                "WHERE " + MonthlyScopeUtil.currentMonthWhere("a.attendanceDate") + " " +
                 "ORDER BY a.attendanceDate DESC LIMIT 10";
             pstmt = conn.prepareStatement(recordsQuery);
             rs = pstmt.executeQuery();
@@ -100,15 +104,15 @@
             rs.close();
             pstmt.close();
             
-            // Get monthly attendance trend (last 6 months) — Present / Absent / Late separate
+            // Current month attendance trend — Present / Absent / Late separate
             String monthlyQuery = "SELECT DATE_FORMAT(a.attendanceDate, '%b') as month, " +
                 "SUM(CASE WHEN a.attendanceStatus = 'Present' THEN 1 ELSE 0 END) as present, " +
                 "SUM(CASE WHEN a.attendanceStatus = 'Absent' THEN 1 ELSE 0 END) as absent, " +
                 "SUM(CASE WHEN a.attendanceStatus = 'Late' THEN 1 ELSE 0 END) as late " +
                 "FROM attendance a " +
-                "WHERE a.attendanceDate >= DATE_SUB(CURDATE(), INTERVAL 6 MONTH) " +
+                "WHERE " + MonthlyScopeUtil.currentMonthWhere("a.attendanceDate") + " " +
                 "GROUP BY DATE_FORMAT(a.attendanceDate, '%Y-%m') " +
-                "ORDER BY DATE_FORMAT(a.attendanceDate, '%Y-%m') ASC LIMIT 6";
+                "ORDER BY DATE_FORMAT(a.attendanceDate, '%Y-%m') ASC LIMIT 1";
             pstmt = conn.prepareStatement(monthlyQuery);
             rs = pstmt.executeQuery();
             while (rs.next()) {

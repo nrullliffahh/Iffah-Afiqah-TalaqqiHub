@@ -2,6 +2,7 @@ package dao;
 
 import model.ClassSchedule;
 import util.DBConnection;
+import util.MonthlyScopeUtil;
 import java.sql.*;
 import java.time.Duration;
 import java.time.LocalDate;
@@ -163,6 +164,7 @@ public class ClassScheduleDAO {
                      "LEFT JOIN classschedule cs ON b.scheduleId = cs.scheduleId " +
                      "LEFT JOIN teacher t ON cs.teacherId = t.teacherId " +
                      "LEFT JOIN student s ON b.studentId = s.studentId " +
+                     "WHERE " + MonthlyScopeUtil.currentMonthWhere("b.bookingDate") + " " +
                      "ORDER BY b.bookingDate DESC, b.bookingTime DESC";
 
         System.out.println("ENTER getAllSchedulesForAdmin");
@@ -219,6 +221,7 @@ public class ClassScheduleDAO {
                                              "LEFT JOIN classschedule cs ON b.scheduleId = cs.scheduleId " +
                                              "LEFT JOIN teacher t ON cs.teacherId = t.teacherId " +
                                              "LEFT JOIN student s ON b.studentId = s.studentId " +
+                                             "WHERE " + MonthlyScopeUtil.currentMonthWhere("b.bookingDate") + " " +
                                              "ORDER BY b.bookingDate DESC, b.bookingTime DESC";
                         try (PreparedStatement stmt2 = conn.prepareStatement(fallbackSql)) {
                             try (ResultSet rs2 = stmt2.executeQuery()) {
@@ -278,6 +281,7 @@ public class ClassScheduleDAO {
                      "AND cb.bookingStatus NOT IN ('Rejected', 'Cancelled') " +
                      "WHERE cs.teacherId = ? " +
                      "AND cs.classStatus IN ('Scheduled', 'Booked', 'Available') " +
+                     MonthlyScopeUtil.andCurrentMonth("cs.scheduleDate") + " " +
                      "ORDER BY cs.scheduleDate, cs.startTime";
         
         try (Connection conn = DBConnection.getConnection();

@@ -1,6 +1,7 @@
 package com.talaqqihub.dao;
 
 import com.talaqqihub.model.Evaluation;
+import util.MonthlyScopeUtil;
 import util.TalaqqiSchemaUtil;
 import util.TextEncodingUtil;
 import java.sql.*;
@@ -150,6 +151,17 @@ public class TeacherEvaluationDAO {
 
     private boolean hasEvalColumn(String column) {
         return TalaqqiSchemaUtil.hasColumn(connection, "studentevaluation", column);
+    }
+
+    private String evalPortalMonthClause() {
+        if (hasEvalColumn("session_date")) {
+            return MonthlyScopeUtil.andCurrentMonth("se.session_date");
+        }
+        String createdCol = TalaqqiSchemaUtil.studentEvalCreatedColumn(connection, "se");
+        if (createdCol.contains(".")) {
+            return MonthlyScopeUtil.andCurrentMonth(createdCol);
+        }
+        return MonthlyScopeUtil.andCurrentMonth("cs.scheduleDate");
     }
 
     /** SQL predicate: row is a completed teacher evaluation. */
@@ -521,7 +533,8 @@ public class TeacherEvaluationDAO {
         String orderCol = hasEvalColumn("session_date") ? "se.session_date" : createdCol;
         String teacherClause = teacherIdMatchClause("se.teacherId", teacherIds);
         String query = buildEvaluationListSelectSql() +
-            "WHERE " + teacherClause + " AND " + evalPendingPredicate("se") + " " +
+            "WHERE " + teacherClause + " AND " + evalPendingPredicate("se")
+            + evalPortalMonthClause() + " " +
             "ORDER BY " + orderCol + " DESC, " + createdCol + " DESC";
 
         try (PreparedStatement stmt = connection.prepareStatement(query)) {
@@ -558,6 +571,7 @@ public class TeacherEvaluationDAO {
 
         StringBuilder query = new StringBuilder(buildEvaluationListSelectSql());
         query.append("WHERE ").append(teacherClause).append(" AND ").append(evalCompletedPredicate("se"));
+        query.append(evalPortalMonthClause());
 
         // Add search filter
         if (searchTerm != null && !searchTerm.trim().isEmpty()) {
@@ -699,6 +713,7 @@ public class TeacherEvaluationDAO {
             + "LEFT JOIN teacher t ON se.teacherId = t.teacherId "
             + "WHERE " + teacherIdMatchClause("se.teacherId", teacherIdVariants(teacherId))
             + " AND " + evalCompletedPredicate("se")
+            + evalPortalMonthClause()
         );
 
         if (searchTerm != null && !searchTerm.trim().isEmpty()) {
@@ -2022,7 +2037,8 @@ public class TeacherEvaluationDAO {
         List<Evaluation> evaluations = new ArrayList<>();
         String createdCol = TalaqqiSchemaUtil.studentEvalCreatedColumn(connection, "se");
         String query = buildEvaluationListSelectSql()
-            + "WHERE se.teacherId = ? AND " + evalPendingPredicate("se") + " "
+            + "WHERE se.teacherId = ? AND " + evalPendingPredicate("se")
+            + evalPortalMonthClause() + " "
             + "ORDER BY " + createdCol + " DESC";
 
         try (PreparedStatement stmt = connection.prepareStatement(query)) {
