@@ -648,7 +648,9 @@
                                     if (!modal) return;
                                     modal.classList.add('hidden');
                                     modal.setAttribute('aria-hidden', 'true');
-                                    if (document.getElementById('detailsModal') && document.getElementById('detailsModal').classList.contains('hidden')) {
+                                    if (typeof syncBookingModalScrollLock === 'function') {
+                                        syncBookingModalScrollLock();
+                                    } else {
                                         document.body.classList.remove('booking-details-open');
                                     }
                                 } catch(e){}
@@ -1260,28 +1262,44 @@
         </div>
     </div>
     
-    <div id="cancelModal" class="hidden fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-        <div class="bg-white rounded-2xl booking-panel booking-modal-panel max-w-md w-full mx-4 shadow-2xl">
-            <h3 class="text-2xl font-bold text-gray-800 mb-2">Cancel Booking</h3>
+    <div id="cancelModal" class="hidden fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-[1050] booking-modal-overlay" aria-hidden="true">
+        <div class="bg-white rounded-2xl shadow-2xl w-full max-w-lg mx-4 p-6 sm:p-8 booking-details-modal-panel" role="dialog" aria-modal="true" aria-labelledby="cancelModalTitle">
+            <div class="flex items-start justify-between gap-4 mb-6 booking-details-modal-header">
+                <h3 id="cancelModalTitle" class="text-2xl font-bold text-gray-800 leading-tight">Cancel Booking</h3>
+                <button type="button" onclick="closeCancelModal()" class="shrink-0 text-gray-500 hover:text-gray-700 text-xl leading-none p-1 booking-details-modal-close" aria-label="Close">✕</button>
+            </div>
             <p id="cancelSummary" class="text-sm text-gray-600 mb-4">Are you sure you want to cancel this class?</p>
+            <div class="space-y-4 mb-6 booking-details-modal-body">
+                <div class="booking-details-modal-field">
+                    <p class="booking-details-modal-label">Class Type:</p>
+                    <p id="cancelClassType" class="booking-details-modal-value">Quran Recitation &amp; Tajweed</p>
+                </div>
+                <div class="booking-details-modal-field">
+                    <p class="booking-details-modal-label">Teacher:</p>
+                    <p id="cancelTeacher" class="booking-details-modal-value"></p>
+                </div>
+                <div class="booking-details-modal-field">
+                    <p class="booking-details-modal-label">Date:</p>
+                    <p id="cancelDate" class="booking-details-modal-value"></p>
+                </div>
+                <div class="booking-details-modal-field">
+                    <p class="booking-details-modal-label">Time:</p>
+                    <p id="cancelTime" class="booking-details-modal-value"></p>
+                </div>
+            </div>
             <form method="POST" action="<%= request.getContextPath() %>/student/cancel-booking">
                 <input type="hidden" name="bookingId" id="cancelBookingId">
-                <div id="cancelBookingInfo" class="text-sm text-gray-700 mb-4"></div>
                 <div class="mb-6">
-                    <p class="text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2 mb-3">
+                    <p class="booking-cancel-notice text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2 mb-3">
                         Bookings cannot be cancelled less than 12 hours before the class start time.
                     </p>
-                    <label class="block text-sm font-semibold text-gray-700 mb-2">Reason for Cancellation <span class="text-red-500">*</span></label>
-                    <textarea name="reason" rows="4" placeholder="Please provide a reason for cancelling this booking..." 
-                              class="w-full px-4 py-3 border-2 border-gray-300 rounded-xl focus:outline-none focus:border-red-500 transition-colors resize-none" required></textarea>
+                    <label for="cancelReason" class="block text-sm font-semibold text-gray-700 mb-2">Reason for Cancellation <span class="text-red-500">*</span></label>
+                    <textarea id="cancelReason" name="reason" rows="4" placeholder="Please provide a reason for cancelling this booking..."
+                              class="booking-cancel-reason w-full px-4 py-3 border-2 border-gray-300 rounded-xl focus:outline-none focus:border-red-500 transition-colors resize-none" required></textarea>
                 </div>
-                <div class="booking-modal-actions flex gap-3">
-                    <button type="button" onclick="closeCancelModal()" class="flex-1 px-4 py-3 border-2 border-gray-300 text-gray-700 rounded-xl font-semibold hover:bg-gray-50 transition-colors">
-                        Keep Booking
-                    </button>
-                    <button type="submit" class="flex-1 px-4 py-3 bg-red-200 text-red-700 rounded-xl font-semibold hover:bg-red-300 transition-colors">
-                        Cancel Booking
-                    </button>
+                <div class="booking-details-modal-footer">
+                    <button type="button" onclick="closeCancelModal()" class="w-full mb-3 px-6 py-3 border-2 border-gray-300 bg-white text-gray-700 rounded-xl font-semibold hover:bg-gray-50 transition-colors booking-details-modal-btn booking-details-modal-btn-secondary">Keep Booking</button>
+                    <button type="submit" class="w-full px-6 py-3 bg-red-500 text-white rounded-xl font-semibold hover:bg-red-600 transition-colors booking-details-modal-btn booking-details-modal-btn-danger">Cancel Booking</button>
                 </div>
             </form>
         </div>
@@ -1467,6 +1485,67 @@
             });
         }
 
+        function syncBookingModalScrollLock() {
+            var ids = ['detailsModal', 'confirmModal', 'cancelModal'];
+            var anyOpen = ids.some(function(id) {
+                var el = document.getElementById(id);
+                return el && !el.classList.contains('hidden');
+            });
+            if (!anyOpen) {
+                document.body.classList.remove('booking-details-open');
+            }
+        }
+
+        function formatBookingDateDisplay(rawDate) {
+            if (window.talaqqi && typeof window.talaqqi.formatDateISO === 'function') {
+                return window.talaqqi.formatDateISO(rawDate);
+            }
+            if (!rawDate) return '';
+            var d = new Date(rawDate + 'T00:00:00');
+            if (isNaN(d.getTime())) return rawDate;
+            try {
+                return d.toLocaleDateString(undefined, { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' });
+            } catch (e) {
+                return rawDate;
+            }
+        }
+
+        function formatBookingTimeRangeDisplay(rawDate, rawTime) {
+            function parseTimeLocal(t) {
+                if (!t) return null;
+                var s = String(t).trim();
+                var m12 = s.match(/^(\d{1,2}):(\d{2})\s*([AaPp][Mm])$/);
+                var m24 = s.match(/^(\d{1,2}):(\d{2})(?::\d{2})?$/);
+                if (m12) {
+                    var hh = parseInt(m12[1], 10), mm = parseInt(m12[2], 10), am = m12[3].toUpperCase();
+                    if (am === 'PM' && hh < 12) hh += 12;
+                    if (am === 'AM' && hh === 12) hh = 0;
+                    return { h: hh, m: mm };
+                }
+                if (m24) return { h: parseInt(m24[1], 10), m: parseInt(m24[2], 10) };
+                var dt = new Date('1970-01-01T' + s);
+                if (!isNaN(dt.getTime())) return { h: dt.getHours(), m: dt.getMinutes() };
+                return null;
+            }
+            function fmtTimeLocal(d) {
+                var h = d.getHours(), m = d.getMinutes();
+                var am = h >= 12 ? 'PM' : 'AM';
+                if (h === 0) h = 12; else if (h > 12) h -= 12;
+                return String(h).padStart(2, '0') + ':' + String(m).padStart(2, '0') + ' ' + am;
+            }
+            var parseFn = (window.talaqqi && window.talaqqi.parseTime) ? window.talaqqi.parseTime : parseTimeLocal;
+            var fmtFn = (window.talaqqi && window.talaqqi.fmtTime) ? window.talaqqi.fmtTime : fmtTimeLocal;
+            var t = parseFn(rawTime || '');
+            if (!t) return rawTime || '';
+            var base = new Date();
+            if (rawDate) {
+                try { base = new Date(rawDate + 'T00:00:00'); } catch (e) {}
+            }
+            var start = new Date(base.getFullYear(), base.getMonth(), base.getDate(), t.h, t.m, 0);
+            var end = new Date(start.getTime() + (15 * 60 * 1000));
+            return fmtFn(start) + ' - ' + fmtFn(end);
+        }
+
         function openCancelModal(bookingId) {
             const el = document.querySelector('.booking-entry[data-booking-id="' + bookingId + '"]');
             if (el && !isCancelAllowed(el)) {
@@ -1478,28 +1557,31 @@
                 const teacher = el.dataset.teacherName || '';
                 const rawDate = el.dataset.bookingDate || '';
                 const rawTime = el.dataset.bookingTime || '';
-                // format using helper if available
-                let prettyDate = rawDate;
-                let prettyTime = rawTime;
-                if (window.talaqqi && typeof window.talaqqi.formatDateISO === 'function') {
-                    prettyDate = window.talaqqi.formatDateISO(rawDate);
-                    const t = window.talaqqi.parseTime(rawTime);
-                    if (t) {
-                        const base = rawDate ? new Date(rawDate + 'T00:00:00') : new Date();
-                        const start = new Date(base.getFullYear(), base.getMonth(), base.getDate(), t.h, t.m, 0);
-                        const end = new Date(start.getTime() + (15 * 60 * 1000));
-                        prettyTime = window.talaqqi.fmtTime(start) + ' - ' + window.talaqqi.fmtTime(end);
-                    }
-                }
-                const info = document.getElementById('cancelBookingInfo');
-                if (info) info.innerHTML = '<div class="font-medium">' + classType + '</div><div class="text-sm text-gray-600">' + (prettyDate || '') + ' at ' + (prettyTime || '') + '</div><div class="text-sm text-gray-600 mt-1">Teacher: ' + (teacher || '') + '</div>';
+                document.getElementById('cancelClassType').textContent = classType;
+                document.getElementById('cancelTeacher').textContent = teacher;
+                document.getElementById('cancelDate').textContent = formatBookingDateDisplay(rawDate);
+                document.getElementById('cancelTime').textContent = formatBookingTimeRangeDisplay(rawDate, rawTime);
             }
             document.getElementById('cancelBookingId').value = bookingId;
-            document.getElementById('cancelModal').classList.remove('hidden');
+            var reasonEl = document.getElementById('cancelReason');
+            if (reasonEl) reasonEl.value = '';
+            var modal = document.getElementById('cancelModal');
+            if (modal) {
+                if (modal.parentNode !== document.body) {
+                    document.body.appendChild(modal);
+                }
+                modal.classList.remove('hidden');
+                modal.setAttribute('aria-hidden', 'false');
+                document.body.classList.add('booking-details-open');
+            }
         }
 
         function closeCancelModal() {
-            document.getElementById('cancelModal').classList.add('hidden');
+            var modal = document.getElementById('cancelModal');
+            if (!modal) return;
+            modal.classList.add('hidden');
+            modal.setAttribute('aria-hidden', 'true');
+            syncBookingModalScrollLock();
         }
 
         (function(){
@@ -1646,10 +1728,7 @@
             if (!modal) return;
             modal.classList.add('hidden');
             modal.setAttribute('aria-hidden', 'true');
-            const confirmModal = document.getElementById('confirmModal');
-            if (!confirmModal || confirmModal.classList.contains('hidden')) {
-                document.body.classList.remove('booking-details-open');
-            }
+            syncBookingModalScrollLock();
         }
     </script>
     <script>
