@@ -67,9 +67,9 @@
                     </div>
                     
                     <!-- STATS CARDS -->
-                    <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
+                    <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8 attendance-stats-grid">
                         <!-- Total Sessions Card -->
-                        <div class="fade-in card-hover bg-white rounded-2xl p-6 shadow-sm hover:shadow-md">
+                        <div class="fade-in card-hover bg-white rounded-2xl p-6 shadow-sm hover:shadow-md attendance-stat-card">
                             <div class="flex items-start justify-between">
                                 <div>
                                     <p class="text-gray-500 text-sm font-medium">Total Sessions</p>
@@ -84,7 +84,7 @@
                         </div>
                         
                         <!-- Present Card -->
-                        <div class="fade-in card-hover bg-white rounded-2xl p-6 shadow-sm hover:shadow-md">
+                        <div class="fade-in card-hover bg-white rounded-2xl p-6 shadow-sm hover:shadow-md attendance-stat-card">
                             <div class="flex items-start justify-between">
                                 <div>
                                     <p class="text-gray-500 text-sm font-medium">Present</p>
@@ -99,7 +99,7 @@
                         </div>
                         
                         <!-- Absent Card -->
-                        <div class="fade-in card-hover bg-white rounded-2xl p-6 shadow-sm hover:shadow-md">
+                        <div class="fade-in card-hover bg-white rounded-2xl p-6 shadow-sm hover:shadow-md attendance-stat-card">
                             <div class="flex items-start justify-between">
                                 <div>
                                     <p class="text-gray-500 text-sm font-medium">Absent</p>
@@ -114,7 +114,7 @@
                         </div>
                         
                         <!-- Attendance Rate Card -->
-                        <div class="fade-in card-hover bg-white rounded-2xl p-6 shadow-sm hover:shadow-md">
+                        <div class="fade-in card-hover bg-white rounded-2xl p-6 shadow-sm hover:shadow-md attendance-stat-card">
                             <div class="flex items-start justify-between">
                                 <div>
                                     <p class="text-gray-500 text-sm font-medium">Attendance Rate <span class="text-gray-400">ⓘ</span></p>
@@ -130,20 +130,20 @@
                     </div>
                     
                     <!-- CHARTS SECTION -->
-                    <div class="grid grid-cols-1 lg:grid-cols-2 gap-8 mb-8">
+                    <div class="grid grid-cols-1 lg:grid-cols-2 gap-8 mb-8 attendance-charts-grid">
                         <!-- Attendance Distribution Chart -->
                         <div class="fade-in card-hover bg-white rounded-2xl shadow-lg p-8 hover:shadow-xl attendance-chart-panel">
-                            <h3 class="text-xl font-bold text-gray-800 mb-8">Attendance Distribution</h3>
-                            <div class="flex justify-center items-center min-h-60 max-w-sm mx-auto">
+                            <h3 class="text-xl font-bold text-gray-800 mb-8 attendance-chart-title">Attendance Distribution</h3>
+                            <div class="flex justify-center items-center min-h-60 max-w-sm mx-auto attendance-chart-canvas-wrap attendance-distribution-chart-wrap">
                                 <canvas id="distributionChart"></canvas>
                             </div>
                         </div>
                         
                         <!-- Attendance Trend Chart -->
                         <div class="fade-in card-hover bg-white rounded-2xl shadow-lg p-8 hover:shadow-xl attendance-chart-panel">
-                            <h3 class="text-xl font-bold text-gray-800 mb-8">Attendance Trend</h3>
-                            <div class="flex justify-center items-center min-h-80">
-                                <div class="w-full" style="height: 300px;">
+                            <h3 class="text-xl font-bold text-gray-800 mb-8 attendance-chart-title">Attendance Trend</h3>
+                            <div class="flex justify-center items-center min-h-80 attendance-chart-canvas-wrap attendance-trend-chart-wrap">
+                                <div class="w-full attendance-trend-chart-inner">
                                     <canvas id="trendChart"></canvas>
                                 </div>
                             </div>
@@ -157,7 +157,7 @@
                                 <h3 class="text-2xl font-bold text-gray-800">Attendance Records</h3>
                             </div>
                         </div>
-                        <div class="overflow-x-auto attendance-table-wrap">
+                        <div class="attendance-table-wrap hidden md:block">
                             <table class="w-full attendance-table">
                                 <thead class="border-b-2 border-gray-200 bg-white">
                                     <tr>
@@ -184,7 +184,7 @@
                                         </c:when>
                                         <c:otherwise>
                                             <c:forEach var="record" items="${records}" varStatus="status">
-                                                <tr class="hover:bg-gray-50 transition-colors duration-200 bg-white">
+                                                <tr class="hover:bg-gray-50 transition-colors duration-200 bg-white attendance-table-row">
                                                     <td class="px-6 py-4 text-sm text-gray-700">
                                                         ${record.sessionDate}
                                                     </td>
@@ -222,6 +222,70 @@
                                     </c:choose>
                                 </tbody>
                             </table>
+                        </div>
+
+                        <div class="attendance-mobile-records md:hidden">
+                            <c:choose>
+                                <c:when test="${empty records}">
+                                    <div class="attendance-record-card attendance-record-card-empty">
+                                        <svg class="w-12 h-12 text-gray-300 mx-auto mb-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path>
+                                        </svg>
+                                        <p class="text-center text-gray-500 font-medium">No attendance records found</p>
+                                    </div>
+                                </c:when>
+                                <c:otherwise>
+                                    <c:forEach var="record" items="${records}">
+                                        <div class="attendance-record-card">
+                                            <div class="attendance-record-card-top">
+                                                <div>
+                                                    <p class="attendance-record-date">${record.sessionDate}</p>
+                                                    <p class="attendance-record-session">${record.sessionName}</p>
+                                                </div>
+                                                <c:choose>
+                                                    <c:when test="${record.status == 'Present'}">
+                                                        <span class="attendance-status-badge attendance-status-present">Present</span>
+                                                    </c:when>
+                                                    <c:when test="${record.status == 'Absent'}">
+                                                        <span class="attendance-status-badge attendance-status-absent">Absent</span>
+                                                    </c:when>
+                                                    <c:when test="${record.status == 'Late'}">
+                                                        <span class="attendance-status-badge attendance-status-late">Late</span>
+                                                    </c:when>
+                                                </c:choose>
+                                            </div>
+                                            <div class="attendance-record-meta">
+                                                <div class="attendance-record-meta-row">
+                                                    <span class="attendance-record-label">Teacher</span>
+                                                    <span class="attendance-record-value">${record.teacherName}</span>
+                                                </div>
+                                                <div class="attendance-record-meta-row">
+                                                    <span class="attendance-record-label">Time</span>
+                                                    <span class="attendance-record-value">${record.timeRange}</span>
+                                                </div>
+                                                <div class="attendance-record-meta-row">
+                                                    <span class="attendance-record-label">Join</span>
+                                                    <span class="attendance-record-value">
+                                                        <c:choose>
+                                                            <c:when test="${record.status == 'Absent' or empty record.joinTime}">-</c:when>
+                                                            <c:otherwise>${record.joinTime}</c:otherwise>
+                                                        </c:choose>
+                                                    </span>
+                                                </div>
+                                                <div class="attendance-record-meta-row">
+                                                    <span class="attendance-record-label">Leave</span>
+                                                    <span class="attendance-record-value">
+                                                        <c:choose>
+                                                            <c:when test="${record.status == 'Absent' or empty record.leaveTime}">-</c:when>
+                                                            <c:otherwise>${record.leaveTime}</c:otherwise>
+                                                        </c:choose>
+                                                    </span>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </c:forEach>
+                                </c:otherwise>
+                            </c:choose>
                         </div>
                     </div>
         </div>
@@ -393,6 +457,40 @@
                 }
             }
         });
+        
+        function resizeAttendanceCharts() {
+            const compact = window.innerWidth < 768;
+            if (distributionChart) {
+                distributionChart.options.maintainAspectRatio = !compact;
+                if (compact) {
+                    distributionChart.options.layout.padding = 8;
+                    distributionChart.options.plugins.legend.labels.padding = 12;
+                    distributionChart.options.plugins.legend.labels.font.size = 11;
+                } else {
+                    distributionChart.options.layout.padding = 20;
+                    distributionChart.options.plugins.legend.labels.padding = 25;
+                    distributionChart.options.plugins.legend.labels.font.size = 13;
+                }
+                distributionChart.resize();
+            }
+            if (trendChart) {
+                trendChart.options.maintainAspectRatio = !compact;
+                if (compact) {
+                    trendChart.options.plugins.legend.labels.padding = 12;
+                    trendChart.options.plugins.legend.labels.font.size = 11;
+                    trendChart.options.scales.x.ticks.font.size = 11;
+                    trendChart.options.scales.y.ticks.font.size = 10;
+                } else {
+                    trendChart.options.plugins.legend.labels.padding = 25;
+                    trendChart.options.plugins.legend.labels.font.size = 13;
+                    trendChart.options.scales.x.ticks.font.size = 13;
+                    trendChart.options.scales.y.ticks.font.size = 12;
+                }
+                trendChart.resize();
+            }
+        }
+        window.addEventListener('resize', resizeAttendanceCharts);
+        resizeAttendanceCharts();
         
         // Export to CSV function
         document.getElementById('exportBtn').addEventListener('click', function() {
