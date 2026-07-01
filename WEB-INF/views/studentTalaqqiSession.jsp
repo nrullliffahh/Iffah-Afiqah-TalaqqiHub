@@ -151,21 +151,21 @@
                 </div>
 
                 <!-- Video + Quran side by side (like teacher session) -->
-                <section class="grid grid-cols-1 lg:grid-cols-3 gap-4 sm:gap-6 session-main-grid">
-                    <div class="lg:col-span-2 space-y-3">
+                <section class="session-main-grid">
+                    <div class="session-video-col space-y-3">
                         <div class="video-shell relative">
                             <div id="jitsiContainer" class="hidden absolute inset-0 w-full h-full"
                                  data-room-name="${talaqqiSession.roomName}"
                                  data-jitsi-domain="<%= JitsiConfig.getDomain() %>"
                                  data-session-id="${talaqqiSession.sessionId}"
                                  data-teacher-id="${talaqqiSession.teacherId}"></div>
-                            <div id="sessionNotStarted" class="absolute inset-0 z-10 bg-white w-full h-full grid place-items-center text-center p-8">
+                            <div id="sessionNotStarted" class="session-not-started-panel absolute inset-0 z-10 bg-white w-full h-full grid place-items-center text-center p-4 sm:p-8">
                                 <div>
-                                    <div class="w-20 h-20 rounded-3xl bg-gradient-to-br from-teal-400 to-green-500 text-white grid place-items-center text-4xl mx-auto">
+                                    <div class="session-not-started-icon w-16 h-16 sm:w-20 sm:h-20 rounded-3xl bg-gradient-to-br from-teal-400 to-green-500 text-white grid place-items-center text-3xl sm:text-4xl mx-auto">
                                         <i class="fas fa-video"></i>
                                     </div>
-                                    <h3 class="text-2xl md:text-3xl font-bold text-gray-900 mt-4 mb-2">Session Not Started</h3>
-                                    <p class="text-sm text-gray-600 max-w-md mx-auto">Click the "Join Live Session" button above to start your Talaqqi session with ${talaqqiSession.teacherName}.</p>
+                                    <h3 class="session-not-started-title text-xl sm:text-2xl md:text-3xl font-bold text-gray-900 mt-4 mb-2">Session Not Started</h3>
+                                    <p class="text-sm text-gray-600 max-w-md mx-auto px-2">Click the "Join Live Session" button above to start your Talaqqi session with ${talaqqiSession.teacherName}.</p>
                                 </div>
                             </div>
                         </div>
@@ -233,7 +233,7 @@
                                             </div>
                                             <p class="arabic-verse text-center mb-3 py-3 leading-relaxed">${verse.arabicText}</p>
                                             <p class="text-xs text-gray-600 italic mb-2">Transliteration</p>
-                                            <div class="flex items-center justify-between mb-3 text-sm">
+                                            <div class="flex items-center justify-between mb-3 text-sm verse-toggle-row">
                                                 <label class="font-medium text-gray-700">Show Translation</label>
                                                 <label class="toggle-wrap">
                                                     <input type="checkbox" class="translation-toggle" data-verse-id="${status.index}" checked>
@@ -253,7 +253,7 @@
                                         </div>
                                         <p class="arabic-verse text-center mb-3 py-3 leading-relaxed">الم</p>
                                         <p class="text-xs text-gray-600 italic mb-2">Alif-Lam-Mim</p>
-                                        <div class="flex items-center justify-between mb-3 text-sm">
+                                        <div class="flex items-center justify-between mb-3 text-sm verse-toggle-row">
                                             <label class="font-medium text-gray-700">Show Translation</label>
                                             <label class="toggle-wrap">
                                                 <input type="checkbox" class="translation-toggle" checked>
@@ -270,7 +270,7 @@
                                         </div>
                                         <p class="arabic-verse text-center mb-3 py-3 leading-relaxed">ذَٰلِكَ الْكِتَابُ لَا رَيْبَ ۛ فِيهِ ۛ هُدًى لِّلْمُتَّقِينَ</p>
                                         <p class="text-xs text-gray-600 italic mb-2">Dhalika al-kitabu la rayba fihi</p>
-                                        <div class="flex items-center justify-between mb-3 text-sm">
+                                        <div class="flex items-center justify-between mb-3 text-sm verse-toggle-row">
                                             <label class="font-medium text-gray-700">Show Translation</label>
                                             <label class="toggle-wrap">
                                                 <input type="checkbox" class="translation-toggle" checked>
@@ -782,7 +782,7 @@
                     <p class="text-xs text-gray-600 italic mb-2">
                         ` + verse.transliteration + `
                     </p>
-                    <div class="flex items-center justify-between mb-3 text-sm">
+                    <div class="flex items-center justify-between mb-3 text-sm verse-toggle-row">
                         <label class="font-medium text-gray-700">Show Translation</label>
                         <label class="toggle-wrap">
                             <input type="checkbox" class="translation-toggle" data-verse-id="` + index + `" checked>
