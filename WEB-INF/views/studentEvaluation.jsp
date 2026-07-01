@@ -13,7 +13,7 @@
     <title>Evaluation & Progress - TalaqqiHub</title>
     <%@ include file="/WEB-INF/views/includes/studentLayoutStyles.jsp" %>
     <script src="https://cdn.tailwindcss.com"></script>
-    <link rel="stylesheet" href="<%= request.getContextPath() %>/css/student-evaluation-responsive.css?v=3">
+    <link rel="stylesheet" href="<%= request.getContextPath() %>/css/student-evaluation-responsive.css?v=4">
     <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/3.9.1/chart.min.js"></script>
     <style>
         .score-cards-container {
@@ -446,6 +446,19 @@
             color: #1E293B;
         }
         
+        .eval-modal-overlay {
+            position: fixed;
+            inset: 0;
+            z-index: 1100;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 1rem;
+            padding-top: max(1rem, env(safe-area-inset-top));
+            padding-bottom: max(1rem, env(safe-area-inset-bottom));
+            background: rgba(0, 0, 0, 0.7);
+        }
+
         .eval-modal-shell {
             display: flex;
             flex-direction: column;
@@ -605,19 +618,37 @@
             color: #fbbf24;
         }
 
-        @media (max-width: 640px) {
-            .eval-score-grid {
-                grid-template-columns: repeat(2, minmax(0, 1fr));
+        @media (max-width: 1024px) {
+            .eval-modal-overlay {
+                align-items: flex-end;
+                padding: 0;
+                padding-bottom: env(safe-area-inset-bottom);
+            }
+
+            .eval-modal-shell {
+                border-radius: 1.25rem 1.25rem 0 0;
+                max-height: min(92dvh, 92vh);
             }
 
             .eval-modal-footer {
                 flex-direction: column;
+                gap: 0.625rem;
+                padding: 1rem;
+                padding-bottom: max(1rem, env(safe-area-inset-bottom));
             }
 
             .eval-modal-btn-primary,
-            .eval-modal-btn-cancel {
+            .eval-modal-btn-cancel,
+            .eval-modal-btn-close {
                 flex: 1 1 auto;
                 width: 100%;
+                min-height: 48px;
+            }
+        }
+
+        @media (max-width: 640px) {
+            .eval-score-grid {
+                grid-template-columns: repeat(2, minmax(0, 1fr));
             }
         }
 
@@ -997,7 +1028,7 @@
     </div>
     
     <!-- EVALUATION DETAILS MODAL -->
-    <div id="evaluationModal" class="fixed inset-0 bg-black/70 z-50 hidden flex items-center justify-center p-4">
+    <div id="evaluationModal" class="eval-modal-overlay hidden">
         <div class="eval-modal-shell bg-white shadow-2xl max-w-3xl relative">
             <button onclick="closeEvaluationModal()" class="absolute top-5 right-5 text-gray-400 hover:text-gray-600 z-10" aria-label="Close">
                 <i class="fas fa-times text-xl"></i>
@@ -1102,7 +1133,7 @@
     </div>
     
     <!-- TEACHER EVALUATION MODAL -->
-    <div id="teacherEvaluationModal" class="fixed inset-0 bg-black/70 z-50 hidden flex items-center justify-center p-4">
+    <div id="teacherEvaluationModal" class="eval-modal-overlay hidden">
         <div class="eval-modal-shell bg-white shadow-2xl max-w-2xl relative">
             <button onclick="closeTeacherEvaluationReportModal()" class="absolute top-5 right-5 text-gray-400 hover:text-gray-600 z-10" aria-label="Close">
                 <i class="fas fa-times text-xl"></i>
@@ -1171,7 +1202,7 @@
     </div>
     
     <!-- SUBMITTED FEEDBACK MODAL -->
-    <div id="submittedFeedbackModal" class="fixed inset-0 bg-black/70 z-50 hidden flex items-center justify-center p-4">
+    <div id="submittedFeedbackModal" class="eval-modal-overlay hidden">
         <div class="bg-white rounded-3xl shadow-2xl overflow-hidden w-full max-w-4xl relative">
             <!-- Close Button -->
             <button onclick="closeSubmittedFeedbackModal()" class="absolute top-6 right-6 text-gray-500 hover:text-gray-700 z-10">
@@ -1228,7 +1259,7 @@
     </div>
     
     <!-- EDIT FEEDBACK MODAL -->
-    <div id="editFeedbackModal" class="fixed inset-0 bg-black/70 z-50 hidden flex items-center justify-center p-4">
+    <div id="editFeedbackModal" class="eval-modal-overlay hidden">
         <div class="eval-modal-shell bg-white shadow-2xl max-w-2xl relative">
             <button onclick="closeEditFeedbackModal()" class="absolute top-5 right-5 text-gray-400 hover:text-gray-600 z-10" aria-label="Close">
                 <i class="fas fa-times text-xl"></i>
@@ -1290,7 +1321,7 @@
     </div>
     
     <!-- STUDENT TEACHER EVALUATION MODAL -->
-    <div id="studentTeacherEvaluationModal" class="fixed inset-0 bg-black/70 z-50 hidden flex items-center justify-center p-4">
+    <div id="studentTeacherEvaluationModal" class="eval-modal-overlay hidden">
         <div class="eval-modal-shell bg-white shadow-2xl max-w-2xl relative">
             <button onclick="closeTeacherEvaluationModal()" class="absolute top-5 right-5 text-gray-400 hover:text-gray-600 z-10" aria-label="Close">
                 <i class="fas fa-times text-xl"></i>

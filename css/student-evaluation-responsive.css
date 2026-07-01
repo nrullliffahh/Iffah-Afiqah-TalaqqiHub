@@ -50,24 +50,35 @@
     max-width: 100%;
 }
 
-@media (max-width: 768px) {
+/* Modals above sticky navbar (z-index 100) and sidebar (1000) */
+.eval-modal-overlay {
+    z-index: 1100 !important;
+}
+
+@media (max-width: 1024px) {
     .student-evaluation .session-time {
         min-width: 0;
     }
 
-    .student-evaluation .eval-modal-shell {
-        max-height: min(94dvh, 94vh);
+    .eval-modal-overlay {
+        align-items: flex-end !important;
     }
 
-    .student-evaluation .eval-modal-scroll {
+    .eval-modal-shell {
+        width: 100%;
+        max-width: 100%;
+    }
+
+    .eval-modal-scroll {
         padding-left: 1rem !important;
         padding-right: 1rem !important;
     }
+}
 
-    .student-evaluation .eval-modal-footer {
-        padding-left: 1rem;
-        padding-right: 1rem;
-        padding-bottom: max(1rem, env(safe-area-inset-bottom));
+@media (max-width: 768px) {
+    .student-evaluation.page-content {
+        padding-left: max(16px, env(safe-area-inset-left)) !important;
+        padding-right: max(16px, env(safe-area-inset-right)) !important;
     }
 }
 
@@ -81,8 +92,6 @@
 @supports (padding: max(0px)) {
     @media (max-width: 1024px) {
         .student-evaluation.page-content {
-            padding-left: max(16px, env(safe-area-inset-left)) !important;
-            padding-right: max(16px, env(safe-area-inset-right)) !important;
             padding-bottom: max(24px, env(safe-area-inset-bottom)) !important;
         }
     }
