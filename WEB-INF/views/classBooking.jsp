@@ -1262,23 +1262,23 @@
         </div>
     </div>
     
-    <div id="cancelModal" class="hidden fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-[1050] booking-modal-overlay booking-cancel-modal-overlay" aria-hidden="true">
-        <div class="bg-white rounded-2xl shadow-2xl w-full mx-4 booking-details-modal-panel booking-cancel-modal-panel" role="dialog" aria-modal="true" aria-labelledby="cancelModalTitle">
-            <h3 id="cancelModalTitle" class="booking-cancel-title">Cancel Booking</h3>
-            <p id="cancelSummary" class="booking-cancel-summary">Are you sure you want to cancel this class?</p>
-            <div id="cancelBookingInfo" class="booking-cancel-info">
-                <p id="cancelClassType" class="booking-cancel-info-title">Quran Recitation &amp; Tajweed</p>
-                <p id="cancelSchedule" class="booking-cancel-info-meta"></p>
-                <p id="cancelTeacherLine" class="booking-cancel-info-meta"></p>
+    <div id="cancelModal" class="hidden fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-[1050] p-4 sm:p-6" aria-hidden="true">
+        <div class="bg-white rounded-2xl shadow-2xl w-full max-w-md mx-auto p-6 sm:p-8" role="dialog" aria-modal="true" aria-labelledby="cancelModalTitle">
+            <h3 id="cancelModalTitle" class="text-2xl font-bold text-gray-800 mb-2">Cancel Booking</h3>
+            <p id="cancelSummary" class="text-sm text-gray-600 mb-4">Are you sure you want to cancel this class?</p>
+            <div id="cancelBookingInfo" class="mb-5">
+                <p id="cancelClassType" class="font-medium text-gray-800">Quran Recitation &amp; Tajweed</p>
+                <p id="cancelSchedule" class="text-sm text-gray-600"></p>
+                <p id="cancelTeacherLine" class="text-sm text-gray-600 mt-1"></p>
             </div>
-            <form method="POST" action="<%= request.getContextPath() %>/student/cancel-booking" class="booking-cancel-modal-form">
+            <form method="POST" action="<%= request.getContextPath() %>/student/cancel-booking">
                 <input type="hidden" name="bookingId" id="cancelBookingId">
-                <label for="cancelReason" class="booking-cancel-label">Reason for Cancellation <span class="text-red-500">*</span></label>
+                <label for="cancelReason" class="block text-sm font-semibold text-gray-700 mb-2">Reason for Cancellation <span class="text-red-500">*</span></label>
                 <textarea id="cancelReason" name="reason" rows="4" placeholder="Please provide a reason for cancelling this booking..."
-                          class="booking-cancel-reason w-full border-2 border-gray-300 rounded-xl focus:outline-none focus:border-red-500 transition-colors resize-none" required></textarea>
-                <div class="booking-cancel-modal-footer">
-                    <button type="button" onclick="closeCancelModal()" class="booking-cancel-modal-btn booking-cancel-modal-btn-secondary">Keep Booking</button>
-                    <button type="submit" class="booking-cancel-modal-btn booking-cancel-modal-btn-danger">Cancel Booking</button>
+                          class="w-full px-4 py-3 border-2 border-gray-300 rounded-xl focus:outline-none focus:border-red-500 transition-colors resize-none mb-5" required></textarea>
+                <div class="flex flex-col sm:flex-row gap-3">
+                    <button type="button" onclick="closeCancelModal()" class="flex-1 min-h-[44px] px-4 py-3 border-2 border-gray-300 bg-white text-gray-700 rounded-xl font-semibold hover:bg-gray-50 transition-colors">Keep Booking</button>
+                    <button type="submit" class="flex-1 min-h-[44px] px-4 py-3 bg-red-200 text-red-700 rounded-xl font-semibold hover:bg-red-300 transition-colors">Cancel Booking</button>
                 </div>
             </form>
         </div>
