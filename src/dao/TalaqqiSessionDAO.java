@@ -660,6 +660,11 @@ public class TalaqqiSessionDAO {
      */
     public boolean updateQuranReference(String sessionId, String teacherId,
                                         int surahNumber, int ayahStart, int ayahEnd) {
+        return updateQuranReference(sessionId, teacherId, surahNumber, ayahStart, ayahEnd, 1);
+    }
+
+    public boolean updateQuranReference(String sessionId, String teacherId,
+                                        int surahNumber, int ayahStart, int ayahEnd, int juzuk) {
         Connection conn = null;
         PreparedStatement ps = null;
         boolean classScheduleUpdated = false;
@@ -713,8 +718,8 @@ public class TalaqqiSessionDAO {
             classScheduleUpdated = updateQuranOnScheduleFallback(sessionId, teacherId, surahNumber, ayahStart, ayahEnd);
         }
 
-        // Save live teacher display (surah, ayah, ayah range end when column exists)
-        boolean savedDisplay = saveQuranDisplay(sessionId, surahNumber, ayahStart, ayahEnd);
+        int resolvedJuzuk = juzuk > 0 ? Math.min(30, juzuk) : 1;
+        boolean savedDisplay = saveQuranDisplay(sessionId, surahNumber, ayahStart, ayahEnd, resolvedJuzuk);
 
         return classScheduleUpdated || savedDisplay;
     }
@@ -975,9 +980,14 @@ public class TalaqqiSessionDAO {
      * DisplayIds are sequential: Q001, Q002, Q003, etc.
      */
     public boolean saveQuranDisplay(String sessionId, int surah, int ayah, int ayahEnd) {
+        return saveQuranDisplay(sessionId, surah, ayah, ayahEnd, 1);
+    }
+
+    public boolean saveQuranDisplay(String sessionId, int surah, int ayah, int ayahEnd, int juzuk) {
         if (sessionId == null || sessionId.trim().isEmpty()) {
             return false;
         }
+        int resolvedJuzuk = juzuk > 0 ? Math.min(30, juzuk) : 1;
 
         Connection conn = null;
         PreparedStatement ps = null;
@@ -1038,7 +1048,7 @@ public class TalaqqiSessionDAO {
 
             String sql;
             if (existingDisplayId != null) {
-                sql = "UPDATE qurandisplay SET currentSurah = ?, currentAyah = ?";
+                sql = "UPDATE qurandisplay SET currentSurah = ?, currentAyah = ?, currentJuzuk = ?";
                 if (hasAyahEndCol) {
                     sql += ", currentAyahEnd = ?";
                 }
@@ -1057,7 +1067,7 @@ public class TalaqqiSessionDAO {
                     vals.append(", ?");
                 }
                 cols.append(", currentJuzuk");
-                vals.append(", 1");
+                vals.append(", ?");
                 if (bySession) {
                     cols.append(", sessionId");
                     vals.append(", ?");
@@ -1074,6 +1084,7 @@ public class TalaqqiSessionDAO {
             if (existingDisplayId != null) {
                 ps.setInt(idx++, surah);
                 ps.setInt(idx++, ayah);
+                ps.setInt(idx++, resolvedJuzuk);
                 if (hasAyahEndCol) {
                     if (ayahEnd > ayah) {
                         ps.setInt(idx++, ayahEnd);
@@ -1099,6 +1110,7 @@ public class TalaqqiSessionDAO {
                         ps.setNull(idx++, java.sql.Types.INTEGER);
                     }
                 }
+                ps.setInt(idx++, resolvedJuzuk);
                 if (bySession) {
                     ps.setString(idx++, sessionId.trim());
                 }

@@ -236,6 +236,10 @@ public class TeacherTalaqqiSessionServlet extends HttpServlet {
                 String surahParam = request.getParameter("surah");
                 String ayahParam  = request.getParameter("ayah");
                 String ayahEndParam = request.getParameter("ayahEnd");
+                String juzukParam   = request.getParameter("juzuk");
+                if (juzukParam == null || juzukParam.trim().isEmpty()) {
+                    juzukParam = request.getParameter("juz");
+                }
 
                 if (isEmpty(sessionId) || isEmpty(surahParam) || isEmpty(ayahParam)) {
                     sendJson(response, SC_BAD_REQUEST,
@@ -243,16 +247,19 @@ public class TeacherTalaqqiSessionServlet extends HttpServlet {
                     return;
                 }
 
-                int surah, ayah, ayahEnd = 0;
+                int surah, ayah, ayahEnd = 0, juzuk = 1;
                 try {
                     surah = Integer.parseInt(surahParam.trim());
                     ayah  = Integer.parseInt(ayahParam.trim());
                     if (!isEmpty(ayahEndParam)) {
                         ayahEnd = Integer.parseInt(ayahEndParam.trim());
                     }
+                    if (!isEmpty(juzukParam)) {
+                        juzuk = Integer.parseInt(juzukParam.trim());
+                    }
                 } catch (NumberFormatException e) {
                     sendJson(response, SC_BAD_REQUEST,
-                        "{\"success\":false,\"error\":\"surah, ayah and ayahEnd must be integers\"}");
+                        "{\"success\":false,\"error\":\"surah, ayah, ayahEnd and juzuk must be integers\"}");
                     return;
                 }
 
@@ -261,18 +268,24 @@ public class TeacherTalaqqiSessionServlet extends HttpServlet {
                         "{\"success\":false,\"error\":\"Invalid surah or ayah number\"}");
                     return;
                 }
+                if (juzuk < 1 || juzuk > 30) {
+                    sendJson(response, SC_BAD_REQUEST,
+                        "{\"success\":false,\"error\":\"Invalid juz number (must be 1-30)\"}");
+                    return;
+                }
                 if (ayahEnd > 0 && ayahEnd < ayah) {
                     sendJson(response, SC_BAD_REQUEST,
                         "{\"success\":false,\"error\":\"ayahEnd must be >= ayah (start)\"}");
                     return;
                 }
 
-                boolean updated = talaqqiSessionDAO.updateQuranReference(sessionId, teacherId, surah, ayah, ayahEnd);
+                boolean updated = talaqqiSessionDAO.updateQuranReference(sessionId, teacherId, surah, ayah, ayahEnd, juzuk);
                 sendJson(response, 200,
                     "{\"success\":" + updated + "," +
                     "\"surah\":" + surah + "," +
                     "\"ayah\":"  + ayah  + "," +
-                    "\"ayahEnd\":" + ayahEnd + "}");
+                    "\"ayahEnd\":" + ayahEnd + "," +
+                    "\"juzuk\":" + juzuk + "}");
                 break;
             }
 

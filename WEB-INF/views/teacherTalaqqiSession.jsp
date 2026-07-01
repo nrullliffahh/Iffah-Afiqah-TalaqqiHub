@@ -33,6 +33,7 @@
     int initAyahEnd = hasSession && ts.getCurrentAyahEnd() > 0
             ? ts.getCurrentAyahEnd()
             : initAyah + 3;
+    int initJuz = hasSession && ts.getCurrentJuzukNumber() > 0 ? ts.getCurrentJuzukNumber() : 1;
 
     String safeTeacherName = (teacherName != null ? teacherName : "Teacher")
             .replace("&", "&amp;").replace("\"", "&quot;");
@@ -343,7 +344,7 @@
                         <div class="grid grid-cols-3 gap-2 text-center">
                             <div>
                                 <p class="text-xs text-[#64748b] font-medium">Juz</p>
-                                <p id="currentJuz" class="text-base md:text-lg font-bold text-teal-600 mt-1">1</p>
+                                <p id="currentJuz" class="text-base md:text-lg font-bold text-teal-600 mt-1"><%= initJuz %></p>
                             </div>
                             <div>
                                 <p class="text-xs text-[#64748b] font-medium">Surah</p>
@@ -407,6 +408,7 @@
      data-init-surah="<%= initSurah %>"
      data-init-ayah="<%= initAyah %>"
      data-init-ayah-end="<%= initAyahEnd %>"
+     data-init-juz="<%= initJuz %>"
      data-is-active="<%= isSessionActive %>"
      data-session-duration="<%= duration %>"
      data-is-completed="<%= isSessionCompleted %>"
@@ -437,6 +439,8 @@
         currentSurah: parseInt(cfg.initSurah || "2", 10),
         currentAyah: parseInt(cfg.initAyah || "1", 10),
         currentAyahEnd: parseInt(cfg.initAyahEnd || String(parseInt(cfg.initAyah || "1", 10) + 3), 10),
+        currentJuzuk: parseInt(cfg.initJuz || "1", 10),
+        originalJuzuk: parseInt(cfg.initJuz || "1", 10),
         appliedAyahStart: parseInt(cfg.initAyah || "1", 10),
         appliedAyahEnd: parseInt(cfg.initAyahEnd || String(parseInt(cfg.initAyah || "1", 10) + 3), 10),
         focusAyah: parseInt(cfg.initAyah || "1", 10),
@@ -711,8 +715,8 @@
     }
 
     function loadJuzList() {
-        if (!document.getElementById("juzSelector")) return;
         var juzSel = document.getElementById("juzSelector");
+        if (!juzSel) return;
         juzSel.innerHTML = "";
         for (var i = 1; i <= 30; i++) {
             var opt = document.createElement("option");
@@ -720,6 +724,7 @@
             opt.textContent = "Juz " + i;
             juzSel.appendChild(opt);
         }
+        juzSel.value = String(SessionModel.currentJuzuk > 0 ? SessionModel.currentJuzuk : 1);
     }
 
     function loadSurahList() {
@@ -835,7 +840,7 @@
             applyTranslationVisibility();
 
             if (pushToServer) {
-                persistQuranRef(surah, ayahStart, ayahEnd);
+                persistQuranRef(surah, ayahStart, ayahEnd, SessionModel.currentJuzuk);
             }
             syncStatusText("Synced");
         }).catch(function () {
@@ -909,9 +914,16 @@
     }
 
     function applyDisplay() {
+        var juzSel = document.getElementById("juzSelector");
         var surah = parseInt(surahSelector ? surahSelector.value : SessionModel.currentSurah, 10);
         var start = parseInt(ayahStartInput ? ayahStartInput.value : SessionModel.currentAyah, 10);
         var end = parseInt(ayahEndInput ? ayahEndInput.value : SessionModel.currentAyahEnd, 10);
+        var juzuk = parseInt(juzSel ? juzSel.value : SessionModel.currentJuzuk, 10) || 1;
+
+        if (juzuk < 1 || juzuk > 30) {
+            toast("Please choose a valid juz (1-30)", "error");
+            return;
+        }
 
         if (!surah || surah < 1 || surah > 114) {
             toast("Please choose a valid surah", "error");
@@ -931,29 +943,31 @@
                 end = SessionModel.totalAyahs;
                 if (ayahEndInput) ayahEndInput.value = String(end);
             }
-            loadVerseRange(surah, start, end, true);
-            
-            // SAVE TO DATABASE: Save Quran display to qurandisplay table
-            persistQuranRef(surah, start, end);
-            
-            // Update current display UI
-            if (currentSurah) currentSurah.textContent = String(surah);
-            if (currentAyah) currentAyah.textContent = String(start);
             SessionModel.currentSurah = surah;
             SessionModel.currentAyah = start;
             SessionModel.currentAyahEnd = end;
+            SessionModel.currentJuzuk = juzuk;
             SessionModel.appliedAyahStart = start;
             SessionModel.appliedAyahEnd = end;
             SessionModel.focusAyah = start;
+
+            loadVerseRange(surah, start, end, true);
+            updateCurrentDisplay();
             
             toast("Quran display saved", "success");
         });
     }
 
     function resetDisplay() {
+        SessionModel.currentSurah = parseInt(cfg.initSurah || "2", 10);
+        SessionModel.currentAyah = parseInt(cfg.initAyah || "1", 10);
+        SessionModel.currentAyahEnd = parseInt(cfg.initAyahEnd || String(parseInt(cfg.initAyah || "1", 10) + 3), 10);
+        SessionModel.currentJuzuk = SessionModel.originalJuzuk;
         if (surahSelector) surahSelector.value = String(SessionModel.currentSurah);
         if (ayahStartInput) ayahStartInput.value = String(SessionModel.currentAyah);
         if (ayahEndInput) ayahEndInput.value = String(SessionModel.currentAyahEnd);
+        var juzSel = document.getElementById("juzSelector");
+        if (juzSel) juzSel.value = String(SessionModel.currentJuzuk);
         applyTranslationVisibility();
         toast("Display reset to original", "info");
         loadVerseRange(SessionModel.currentSurah, SessionModel.currentAyah, SessionModel.currentAyahEnd, false);
@@ -971,7 +985,7 @@
     }
 
     function updateCurrentDisplay() {
-        if (currentJuz) currentJuz.textContent = "1";
+        if (currentJuz) currentJuz.textContent = String(SessionModel.currentJuzuk > 0 ? SessionModel.currentJuzuk : 1);
         if (currentSurah) currentSurah.textContent = String(SessionModel.currentSurah);
         if (currentAyah) {
             currentAyah.textContent = SessionModel.appliedAyahEnd > SessionModel.appliedAyahStart
@@ -990,7 +1004,8 @@
         if (bismillahTranslit) bismillahTranslit.style.display = show ? '' : 'none';
     }
 
-    function persistQuranRef(surah, ayah, ayahEnd) {
+    function persistQuranRef(surah, ayah, ayahEnd, juzuk) {
+        var resolvedJuzuk = juzuk || SessionModel.currentJuzuk || 1;
         apiFetch("/teacher/sessions", {
             method: "POST",
             headers: { "Content-Type": "application/x-www-form-urlencoded" },
@@ -999,11 +1014,12 @@
                 + "&surah=" + encodeURIComponent(String(surah))
                 + "&ayah=" + encodeURIComponent(String(ayah))
                 + "&ayahEnd=" + encodeURIComponent(String(ayahEnd))
+                + "&juzuk=" + encodeURIComponent(String(resolvedJuzuk))
         })
         .then(function(r) { return r.json(); })
         .then(function(data) {
             if (data.success) {
-                console.log("[Quran Display] Saved to database - Surah:" + surah + ", Ayah:" + ayah);
+                console.log("[Quran Display] Saved to database - Surah:" + surah + ", Ayah:" + ayah + ", Juz:" + resolvedJuzuk);
             } else {
                 console.warn("[Quran Display] Save failed:", data.error);
             }
